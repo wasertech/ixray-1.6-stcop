@@ -165,6 +165,11 @@ bool UpdateBuffersD3D11();
 void ResizeBuffersD3D11(u16 Width, u16 Height);
 void DestroyD3D11();
 
+bool CreateVulkan();
+bool UpdateBuffersVulkan();
+void ResizeBuffersVulkan(u16 Width, u16 Height);
+void DestroyVulkan();
+
 bool CRenderDevice::InitRenderDeviceEditor()
 {
 	fill_vid_mode_list();
@@ -330,6 +335,11 @@ bool CRenderDevice::InitRenderDevice(APILevel API)
 		}
 		break;
 
+	case APILevel::Vulkan:
+		if (!CreateVulkan()) {
+			return false;
+		}
+		break;
 #endif
 	default:
 		break;
@@ -351,9 +361,12 @@ void CRenderDevice::DestroyRenderDevice()
 
 	switch (CurrentAPILevel) 
 	{
+
 	case APILevel::DX9:  DestroyD3D9(); break;
 	case APILevel::DX11: DestroyD3D11(); break;
+  	case APILevel::Vulkan: DestroyVulkan();break;
 	default: break;
+
 	}
 
 	free_vid_mode_list();
@@ -409,6 +422,7 @@ u32 CRenderDevice::GetTimeDeltaSafe(u32 starttime)
 	u32 curtime = dwTimeGlobal;
 	u32 result = curtime - starttime;
 
+
 	if (result > curtime)
 		result = u32(-1) - starttime + curtime;
 
@@ -431,6 +445,7 @@ void CRenderDevice::ResizeBuffers(u32 Width, u32 Height)
 	{
 	case APILevel::DX9:  ResizeBuffersD3D9(Width, Height); break;
 	case APILevel::DX11: ResizeBuffersD3D11(Width, Height); break;
+	case APILevel::Vulkan: ResizeBuffersVulkan(Width, Height); break;
 	default: break;
 	}
 
