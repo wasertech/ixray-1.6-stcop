@@ -147,4 +147,3 @@ When contributing to the Vulkan renderer:
 - [Vulkan Specification](https://www.khronos.org/vulkan/)
 - [Vulkan Tutorial](https://vulkan-tutorial.com/)
 - [LunarG Vulkan SDK](https://vulkan.lunarg.com/)
-- [IX-Ray Repository](https://github.com/IX-Ray/xray-16)
