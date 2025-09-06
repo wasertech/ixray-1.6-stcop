@@ -1,10 +1,10 @@
-# Vulkan Renderer for OpenXRay
+# Vulkan Renderer for IX-Ray
 
-This document describes the new Vulkan renderer implementation for OpenXRay.
+This document describes the new Vulkan renderer implementation for IX-Ray.
 
 ## Overview
 
-The Vulkan renderer (`xrRenderVK`) is a new rendering backend that provides native Vulkan support for OpenXRay. It follows the same architectural patterns as existing renderers (R1, R2, R4) but uses the modern Vulkan graphics API.
+The Vulkan renderer (`xrRenderVK`) is a new rendering backend that provides native Vulkan support for IX-Ray. It follows the same architectural patterns as existing renderers (R1, R2, R4) but uses the modern Vulkan graphics API.
 
 ## Features
 
@@ -147,4 +147,4 @@ When contributing to the Vulkan renderer:
 - [Vulkan Specification](https://www.khronos.org/vulkan/)
 - [Vulkan Tutorial](https://vulkan-tutorial.com/)
 - [LunarG Vulkan SDK](https://vulkan.lunarg.com/)
-- [OpenXRay Repository](https://github.com/OpenXRay/xray-16)
+- [IX-Ray Repository](https://github.com/IX-Ray/xray-16)
