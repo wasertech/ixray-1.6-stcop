@@ -7,7 +7,7 @@
 #include "mu_model_face.h"
 #include "xrMU_Model.h"
 #include "xrMU_Model_Reference.h"
-#include "../../xrCDB/xrCDB.h"
+#include "../../xrCore/Collision/xrCDB.h"
 
 bool g_using_smooth_groups = true;
 bool g_smooth_groups_by_faces = false;
@@ -19,7 +19,7 @@ xrLC_GlobalData*	lc_global_data()
 {
 	return data;
 }
-
+xr_vector<base_Face*> FacesStorage;
 void	create_global_data()
 {
 	VERIFY( !inlc_global_data() );
@@ -31,11 +31,12 @@ void	destroy_global_data()
 	if(data)
 		data->clear();
 	xr_delete(data);
+	FacesStorage.clear();
 }
 
 
-xrLC_GlobalData::xrLC_GlobalData	():
- _b_nosun(false),_gl_linear(false),
+xrLC_GlobalData::xrLC_GlobalData() :
+	_gl_linear(false),
 	b_vert_not_register( false ),
 	_skipInvalid(false), _skipTesselate(false), _lmapRGBA(false),
 	_skipSubdivide(false)
@@ -55,7 +56,7 @@ void xrLC_GlobalData::clear_build_textures_surface()
 	xr_vector<b_BuildTexture>::iterator i = textures().begin();
 	xr_vector<b_BuildTexture>::const_iterator e = textures().end();
 	for(;i!=e;++i)
-		::clear((*i));
+		xr_free((*i).pSurface);
 
 	Memory.mem_compact();
 	clMsg( "mem usage after clear build textures surface: %u", Memory.mem_usage() );
@@ -70,7 +71,7 @@ void xrLC_GlobalData::clear_build_textures_surface( const xr_vector<u32> &exept 
 	{
 		xr_vector<u32>::const_iterator ff = std::find( exept.begin(), exept.end(),u32( i - b ) );
 		if( ff ==  exept.end() )
-			::clear((*i));
+			xr_free((*i).pSurface);
 	}
 	Memory.mem_compact();
 	clMsg( "mem usage after clear build textures surface: %u", Memory.mem_usage() );
@@ -88,7 +89,7 @@ void		xrLC_GlobalData	::				initialize		()
 	if (strstr(Core.Params,"-att"))	_gl_linear	= true;
 }
 
-xr_vector<base_Face*> FacesStorage;
+
 xrSRWLock NaxGuard;
 
 XRLC_LIGHT_API base_Face* convert_nax(u32 dummy)
@@ -109,10 +110,7 @@ XRLC_LIGHT_API u32 convert_nax(base_Face* F)
 	FacesStorage.push_back(F);
 	return FacesStorage.size() - 1;
 }
-
-static xr_vector<Fvector> verts;
-static xr_vector<CDB::TRI> tris;
-  
+ 
 void	xrLC_GlobalData::mu_models_calc_materials()
 {
 	for (u32 m=0; m<mu_models().size(); m++)
@@ -182,7 +180,7 @@ void vec_spetial_clear( xr_vector<T> &v )
 {
 	typename xr_vector<T>::iterator i = v.begin(), e = v.end();
 	for(;i!=e;++i)
-		clear(*i);
+		xr_free((*i).pSurface);
 	v.clear();
 }
 

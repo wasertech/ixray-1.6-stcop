@@ -182,10 +182,14 @@ void attachable_hud_item::tune(Ivector values)
 #endif // #ifndef MASTER_GOLD
 }
 
+bool forceFPDraw = false;
+bool forceFP2Draw = false;
+bool forceSPDraw = false;
+
 void attachable_hud_item::debug_draw_firedeps()
 {
-#ifndef MASTER_GOLD
-	bool bForce = (hud_adj_mode==3||hud_adj_mode==4);
+#ifdef DEBUG_DRAW
+	bool bForce = (hud_adj_mode==3||hud_adj_mode==4||forceFPDraw||forceFP2Draw||forceSPDraw);
 
 	if(hud_adj_mode==5||hud_adj_mode==6||hud_adj_mode==7 ||bForce)
 	{
@@ -194,13 +198,13 @@ void attachable_hud_item::debug_draw_firedeps()
 		firedeps			fd;
 		setup_firedeps		(fd);
 		
-		if (hud_adj_mode == 5 || bForce)
+		if (hud_adj_mode == 5 || forceFPDraw)
 			render.draw_aabb(fd.vLastFP, 0.005f, 0.005f, 0.005f, color_xrgb(255, 0, 0));
 
-		if (hud_adj_mode == 6)
+		if (hud_adj_mode == 6 || forceFP2Draw)
 			render.draw_aabb(fd.vLastFP2, 0.005f, 0.005f, 0.005f, color_xrgb(0, 0, 255));
 
-		if (hud_adj_mode == 7)
+		if (hud_adj_mode == 7 || forceSPDraw)
 			render.draw_aabb(fd.vLastSP, 0.005f, 0.005f, 0.005f, color_xrgb(0, 255, 0));
 	}
 #endif // DEBUG
@@ -231,8 +235,8 @@ void player_hud::tune(Ivector _values)
 		if(idx)
 			_curr_dr	/= 20.0f;
 
-		Fvector& pos_	=(idx!=0)?m_attached_items[hud_adj_item_idx]->hands_offset_pos():m_attached_items[hud_adj_item_idx]->hands_attach_pos();
-		Fvector& rot_	=(idx!=0)?m_attached_items[hud_adj_item_idx]->hands_offset_rot():m_attached_items[hud_adj_item_idx]->hands_attach_rot();
+		Fvector& pos_ = m_attached_items[hud_adj_item_idx]->m_measures.m_hands_positions.hands_offsets[0][idx];
+		Fvector& rot_ = m_attached_items[hud_adj_item_idx]->m_measures.m_hands_positions.hands_offsets[1][idx];
 
 		if(hud_adj_mode==1)
 		{

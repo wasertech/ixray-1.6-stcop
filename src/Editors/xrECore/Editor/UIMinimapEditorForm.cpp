@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "UIMinimapEditorForm.h"
 #include "../../../xrCore/os_clipboard.h"
+#include "imgui.h"
 
 UIMinimapEditorForm*    UIMinimapEditorForm::Form = nullptr;
 
@@ -22,9 +23,14 @@ UIMinimapEditorForm::UIMinimapEditorForm()
 UIMinimapEditorForm::~UIMinimapEditorForm()
 {
 	for (auto& element : elements)
-		if (element.Texture) element.Texture->Release();
+	{
+		if (element.Texture)
+			IM_TEXTURE_RELEASE(element.Texture);
+	}
 
-	if (m_BackgroundTexture)m_BackgroundTexture->Release();
+	if (m_BackgroundTexture)
+		IM_TEXTURE_RELEASE(m_BackgroundTexture);
+
 	selectedElement = nullptr;
 
 	elements.clear();
@@ -34,7 +40,9 @@ void UIMinimapEditorForm::ReloadLevelsList()
 {
 	levels.clear();
 	FS_FileSet lst;
-	if (FS.file_list(lst, _game_levels_, FS_ListFolders | FS_RootOnly)) {
+
+	if (FS.file_list(lst, _game_levels_, FS_ListFolders | FS_RootOnly))
+	{
 		FS_FileSetIt	it = lst.begin();
 		FS_FileSetIt	_E = lst.end();
 		for (; it != _E; it++) 
@@ -265,23 +273,23 @@ void UIMinimapEditorForm::RenderCanvas()
 
 		if (element.EdSelected && !element.EdLocked) 
 		{
-			if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_UpArrow))) 
+			if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) 
 			{
 				element.position.y-=0.5f;
 				isEdited = true;
 			}
-			else if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_DownArrow)))
+			else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow))
 			{
 				element.position.y+= 0.5f;
 				isEdited = true;
 			}
 
-			if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftArrow))) 
+			if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) 
 			{
 				element.position.x-= 0.5f;
 				isEdited = true;
 			}
-			else if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_RightArrow))) 
+			else if (ImGui::IsKeyPressed(ImGuiKey_RightArrow))
 			{
 				element.position.x+= 0.5f;
 				isEdited = true;
@@ -703,7 +711,7 @@ void UIMinimapEditorForm::CreateElementPopup()
 			el_new.position = ImVec2(0, 0);
 			el_new.name = CreatingData.name;
 			el_new.TexturePath = CreatingData.TexturePath;
-			el_new.Texture = nullptr;
+			el_new.Texture = 0/*nullptr*/;
 
 			string_path p;
 			if (!el_new.TexturePath.empty())
@@ -733,7 +741,8 @@ void UIMinimapEditorForm::CreateElementPopup()
 			CreatingData.TexturePath.clear();
 			CreatingData.name.clear();
 			if (CreatingData.Texture)
-				CreatingData.Texture->Release();
+				IM_TEXTURE_RELEASE(CreatingData.Texture);
+
 			CreatingData.Texture = nullptr;
 		}
 
@@ -898,10 +907,13 @@ void UIMinimapEditorForm::ShowMenu()
 		if (ImGui::Button("Delete"))
 		{
 			auto it = elements.begin();
-			for (; it != elements.end(); ++it) {
-				if (&(*it) == selectedElement) {
+			for (; it != elements.end(); ++it)
+			{
+				if (&(*it) == selectedElement)
+				{
 					if (it->Texture)
-						it->Texture->Release();
+						IM_TEXTURE_RELEASE(it->Texture);
+
 					it->Texture = nullptr;
 
 					elements.erase(it);
@@ -1139,7 +1151,7 @@ void UIMinimapEditorForm::Draw()
 {
 	if (m_TextureRemove)
 	{
-		m_TextureRemove->Release();
+		IM_TEXTURE_RELEASE(m_TextureRemove);
 		m_TextureRemove = nullptr;
 	}
 	if (m_BackgroundTexture == nullptr)
@@ -1184,7 +1196,7 @@ void UIMinimapEditorForm::Draw()
 
 	}
 	
-	if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Equal)))
+	if (ImGui::IsKeyPressed(ImGuiKey_Equal))
 	{
 		m_DebugView = !m_DebugView;
 	}
@@ -1249,7 +1261,8 @@ int UIMinimapEditorForm::LoadTexture(Element& el, const xr_string texture)
 	}
 
 	if (el.Texture)
-		el.Texture->Release();
+		IM_TEXTURE_RELEASE(el.Texture);
+
 	el.Texture = nullptr;
 
 	if (texture == "")

@@ -4,7 +4,6 @@
 #include "stdafx.h"
 
 #include "IM_Manipulator.h"
-#include "../xrEUI/imgui.h"
 #include "../xrEUI/ImGuizmo.h"
 #include "../../Scene/scene.h"
 #include "../../UI_LevelTools.h"
@@ -34,7 +33,7 @@ void IM_Manipulator::Render(float canvasX, float canvasY, float canvasWidth, flo
 	{
 		for (SAINode* Node : ToolBase->Nodes())
 		{
-			if (Node->flags.test(SAINode::flSelected))
+			if (Node && Node->flags.test(SAINode::flSelected))
 			{
 				ObjectMatrix.c = Node->Pos;
 				NodeObject = Node;
@@ -96,7 +95,9 @@ void IM_Manipulator::CommandScale(ObjectList& lst, Fmatrix& ObjectMatrix, Fmatri
 	float* PtrScaleSnap = LTools->GetSettings(etfScaleFixed) ? ScaleSnap : nullptr;
 
 	if (PtrScaleSnap)
+	{
 		std::fill_n(ScaleSnap, std::size(ScaleSnap), Tools->m_ScaleFixed);
+	}
 
 	bool IsSingleObject = lst.size() == 1;
 
@@ -143,15 +144,14 @@ void IM_Manipulator::CommandScale(ObjectList& lst, Fmatrix& ObjectMatrix, Fmatri
 
 	if (IsManipulated)
 	{
-		Fvector Scale;
-		Scale.x = DeltaMatrix.i.magnitude();
-		Scale.y = DeltaMatrix.j.magnitude();
-		Scale.z = DeltaMatrix.k.magnitude();
+		Fvector pos, rot, scl;
+		DeltaMatrix.Decompose(scl, rot, pos);
 
-		for (ObjectIt it = lst.begin(); it != lst.end(); it++)
+		for (auto& obj : lst)
 		{
-			Scale.mul((*it)->GetScale());
-			(*it)->SetScale(Scale);
+			Fvector newScale;
+			newScale.mul(obj->GetScale(), scl);
+			obj->SetScale(newScale);
 		}
 		UI->UpdateScene();
 	}
@@ -161,21 +161,22 @@ void IM_Manipulator::CommandScale(ObjectList& lst, Fmatrix& ObjectMatrix, Fmatri
 		DeltaMatrixScale.invert();
 		DeltaMatrixScale.mulA_44(ObjectMatrix);
 
-		Fvector Scale;
-		Scale.x = DeltaMatrixScale.i.magnitude();
-		Scale.y = DeltaMatrixScale.j.magnitude();
-		Scale.z = DeltaMatrixScale.k.magnitude();
+		Fvector pos, rot, scl;
+		DeltaMatrixScale.Decompose(scl, rot, pos);
 
-		if (Scale.x < 0.05f || Scale.y < 0.05f || Scale.z < 0.05f)
+		if (scl.x < 0.05f || scl.y < 0.05f || scl.z < 0.05f)
+		{
 			return;
+		}
 
 		CCustomObject* Obj = lst.front();
-
-		Scale.mul(Obj->GetScale());
+		Fvector newScale;
+		newScale.mul(Obj->GetScale(), scl);
 		Obj->FPosition = ObjectMatrix.c;
-		Obj->SetScale(Scale);
+		Obj->SetScale(newScale);
 		UI->UpdateScene();
 	}
+
 	retFlag = false;
 }
 
@@ -194,7 +195,7 @@ void IM_Manipulator::CommandRotate(Fmatrix& ObjectMatrix, Fmatrix& DeltaMatrix, 
 		Flags = ImGuizmo::ROTATE_Y;
 	}
 
-	const bool IsManipulated = ImGuizmo::Manipulate((float*)&Device.mView, (float*)&Device.mProject, Flags, ImGuizmo::WORLD, (float*)&ObjectMatrix, (float*)&DeltaMatrix, PtrRotateSnap);
+	const bool IsManipulated = ImGuizmo::Manipulate((float*)&Device.mView, (float*)&Device.mProject, Flags, (ImGuizmo::MODE)imManipulator.MatrixMode, (float*)&ObjectMatrix, (float*)&DeltaMatrix, PtrRotateSnap);
 
 	if (IsManipulated)
 	{
@@ -237,7 +238,12 @@ void IM_Manipulator::CommandMove(ObjectList& lst, Fmatrix& ObjectMatrix, Fmatrix
 			}
 		}
 
-		const bool IsManipulated = ImGuizmo::Manipulate((float*)&Device.mView, (float*)&Device.mProject, ImGuizmo::TRANSLATE, ImGuizmo::WORLD, (float*)&ObjectMatrix, (float*)&DeltaMatrix, PtrMoveSnap);
+		const bool IsManipulated = ImGuizmo::Manipulate
+		(
+			(float*)&Device.mView, (float*)&Device.mProject, 
+			ImGuizmo::TRANSLATE, (ImGuizmo::MODE)imManipulator.MatrixMode, 
+			(float*)&ObjectMatrix, (float*)&DeltaMatrix, PtrMoveSnap
+		);
 
 		if (IsManipulated)
 		{
@@ -254,7 +260,12 @@ void IM_Manipulator::CommandMove(ObjectList& lst, Fmatrix& ObjectMatrix, Fmatrix
 	}
 	else if (NodeObject != nullptr)
 	{
-		const bool IsManipulated = ImGuizmo::Manipulate((float*)&Device.mView, (float*)&Device.mProject, ImGuizmo::TRANSLATE_Y, ImGuizmo::WORLD, (float*)&ObjectMatrix, (float*)&DeltaMatrix, PtrMoveSnap);
+		const bool IsManipulated = ImGuizmo::Manipulate
+		(
+			(float*)&Device.mView, (float*)&Device.mProject, 
+			ImGuizmo::TRANSLATE_Y, (ImGuizmo::MODE)imManipulator.MatrixMode, 
+			(float*)&ObjectMatrix, (float*)&DeltaMatrix, PtrMoveSnap
+		);
 
 		if (IsManipulated)
 		{

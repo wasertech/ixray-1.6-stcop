@@ -3,6 +3,9 @@
 enum ScreenPostProcessType
 {
     Vignette = 0,
-    Aberration = 1,
-    Saturation = 2
+    Aberration,
+    Saturation,
+    Raindrops,
+    GasMask,
+    Winter
 };

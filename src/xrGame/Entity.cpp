@@ -17,6 +17,7 @@
 #include "ai_space.h"
 #include "alife_simulator.h"
 #include "alife_time_manager.h"
+#include "../xrScripts/script_callback_ex.h"
 
 #define BODY_REMOVE_TIME		600000
 
@@ -27,6 +28,7 @@
 CEntity::CEntity()
 {
 	m_registered_member		= false;
+	LoadCallbackGlobals(m_isSkipKillActor, m_onSkipKillActor, "OnSkipKillActor");
 }
 
 CEntity::~CEntity()
@@ -79,7 +81,7 @@ void CEntity::Die(CObject* who)
 	VERIFY(m_registered_member);
 	m_registered_member = false;
 
-	if (IsGameTypeSingle())
+	if (OnServer())
 		Level().seniority_holder().team(g_Team()).squad(g_Squad()).group(g_Group()).unregister_member(this);
 }
 
@@ -217,7 +219,7 @@ BOOL CEntity::net_Spawn		(CSE_Abstract* DC)
 		return				(FALSE);
 
 //	SetfHealth			(E->fHealth);
-	IKinematics* pKinematics=smart_cast<IKinematics*>(Visual());
+	IKinematics* pKinematics = PKinematics(Visual());
 	CInifile* ini = nullptr;
 
 	if(pKinematics) ini = pKinematics->LL_UserData();
@@ -245,25 +247,23 @@ void CEntity::net_Destroy()
 
 extern bool isGodMode();
 
-void CEntity::KillEntity(u16 whoID)
+void CEntity::KillEntity(u16 whoID, bool bypass_actor_check /*AVO: added for actor_before_death callback*/)
 {
-	if (ID() == Actor()->ID())
+	if (IsGameTypeSingle() && (this->ID() == Actor()->ID()) && (bypass_actor_check != true))
 	{
 #ifndef MASTER_GOLD
 		if (isGodMode())
 		{
 			luabind::functor<void> functor;
-			if (ai().script_engine().functor("xr_effects.enable_ui", functor))
-			{
-				functor(Actor(), NULL);
-				return;
-			}
+			R_ASSERT2(ai().script_engine().functor(m_onSkipKillActor, functor), "failed to get OnSkipKillActor functor");
+			functor(Actor(), 0);
+			return;
 		}
 #endif // MASTER_GOLD
 
-		Actor()->detach_Vehicle();
-		Actor()->use_MountedWeapon(nullptr);
+		Actor()->use_HolderEx(nullptr, true);
 		Actor()->callback(GameObject::eActorBeforeDeath)(whoID);
+		return;
 	}
 
 	if (whoID != ID()) {
@@ -281,11 +281,13 @@ void CEntity::KillEntity(u16 whoID)
 		}
 #endif
 	}
-	else {
+	
+	else 
+	{
 		if (m_killer_id != ALife::_OBJECT_ID(-1))
 			return;
 	}
-
+	
 	m_killer_id			= whoID;
 
 	set_death_time		();

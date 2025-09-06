@@ -56,6 +56,8 @@ public:
 	void				SwitchToUpgrade			();
 	void				AddIconedMessage		(LPCSTR caption, LPCSTR text, LPCSTR texture_name, LPCSTR templ_name);
 
+	virtual CUIWindow* ui_cast_window() { return this; }
+
 protected:
 	//диалог
 	void				InitTalkDialog			();
@@ -65,7 +67,7 @@ protected:
 
 	// Функции добавления строк в листы вопросов и ответов
 public:
-	void				AddQuestion				(const shared_str& text, const shared_str& id, int number, bool b_finalizer);
+	void				AddQuestion				(const shared_str& text, const shared_str& id, int number, SPhraseInfo phInfo);
 	void				AddAnswer				(const shared_str& text, LPCSTR SpeakerName);
 	bool				b_disable_break;
 protected:
@@ -84,4 +86,8 @@ protected:
 	DIALOG_SHARED_PTR	m_pCurrentDialog;
 	bool				TopicMode				();
 	void				ToTopicMode				();
+
+private:
+	Fvector4 m_TalkDof = {};
+	float m_talkFovScale;
 };

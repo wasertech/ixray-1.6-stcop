@@ -28,7 +28,7 @@
 	<menu_main btn_height="34" font="graffiti22">
     <btn name="btn_new_game"	caption="ui_mm_newgame" />
 		<btn name="btn_load"		caption="ui_mm_load_game" />
-		<btn name="btn_net_game"	caption="ui_mm_network_game" />
+		<btn name="btn_multiplayer"	caption="ui_mm_network_game" />
 		<btn name="btn_options"		caption="ui_mm_options_n" />
 		<btn name="btn_credits"		caption="ui_mm_credits" />
 		<btn name="btn_quit"		caption="ui_mm_quit2windows" />
@@ -56,7 +56,7 @@
 		<btn name="btn_new_game"	caption="ui_mm_newgame" />
 		<btn name="btn_load"		caption="ui_mm_load_game" />
 		<btn name="btn_lastsave"	caption="ui_mm_last_save" />
-		<btn name="btn_net_game"	caption="ui_mm_network_game" />
+		<btn name="btn_multiplayer"	caption="ui_mm_network_game" />
 		<btn name="btn_options"		caption="ui_mm_options_n" />
 		<btn name="btn_credits"		caption="ui_mm_credits" />
 		<btn name="btn_quit"		caption="ui_mm_quit2windows" />
@@ -102,6 +102,14 @@
 		<menu_music>music\menu</menu_music>
     </menu_sound>
 
+	<english_lang x="15" y="700" width="32" height="32">
+		<texture>ui_flag_usa</texture>
+	</english_lang>
+	
+	<russian_lang x="60" y="700" width="27" height="32" stretch="1">
+		<texture>ui_flag_russia</texture>
+	</russian_lang>
+	
 	<static_version x="15" y="740" width="100" height="30">
 		<text align="l" font="graffiti19" r="135" g="123" b="116" complex_mode="0"/>
 	</static_version>

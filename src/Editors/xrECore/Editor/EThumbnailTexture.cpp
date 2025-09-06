@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "EThumbnail.h"
 #ifndef XR_EPROPS_EXPORTS
@@ -177,7 +177,7 @@ void ETextureThumbnail::FillInfo(PropItemVec& items)
     PHelper().CreateCaption		(items, "Alpha",					_Alpha()?"on":"off");
 }
 
-void ETextureThumbnail::Update(ImTextureID& Texture)
+void ETextureThumbnail::Update(ID3DBaseTexture*& Texture)
 {
     VERIFY(!Texture);
     if (0 == m_Pixels.size())

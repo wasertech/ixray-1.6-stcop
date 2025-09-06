@@ -34,7 +34,7 @@ ENGINE_API _action  actions[]		= {
 															
 	{ "torch",				kTORCH					,_both},	
 	{ "night_vision",		kNIGHT_VISION			,_both},	
-	{ "show_detector",		kDETECTOR				,_sp},		
+	{ "show_detector",		kDETECTOR				,_both},
 
 	{ "wpn_1",				kWPN_1					,_both},	
 	{ "wpn_2",				kWPN_2					,_both},	
@@ -58,9 +58,9 @@ ENGINE_API _action  actions[]		= {
 	{ "use",				kUSE					,_both},	
 	{ "scores",				kSCORES					,_both},	
 	{ "chat",				kCHAT					,_mp},		
+	{ "chat_team",			kCHAT_TEAM				,_mp},		
 	{ "voice_chat",         kVOICE_CHAT             ,_mp},
 	{ "voice_distance",     kVOICE_DISTANCE         ,_mp},
-	{ "chat_team",			kCHAT_TEAM				,_mp},		
 	{ "screenshot",			kSCREENSHOT				,_both},	
 	{ "quit",				kQUIT					,_both},	
 	{ "console",			kCONSOLE				,_both},	
@@ -89,7 +89,10 @@ ENGINE_API _action  actions[]		= {
 
 	{ "quick_save",			kQUICK_SAVE				,_sp},		
 	{ "quick_load",			kQUICK_LOAD				,_sp},		
-//	{ "alife_command",		kALIFE_CMD				,_sp},		
+	{ "alife_command",		kALIFE_CMD				,_sp},		
+	{ "use_bandage",		kUSE_BANDAGE			,_sp},
+	{ "use_medkit",			kUSE_MEDKIT				,_sp},
+
 	{ "custom1",			kCUSTOM1				,_sp},
 	{ "custom2",			kCUSTOM2				,_sp},
 	{ "custom3",			kCUSTOM3				,_sp},
@@ -106,6 +109,15 @@ ENGINE_API _action  actions[]		= {
 	{ "custom14",			kCUSTOM14				,_sp},
 	{ "custom15",			kCUSTOM15				,_sp},
 	{ "cam_autoaim",		kCAM_AUTOAIM			,_sp},
+
+	{ "clear_gasmask",		kCLEARGASMASK			,_both },
+	{ "wpn_torch",			kTACTICALTORCH			,_both },
+	{ "wpn_laser",			kLASER					,_both },
+	{ "wpn_zoom_alter",		kWPN_ZOOM_ALTER			,_both },
+	{ "scope_brightness_plus",kBRIGHTNESS_PLUS		,_both },
+	{ "scope_brightness_minus",kBRIGHTNESS_MINUS	,_both },
+	{ "quick_grenade",		kQUICK_GRENADE			,_both },
+	{ "quick_kick",			kQUICK_KICK				,_both },
 																
 	{ nullptr, 				kLASTACTION				,_both}		
 };															
@@ -361,17 +373,13 @@ _keyboard keyboards[] = {
 
 	{ "kMODE",                  SDL_SCANCODE_MODE,               "Mode" },
 
-	{ "kAUDIONEXT",             SDL_SCANCODE_AUDIONEXT,          "Audio Next" },
-	{ "kAUDIOPREV",             SDL_SCANCODE_AUDIOPREV,          "Audio Prev" },
-	{ "kAUDIOSTOP",             SDL_SCANCODE_AUDIOSTOP,          "Audio Stop" },
-	{ "kAUDIOPLAY",             SDL_SCANCODE_AUDIOPLAY,          "Audio Play" },
-	{ "kAUDIOMUTE",             SDL_SCANCODE_AUDIOMUTE,          "Audio Mute" },
+	{ "kAUDIONEXT",             SDL_SCANCODE_MEDIA_NEXT_TRACK,   "Audio Next" },
+	{ "kAUDIOPREV",             SDL_SCANCODE_MEDIA_PREVIOUS_TRACK,"Audio Prev" },
+	{ "kAUDIOSTOP",             SDL_SCANCODE_MEDIA_STOP,         "Audio Stop" },
+	{ "kAUDIOPLAY",             SDL_SCANCODE_MEDIA_PLAY,         "Audio Play" },
+	{ "kAUDIOMUTE",             SDL_SCANCODE_MUTE,               "Audio Mute" },
 
-	{ "kMEDIASELECT",           SDL_SCANCODE_MEDIASELECT,        "Media Select" },
-	{ "kWWW",                   SDL_SCANCODE_WWW,                "WWW" },
-	{ "kMAIL",                  SDL_SCANCODE_MAIL,               "Mail" },
-	{ "kCALCULATOR",            SDL_SCANCODE_CALCULATOR,         "Calculator" },
-	{ "kCOMPUTER",              SDL_SCANCODE_COMPUTER,           "My Computer" },
+	{ "kMEDIASELECT",           SDL_SCANCODE_MEDIA_SELECT,       "Media Select" },
 
 	{ "kNUMPAD_AC_SEARCH",      SDL_SCANCODE_AC_SEARCH,          "AC Search" },
 	{ "kNUMPAD_AC_HOME",        SDL_SCANCODE_AC_HOME,            "AC Home" },
@@ -381,19 +389,8 @@ _keyboard keyboards[] = {
 	{ "kNUMPAD_AC_REFRESH",     SDL_SCANCODE_AC_REFRESH,         "AC Refresh" },
 	{ "kNUMPAD_AC_BOOKMARKS",   SDL_SCANCODE_AC_BOOKMARKS,       "AC Bookmarks" },
 
-	{ "kBRIGHTNESSDOWN",        SDL_SCANCODE_BRIGHTNESSDOWN,     "Brightness Down" },
-	{ "kBRIGHTNESSUP",          SDL_SCANCODE_BRIGHTNESSUP,       "Brightness Up" },
-	{ "kDISPLAYSWITCH",         SDL_SCANCODE_DISPLAYSWITCH,      "Display Switch" },
-
-	{ "kKBDILLUMTOGGLE",        SDL_SCANCODE_KBDILLUMTOGGLE,     "Illum Toogle" },
-	{ "kKBDILLUMDOWN",          SDL_SCANCODE_KBDILLUMDOWN,       "Illum Down" },
-	{ "kKBDILLUMUP",            SDL_SCANCODE_KBDILLUMUP,         "Illum Up" },
-
-	{ "kEJECT",                 SDL_SCANCODE_EJECT,              "Eject" },
+	{ "kEJECT",                 SDL_SCANCODE_MEDIA_EJECT,        "Eject" },
 	{ "kSLEEP",                 SDL_SCANCODE_SLEEP,              "Sleep" },
-
-	{ "kAPP1",                  SDL_SCANCODE_APP1,               "App 1" },
-	{ "kAPP2",                  SDL_SCANCODE_APP2,               "App 2" },
 
 	{ "mouse1",                 MOUSE_1,                         "Left mouse button" },
 	{ "mouse2",                 MOUSE_2,                         "Right mouse button" },

@@ -3,7 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "Blender_Model_EbB.h"
 #include "uber_deffer.h"
@@ -211,6 +211,8 @@ void CBlender_Model_EbB::Compile( CBlender_Compile& C )
 			C.r_dx10Texture("env_s1", r2_T_envs1);
 			C.r_dx10Texture("sky_s0", r2_T_sky0);
 			C.r_dx10Texture("sky_s1", r2_T_sky1);
+
+			C.r_dx10Texture("s_env", r2_RT_env_temp);
 
 			C.r_dx10Sampler("smp_material");
 			C.r_End();

@@ -1,4 +1,6 @@
 #pragma once
+#include <d3d9.h>
+
 enum TShiftState_
 {
 	ssNone = 0,
@@ -17,6 +19,7 @@ public:
 	XrUIManager();
 	void PushBegin(IEditorWnd*ui,bool need_deleted =true);
 	void Push(IEditorWnd*ui,bool need_deleted =true);
+	void Remove(IEditorWnd*ui);
 	void Draw();
 		
 	virtual ~XrUIManager();
@@ -28,7 +31,7 @@ public:
 
 	void BeginFrame();
 	void EndFrame();
-
+	void MDIUpdate();
 
 	void ResetBegin();
 	void ResetEnd(void* NewDevice);
@@ -37,12 +40,10 @@ public:
 	inline float GetMenuBarHeight()const { return m_MenuBarHeight; }
 	inline TShiftState GetShiftState()const { return m_ShiftState; };
 	virtual bool IsPlayInEditor() { return false; }
+	void ApplyShortCutInput(DWORD Key);
 
 protected:
 	virtual void OnDrawUI();
-
-public:
-	void ApplyShortCutInput(DWORD Key);
 
 private:
 	float m_MenuBarHeight;
@@ -66,5 +67,8 @@ public:
 	}
 
 	bool IsEnableInput = true;
+	EDragDropType DnDType = EDragDropType::None;
+	virtual void* LoadTexture(const char*) const { return nullptr; };
 };
 
+extern XREUI_API XrUIManager* GUIManager;

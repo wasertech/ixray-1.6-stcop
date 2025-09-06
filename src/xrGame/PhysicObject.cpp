@@ -14,6 +14,7 @@
 //#include "../xrPhysics/PhysicsShellAnimator.h"
 #include "moving_bones_snd_player.h"
 #include "../xrPhysics/ExtendedGeom.h"
+#include "script_game_object.h"
 #ifdef	DEBUG
 #include "PHDebug.h"
 #include "../xrEngine/ObjectDump.h"
@@ -86,6 +87,9 @@ if(dbg_draw_doors)
 	DBG_ClosedCashedDraw( 50000000 );
 }
 #endif	
+	//PHObjectPositionUpdate();
+	//PPhysicsShell()->applyImpulse(Fvector().set(0.f, -1.0f, 0.f), 0.5f * PPhysicsShell()->getMass());
+
 	return TRUE;
 
 }
@@ -351,7 +355,12 @@ void CPhysicObject::UpdateCL()
 	
 	if (!IsGameTypeSingle())
 	{
-		Interpolate();
+		CGameObject const* const game_object = smart_cast<CGameObject const*>(this);
+		VERIFY(game_object);
+		if (game_object->lua_game_object() && !game_object->lua_game_object()->m_door)
+		{
+			Interpolate();
+		}
 	}
 
 	m_anim_script_callback.update( *this );

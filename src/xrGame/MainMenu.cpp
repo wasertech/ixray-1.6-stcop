@@ -26,12 +26,6 @@
 
 #include "object_broker.h"
 
-#include "account_manager.h"
-#include "login_manager.h"
-#include "profile_store.h"
-#include "stats_submitter.h"
-#include "atlas_submit_queue.h"
-
 #include "../xrCore/discord/discord.h"
 #include <Level.h>
 #include <GamePersistent.h>
@@ -85,11 +79,6 @@ CMainMenu::CMainMenu	()
 	
 	m_sPatchURL						= "";
 	m_pGameSpyFull					= nullptr;
-	m_account_mngr					= nullptr;
-	m_login_mngr					= nullptr;
-	m_profile_store					= nullptr;
-	m_stats_submitter				= nullptr;
-	m_atlas_submit_queue			= nullptr;
 
 	m_sPDProgress.IsInProgress		= false;
 	m_downloaded_mp_map_url._set	("");
@@ -121,12 +110,6 @@ CMainMenu::CMainMenu	()
 
 		m_pMB_ErrDlgs[DownloadMPMap]->AddCallbackStr("button_copy", MESSAGE_BOX_COPY_CLICKED, CUIWndCallback::void_function(this, &CMainMenu::OnDownloadMPMap_CopyURL));
 		m_pMB_ErrDlgs[DownloadMPMap]->AddCallbackStr("button_yes", MESSAGE_BOX_YES_CLICKED, CUIWndCallback::void_function(this, &CMainMenu::OnDownloadMPMap));
-
-		m_account_mngr			= new gamespy_gp::account_manager		(m_pGameSpyFull->GetGameSpyGP());
-		m_login_mngr			= new gamespy_gp::login_manager			(m_pGameSpyFull);
-		m_profile_store			= new gamespy_profile::profile_store	(m_pGameSpyFull);
-		m_stats_submitter		= new gamespy_profile::stats_submitter	(m_pGameSpyFull);
-		m_atlas_submit_queue	= new atlas_submit_queue				(m_stats_submitter);
 	}
 	
 	Device.seqFrame.Add		(this,REG_PRIORITY_LOW-1000);
@@ -139,12 +122,6 @@ CMainMenu::~CMainMenu	()
 	xr_delete						(g_statHint);
 	xr_delete						(m_startDialog);
 	g_pGamePersistent->m_pMainMenu	= nullptr;
-	
-	xr_delete						(m_account_mngr);
-	xr_delete						(m_login_mngr);
-	xr_delete						(m_profile_store);
-	xr_delete						(m_stats_submitter);
-	xr_delete						(m_atlas_submit_queue);
 	
 	xr_delete						(m_pGameSpyFull);
 
@@ -299,7 +276,7 @@ bool CMainMenu::ReloadUI()
 	m_startDialog->m_bWorkInPause= true;
 	m_startDialog->ShowDialog	(true);
 
-	m_activatedScreenRatio		= (float)Device.TargetWidth/(float)Device.TargetHeight > (UI_BASE_WIDTH/UI_BASE_HEIGHT+0.01f);
+	m_activatedScreenRatio.set((float)Device.TargetWidth, (float)Device.TargetHeight);
 	return true;
 }
 
@@ -446,7 +423,7 @@ void CMainMenu::OnRenderPPUI_main	()
 	pCGameFont->SetHeight(0.022f);
 	pCGameFont->SetColor(0xFFF5F5DC);
 
-	pCGameFont->Out(psCurrentVidMode[0] - pCGameFont->GetHeight(), (psCurrentVidMode[1] - pCGameFont->GetHeight()), "%s " _VER " Branch[" _BRANCH "] Hash[" _HASH "]", "IX-Ray");
+	pCGameFont->Out(psCurrentVidMode[0] - pCGameFont->GetHeight(), (psCurrentVidMode[1] - pCGameFont->GetHeight()), "%s " _VER " Branch[" _BRANCH "] Hash[" _HASH "] Platform [%s]", "IX-Ray", EngineExternal().PlatformMode());
 	pCGameFont->OnRender();
 }
 
@@ -503,14 +480,13 @@ void CMainMenu::OnFrame()
 	if(IsActive() || m_sPDProgress.IsInProgress)
 	{
 		m_pGameSpyFull->Update();
-		m_atlas_submit_queue->update();
 	}
 
 	if(IsActive())
 	{
 		CheckForErrorDlg();
-		bool b_is_16_9	= (float)Device.TargetWidth/(float)Device.TargetHeight > (UI_BASE_WIDTH/UI_BASE_HEIGHT+0.01f);
-		if(b_is_16_9 !=m_activatedScreenRatio)
+		Fvector2 newRatio	= Fvector2().set((float)Device.TargetWidth, (float)Device.TargetHeight);
+		if(!newRatio.similar(m_activatedScreenRatio))
 		{
 			ReloadUI();
 			m_startDialog->SendMessage(m_startDialog, MAIN_MENU_RELOADED, nullptr);
@@ -769,22 +745,7 @@ LPCSTR DelHyphens( LPCSTR c )
 
 bool CMainMenu::IsCDKeyIsValid()
 {
-	if (!m_pGameSpyFull || !m_pGameSpyFull->GetGameSpyHTTP()) return false;
-	string64 CDKey = "";
-	GetCDKey_FromRegistry(CDKey);
-
-#ifndef DEMO_BUILD
-	if (!xr_strlen(CDKey)) return true;
-#endif
-
-	int GameID = 0;
-	for (int i=0; i<4; i++)
-	{
-		m_pGameSpyFull->GetGameSpyHTTP()->xrGS_GetGameID(&GameID, i);
-		if (VerifyClientCheck(CDKey, unsigned short (GameID)) == 1)
-			return true;
-	};	
-	return false;
+	return true;
 }
 
 bool		CMainMenu::ValidateCDKey					()
@@ -829,19 +790,9 @@ LPCSTR CMainMenu::GetGSVer()
 
 LPCSTR CMainMenu::GetPlayerName()
 {
-	gamespy_gp::login_manager* l_mngr		= GetLoginMngr();
-	gamespy_gp::profile const * tmp_prof	= l_mngr ? 
-		l_mngr->get_current_profile() : nullptr;
-
-	if (tmp_prof)
-	{
-		m_player_name = tmp_prof->unique_nick();
-	} else
-	{
-		string512 name;
-		GetPlayerName_FromRegistry( name, sizeof(name) );
-		m_player_name = name;
-	}
+	string512 name;
+	GetPlayerName_FromRegistry( name, sizeof(name) );
+	m_player_name = name;
 	return m_player_name.c_str();
 }
 

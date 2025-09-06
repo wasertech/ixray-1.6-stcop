@@ -25,12 +25,12 @@
 #include "../xrPhysics/MathUtils.h"
 #include "game_cl_base_weapon_usage_statistic.h"
 #include "game_cl_mp.h"
-#include "reward_event_generator.h"
 #include "game_level_cross_table.h"
 #include "ai_obstacle.h"
 #include "magic_box3.h"
 #include "animation_movement_controller.h"
 #include "../xrEngine/xr_collide_form.h"
+#include "../xrScripts/script_callback_ex.h"
 
 extern MagicBox3 MagicMinBox (int iQuantity, const Fvector* akPoint);
 
@@ -111,8 +111,8 @@ void CGameObject::net_Destroy	()
 	xr_delete				(m_ini_file);
 
 	m_script_clsid			= -1;
-	if (Visual() && smart_cast<IKinematics*>(Visual()))
-		smart_cast<IKinematics*>(Visual())->Callback	(0,0);
+	if (Visual() && Visual()->dcast_PKinematics())
+		Visual()->dcast_PKinematics()->Callback(0,0);
 
 	inherited::net_Destroy						();
 	setReady									(FALSE);
@@ -207,9 +207,6 @@ void CGameObject::OnEvent		(NET_Packet& P, u16 type)
 			if (!IsGameTypeSingle())
 			{
 				Game().m_WeaponUsageStatistic->OnBullet_Check_Result(false);
-				game_cl_mp*	mp_game = smart_cast<game_cl_mp*>(&Game());
-				if (mp_game->get_reward_generator())
-					mp_game->get_reward_generator()->OnBullet_Hit(Hitter, this, Weapon, HDS.boneID);
 			}
 			//---------------------------------------------------------------------------
 		}
@@ -274,11 +271,8 @@ BOOL CGameObject::net_Spawn		(CSE_Abstract*	DC)
 		R_ASSERT(Level().Objects.net_Find(E->ID) == nullptr);
 	}
 
-
 	setID							(E->ID);
-//	if (!IsGameTypeSingle())
-//		Msg ("CGameObject::net_Spawn -- object %s[%x] setID [%d]", *(E->s_name), this, E->ID);
-	
+
 	// XForm
 	XFORM().setXYZ					(E->o_Angle);
 	Position().set					(E->o_Position);
@@ -548,7 +542,7 @@ void CGameObject::setup_parent_ai_locations(bool assign_position)
 {
 //	CGameObject				*l_tpGameObject	= static_cast<CGameObject*>(H_Root());
 	VERIFY					(H_Parent());
-	CGameObject				*l_tpGameObject	= static_cast<CGameObject*>(H_Parent());
+	CGameObject				*l_tpGameObject	= H_Parent()->cast_game_object();
 	VERIFY					(l_tpGameObject);
 
 	// get parent's position
@@ -940,6 +934,34 @@ bool CGameObject::shedule_Needed( )
 	return						(!getDestroy());
 }
 
+float CGameObject::shedule_Scale_Base()
+{
+	if (g_dedicated_server)
+	{
+		if (Device.dwTimeGlobal > u_optimize_time) 
+		{
+			u_optimize_time = Device.dwTimeGlobal + Random.randI(5000, 10000);
+			auto game = &Game(); // smart_cast<game_cl_mp*>(&Game());
+			if (game)
+			{
+				float min_distance = 40100;
+				for (auto& I : game->players)
+				{
+					CObject* pA = Level().Objects.net_Find(I.second->GameID);
+					if (!pA) continue;
+					float distance = Position().distance_to_sqr(pA->Position());
+					if (distance < min_distance)
+					{
+						min_distance = distance;
+					}
+				}
+				return _max(_sqrt(min_distance) - Radius(), 0.0f);
+			}
+		}
+	}
+	return inherited::shedule_Scale_Base();
+}
+
 void CGameObject::create_anim_mov_ctrl	( CBlend *b, Fmatrix *start_pose, bool local_animation )
 {
 	if( animation_movement_controlled( ) )
@@ -1115,14 +1137,19 @@ void CGameObject::OnRender			()
 	if (!ai().get_level_graph())
 		return;
 
-	CDebugRenderer					&renderer = Level().debug_renderer();
-	if (/**bDebug && /**/Visual()) {
-		float						half_cell_size = 1.f*ai().level_graph().header().cell_size()*.5f;
-		Fvector						additional = Fvector().set(half_cell_size,half_cell_size,half_cell_size);
+	if (Visual() == nullptr)
+		return;
 
-		render_box					(Visual(),XFORM(),Fvector().set(0.f,0.f,0.f),true,color_rgba(0,0,255,255));
-		render_box					(Visual(),XFORM(),additional,false,color_rgba(0,255,0,255));
-	}
+	if (Visual()->getVisData().hom_frame != Device.dwFrame)
+		return;
+
+	CDebugRenderer					&renderer = Level().debug_renderer();
+	float						half_cell_size = 1.f*ai().level_graph().header().cell_size()*.5f;
+	Fvector						additional = Fvector().set(half_cell_size,half_cell_size,half_cell_size);
+
+	render_box					(Visual(),XFORM(),Fvector().set(0.f,0.f,0.f),true,color_rgba(0,0,255,255));
+	render_box					(Visual(),XFORM(),additional,false,color_rgba(0,255,0,255));
+
 
 	if (0) {
 		Fvector						bc,bd; 

@@ -59,7 +59,7 @@ void UISoundEditorForm::Update()
     {
         if (!Form->IsClosed())
         {
-            if (ImGui::BeginPopupModal("Sound Editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize, true))
+            if (ImGui::BeginPopupModal("Sound Editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
             {
                 Form->Draw();
                 ImGui::EndPopup();
@@ -199,7 +199,14 @@ void UISoundEditorForm::InitItemList()
     FS_FileSetIt it = sound_map.begin();
     FS_FileSetIt _E = sound_map.end();
     for (; it != _E; it++)
+    {
+        if (it->size == 0)
+        {
+            continue;
+        }
+
         LHelper().CreateItem(items, it->name.c_str(), 0);
+    }
 
     m_ItemList->AssignItems(items/*, false, true*/);
 }

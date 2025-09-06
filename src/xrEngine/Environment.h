@@ -74,7 +74,7 @@ public:
 
 		typedef xr_vector<ref_sound>	sounds_type;
 
-		void					load					(CInifile& config, LPCSTR sect);
+		void					load					(CInifile& config, LPCSTR sect, LPCSTR sectionToReadFrom = nullptr);
 		ref_sound&				get_rnd_sound			()	{return sounds()[Random.randI((u32)sounds().size())];}
 		u32						get_rnd_sound_time		()	{return (m_sound_period.z < m_sound_period.w) ? Random.randI(m_sound_period.z,m_sound_period.w) : 0;}
 		u32						get_rnd_sound_first_time()	{return (m_sound_period.x < m_sound_period.y) ? Random.randI(m_sound_period.x,m_sound_period.y) : 0;}
@@ -112,7 +112,7 @@ public:
 	IC u32					get_rnd_effect_time ()	{return Random.randI(m_effect_period.x, m_effect_period.y);}
 
 		SEffect*		create_effect			(CInifile& config, LPCSTR id);
-		SSndChannel*	create_sound_channel	(CInifile& config, LPCSTR id);
+		SSndChannel*	create_sound_channel	(CInifile& config, LPCSTR id, LPCSTR sectionToReadFrom = nullptr);
 						~CEnvAmbient			();
 							void			destroy					();
 	inline  EffectVec&			effects			() { return m_effects; }
@@ -122,6 +122,8 @@ public:
 class ENGINE_API	CEnvDescriptor
 {
 public:
+	bool				old_style;
+
 	float				exec_time;
 	float				exec_time_loaded;
 
@@ -147,7 +149,15 @@ public:
 	float				fog_distance;
 
 	float				rain_density;
+	shared_str			rain_type;
 	Fvector3			rain_color;
+
+	float				rain_angle;
+	float				rain_length;
+	float				rain_width;
+	float				rain_speed_min;
+	float				rain_speed_max;
+	float				rain_angle_rotation;
 
 	float				bolt_period;
 	float				bolt_duration;
@@ -177,7 +187,7 @@ public:
 
 						CEnvDescriptor	(shared_str const& identifier);
 
-	void				load			(CEnvironment& environment, CInifile& config);
+	void				load			(CEnvironment& environment, CInifile& config, LPCSTR section = nullptr);
 	void				copy			(const CEnvDescriptor& src)
 	{
 		float tm0		= exec_time;
@@ -294,7 +304,7 @@ public:
     void					SelectEnvs			(float gt);
 
 	void					UpdateAmbient		();
-	 CEnvAmbient* AppendEnvAmb	(const shared_str& sect);
+	CEnvAmbient*			AppendEnvAmb		(const shared_str& sect, CInifile * pIni = nullptr);
 
 	void					Invalidate			();
 public:
@@ -332,14 +342,24 @@ public:
 	void					OnDeviceCreate		();
 	void					OnDeviceDestroy		();
 
-	float GetGameTime() { return fGameTime; }
-
 	// editor-related
 public:
 	float					ed_from_time		;
 	float					ed_to_time			;
 public:
     void					ED_Reload			();
+
+    float GetGameTime()
+    {
+        return fGameTime;
+    }
+    void GetGameTime(u32& hours, u32& minutes, u32& seconds) const
+    {
+        SplitTime(fGameTime, hours, minutes, seconds);
+    }
+
+    void SplitTime(float time, u32& hours, u32& minutes, u32& seconds) const;
+
 	bool					m_paused;
 
 	CInifile*				m_ambients_config;
@@ -350,7 +370,7 @@ public:
 	CInifile*				m_thunderbolts_config;
 
 protected:
-		CEnvDescriptor* create_descriptor	(shared_str const& identifier, CInifile* config);
+		CEnvDescriptor* create_descriptor	(shared_str const& identifier, CInifile* config, LPCSTR section = nullptr);
 		void load_weathers					();
 		void load_weather_effects			();
 		void create_mixer					();
@@ -362,10 +382,10 @@ public:
 		SThunderboltDesc* thunderbolt_description		(CInifile& config, shared_str const& section);
 		SThunderboltCollection* thunderbolt_collection	(CInifile* pIni, CInifile* thunderbolts, LPCSTR section);
 		SThunderboltCollection* thunderbolt_collection	(xr_vector<SThunderboltCollection*>& collection,  shared_str const& id);
-		CLensFlareDescriptor*	add_flare				(xr_vector<CLensFlareDescriptor*>& collection, shared_str const& id);
+		CLensFlareDescriptor*	add_flare				(xr_vector<CLensFlareDescriptor*>& collection, shared_str const& id, CInifile * pIni);
 
 public:
-	float						p_var_alt;
+	Fvector2					p_var_alt;
 	float						p_var_long;
 	float						p_min_dist;
 	float						p_tilt;
@@ -373,6 +393,23 @@ public:
 	float						p_sky_color;
 	float						p_sun_color;
 	float						p_fog_color;
+
+	int							max_desired_items;
+
+	float						source_offset;
+	float						max_distance;
+	float						sink_offset;
+	float						drop_angle;
+	float						drop_max_angle;
+	float						drop_max_wind_vel;
+
+	int							max_particles;
+	int							particles_cache;
+	float						particles_time;
+
+	float						source_rain_radius_render;
+	float						add_const_dist_coefficient;
+	float						add_const_dist_coefficient_render;
 };
 
 ENGINE_API extern Flags32	psEnvFlags;

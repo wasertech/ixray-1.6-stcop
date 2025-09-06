@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "../../Editor/Utils/TerrainGarbageGenerator.h"
 
-static std::atomic<bool> RefreshInProgress;
+static xr_atomic_bool RefreshInProgress;
 
 UIObjectTool::UIObjectTool()
 {
@@ -19,6 +19,7 @@ UIObjectTool::UIObjectTool()
 	m_TextureNull->Load();
 
 	m_Props = new UIPropertiesForm();
+	m_Props->SetFitMode(true);
 	RefreshList();
 }
 
@@ -27,153 +28,69 @@ UIObjectTool::~UIObjectTool()
 	while (RefreshInProgress)
 		std::this_thread::yield();
 
-	if (m_RemoveTexture)m_RemoveTexture->Release();
-	if (m_RealTexture)m_RealTexture->Release();
+	if (m_RemoveTexture)
+		IM_TEXTURE_RELEASE(m_RemoveTexture);
+
+	if (m_RealTexture)
+		IM_TEXTURE_RELEASE(m_RealTexture);
+
 	xr_delete(m_Props);
 	m_TextureNull.destroy();
 	xr_delete(m_ObjectList);
+}
+
+
+void UIObjectTool::HandleDragDrop()
+{
+	const ImGuiPayload* payload = ImGui::GetDragDropPayload();
+
+	if (payload && ImGui::IsMouseDragging(ImGuiMouseButton_Left) && GUIManager->DnDType == EDragDropType::RandomAppend)
+	{
+		ImDrawList* draw_list = ImGui::GetWindowDrawList();
+		ImVec2 p_min = ImGui::GetItemRectMin();
+		ImVec2 p_max = ImGui::GetItemRectMax();
+		draw_list->AddRectFilled(p_min, p_max, IM_COL32(50, 50, 70, 100));
+		draw_list->AddRect(p_min, p_max, IM_COL32(100, 180, 255, 255));
+	}
+
+	if (!ImGui::BeginDragDropTarget())
+		return;
+
+	auto ImData = ImGui::AcceptDragDropPayload("TEST#rai");
+
+	if (ImData == nullptr)
+	{
+		ImGui::EndDragDropTarget();
+		return;
+	}
+	struct DragDropData
+	{
+		xr_string FileName;
+	} Data = *(DragDropData*)ImData->Data;
+
+
+	if (Data.FileName.ends_with(".rai"))
+	{
+		LoadFromFile(Data.FileName);
+	}
+
+	ImGui::EndDragDropTarget();
 }
 
 void UIObjectTool::Draw()
 {
 	ImGui::Checkbox("Show lists", &bDrawList);
 
-	if (m_RemoveTexture)m_RemoveTexture->Release();
+	if (m_RemoveTexture)
+		IM_TEXTURE_RELEASE(m_RemoveTexture);
+
 	m_RemoveTexture = nullptr;
 
 	ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
 	if (ImGui::TreeNode("Commands"))
 	{
-		ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
-		{
-			if (ImGui::Button("Multiple Append", ImVec2(-1, 0)))
-			{
-				UIChooseForm::SelectItem(smObject, 512, 0);
-				m_MultiAppend = true;
-			}
-		}
-		ImGui::Separator();
-		{
-			if (!RAIFile.empty())
-			{
-				ImVec4 TextColor = { 1.f, 1.f, 0.7f, 1.f };
-				ImGui::TextColored(TextColor, RAIFile.data());
-			}
+		ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing()); DrawRandomAppend();
 
-			if (ImGui::Checkbox("Random Append", &m_RandomAppend))
-			{
-				ParentTools->ActivateAppendRandom(m_RandomAppend);
-			}
-			ImGui::SameLine();
-
-			if (ImGui::Button("Load"))
-			{
-				xr_string Outfile;
-
-				if (EFS.GetOpenName("$server_data_root$", Outfile, false, 0, -1, "*.rai"))
-				{
-					FS.TryLoad(Outfile);
-					IReader* Stream = FS.r_open(Outfile.data());
-					u8 Ver = Stream->r_u8();
-
-					if (Ver != 1)
-					{
-						Msg("! Unsupported *.rai file!");
-						FS.r_close(Stream);
-						return;
-					}
-
-					Stream->r_fvector3(ParentTools->m_AppendRandomMinScale);
-					Stream->r_fvector3(ParentTools->m_AppendRandomMaxScale);
-					Stream->r_fvector3(ParentTools->m_AppendRandomMinRotation);
-					Stream->r_fvector3(ParentTools->m_AppendRandomMaxRotation);
-					ParentTools->m_Flags.flags = Stream->r_u32();
-
-					Stream->r_stringZ(ParentTools->m_AppendRandomObjectsStr);
-
-					u32 Size = Stream->r_u32();
-
-					ParentTools->m_AppendRandomObjects.resize(Size);
-					for (shared_str& str : ParentTools->m_AppendRandomObjects)
-					{
-						Stream->r_stringZ(str);
-					}
-
-					FS.r_close(Stream);
-
-					xr_path File = Outfile;
-					RAIFile = File.xfilename();
-				}
-			}
-			ImGui::SameLine();
-
-			if (ImGui::Button("Save"))
-			{
-				xr_string Outfile;
-
-				if (EFS.GetSaveName("$server_data_root$", Outfile, 0, -1, "*.rai"))
-				{
-					if (!Outfile.ends_with(".rai"))
-					{
-						Outfile += ".rai";
-					}
-
-					IWriter* Stream = FS.w_open(Outfile.data());
-					Stream->w_u8(1);
-
-					Stream->w_fvector3(ParentTools->m_AppendRandomMinScale);
-					Stream->w_fvector3(ParentTools->m_AppendRandomMaxScale);
-					Stream->w_fvector3(ParentTools->m_AppendRandomMinRotation);
-					Stream->w_fvector3(ParentTools->m_AppendRandomMaxRotation);
-					Stream->w_u32(ParentTools->m_Flags.get());
-
-					Stream->w_stringZ(ParentTools->m_AppendRandomObjectsStr);
-
-					Stream->w_u32((u32)ParentTools->m_AppendRandomObjects.size());
-
-					for (const shared_str& str : ParentTools->m_AppendRandomObjects)
-					{
-						Stream->w_stringZ(str);
-					}
-
-					FS.w_close(Stream);
-
-					xr_path File = Outfile;
-					RAIFile = File.xfilename();
-				}
-			}
-			ImGui::SameLine();
-
-			if (ImGui::Button("Custom.."))
-			{
-				m_PropRandom = true;
-				ParentTools->FillAppendRandomPropertiesBegin();
-			}
-
-			if (ImGui::Button("Generate random garbage"))
-			{
-				static EGarbageGenerator Generator;
-				ESceneObjectTool* ObjectToolPtr = static_cast<ESceneObjectTool*>(Scene->GetTool(OBJCLASS_SCENEOBJECT));
-				auto ObjectList = ObjectToolPtr->GetObjects();
-
-				bool Placed = false;
-
-				for (CCustomObject* Object : ObjectList)
-				{
-					if (!Object->Selected())
-						continue;
-
-					Generator.Generate((CSceneObject*)Object);
-					Placed = true;
-				}
-
-				if (!Placed)
-				{
-					ELog.DlgMsg(mtInformation, mbOK, "An object or terrain must be selected!");
-				}
-			}
-		}
-		ImGui::Separator();
 		ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
 		ImGui::TreePop();
 	}
@@ -239,6 +156,150 @@ void UIObjectTool::Draw()
 		ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
 		ImGui::TreePop();
 	}
+}
+
+void UIObjectTool::DrawRandomAppend()
+{
+	if (ImGui::BeginChild("##objecttools_randomappend", { 0, 0 }, ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysAutoResize))
+	{
+		if (!RAIFile.empty())
+		{
+			ImVec4 TextColor = { 1.f, 1.f, 0.7f, 1.f };
+			ImGui::TextColored(TextColor, RAIFile.data());
+		}
+		float ButtonSize = ImGui::GetWindowSize().x / 2 - 10;
+		if (ImGui::Button("Multiple Append", { ButtonSize , 0 }))
+		{
+			UIChooseForm::SelectItem(smObject, 512, 0);
+			m_MultiAppend = true;
+		}
+
+		ImGui::SameLine();
+		ImGui::BeginDisabled(ParentTools->m_AppendRandomObjects.empty());
+		if (ImGui::Button("Generate Garbage", { ButtonSize , 0 }))
+		{
+			static EGarbageGenerator Generator;
+			ESceneObjectTool* ObjectToolPtr = static_cast<ESceneObjectTool*>(Scene->GetTool(OBJCLASS_SCENEOBJECT));
+			auto ObjectList = ObjectToolPtr->GetObjects();
+
+			bool Placed = false;
+
+			for (CCustomObject* Object : ObjectList)
+			{
+				if (!Object->Selected())
+					continue;
+
+				Generator.Generate((CSceneObject*)Object);
+				Placed = true;
+			}
+
+			if (!Placed)
+			{
+				ELog.DlgMsg(mtInformation, mbOK, "An object or terrain must be selected!");
+			}
+		}
+		ImGui::EndDisabled();
+
+		if (ImGui::Checkbox("Random Append", &m_RandomAppend))
+		{
+			ParentTools->ActivateAppendRandom(m_RandomAppend);
+		}
+		ImGui::SameLine();
+
+		if (ImGui::Button("Load"))
+		{
+			xr_string Outfile;
+
+			if (EFS.GetOpenName("$server_data_root$", Outfile, false, 0, -1, "*.rai"))
+			{
+				LoadFromFile(Outfile);
+			}
+		}
+		ImGui::SameLine();
+
+		ImGui::BeginDisabled(ParentTools->m_AppendRandomObjects.empty());
+		if (ImGui::Button("Save"))
+		{
+			xr_string Outfile;
+
+			if (EFS.GetSaveName("$server_data_root$", Outfile, 0, -1, "*.rai"))
+			{
+				if (!Outfile.ends_with(".rai"))
+				{
+					Outfile += ".rai";
+				}
+
+				IWriter* Stream = FS.w_open(Outfile.data());
+				Stream->w_u8(1);
+
+				Stream->w_fvector3(ParentTools->m_AppendRandomMinScale);
+				Stream->w_fvector3(ParentTools->m_AppendRandomMaxScale);
+				Stream->w_fvector3(ParentTools->m_AppendRandomMinRotation);
+				Stream->w_fvector3(ParentTools->m_AppendRandomMaxRotation);
+				Stream->w_u32(ParentTools->m_Flags.get());
+
+				Stream->w_stringZ(ParentTools->m_AppendRandomObjectsStr);
+
+				Stream->w_u32((u32)ParentTools->m_AppendRandomObjects.size());
+
+				for (const shared_str& str : ParentTools->m_AppendRandomObjects)
+				{
+					Stream->w_stringZ(str);
+				}
+
+				FS.w_close(Stream);
+
+				xr_path File = Outfile;
+				RAIFile = File.xfilename();
+			}
+		}
+		ImGui::SameLine();
+		ImGui::EndDisabled();
+
+		if (ImGui::Button("Custom.."))
+		{
+			m_PropRandom = true;
+			ParentTools->FillAppendRandomPropertiesBegin();
+		}
+
+		ImGui::EndChild();
+		HandleDragDrop();
+	}
+}
+
+void UIObjectTool::LoadFromFile(xr_string& Outfile)
+{
+	FS.TryLoad(Outfile);
+	IReader* Stream = FS.r_open(Outfile.data());
+	u8 Ver = Stream->r_u8();
+
+	if (Ver != 1)
+	{
+		Msg("! Unsupported *.rai file!");
+		FS.r_close(Stream);
+		return;
+	}
+
+	Stream->r_fvector3(ParentTools->m_AppendRandomMinScale);
+	Stream->r_fvector3(ParentTools->m_AppendRandomMaxScale);
+	Stream->r_fvector3(ParentTools->m_AppendRandomMinRotation);
+	Stream->r_fvector3(ParentTools->m_AppendRandomMaxRotation);
+	ParentTools->m_Flags.flags = Stream->r_u32();
+
+	Stream->r_stringZ(ParentTools->m_AppendRandomObjectsStr);
+
+	u32 Size = Stream->r_u32();
+
+	ParentTools->m_AppendRandomObjects.resize(Size);
+	for (shared_str& str : ParentTools->m_AppendRandomObjects)
+	{
+		Stream->r_stringZ(str);
+	}
+
+	FS.r_close(Stream);
+
+	xr_path File = Outfile;
+	RAIFile = File.xfilename();
 }
 
 void UIObjectTool::DrawObjectsList()
@@ -382,7 +443,7 @@ void UIObjectTool::OnItemFocused(ListItem* item)
 		auto * m_Thm = ImageLib.CreateThumbnail(m_Current, EImageThumbnail::ETObject);
 		if (m_Thm)
 		{
-			m_Thm->Update(m_RealTexture);
+			m_Thm->Update((ID3DBaseTexture*&)m_RealTexture);
 			PropItemVec Info;
 			m_Thm->FillInfo(Info);
 			m_Props->AssignItems(Info);

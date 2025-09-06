@@ -1,9 +1,10 @@
 #include "stdafx.h"
-#pragma hdrstop
 
+
+#include <DirectXMath.h>
 using namespace DirectX;
 
-#include "../../xrCDB/Frustum.h"
+#include "../../xrCore/Collision/Frustum.h"
 
 #ifdef USE_DX11
 #include "../xrRenderDX10/StateManager/dx10StateManager.h"
@@ -45,7 +46,7 @@ void CBackend::OnFrameBegin	()
 		Invalidate();
 		//	DX9 sets base rt nd base zb by default
 		RImplementation.rmNormal();
-		set_RT				(RTarget);
+		set_RT				(RImplementation.Target->rt_BackbufferLUT->pRT);
 		set_ZB				(nullptr);
 #endif //USE_DX11
 		Memory.mem_fill		(&stat,0,sizeof(stat));
@@ -193,6 +194,7 @@ void	CBackend::set_ClipPlanes	(u32 _enable, Fmatrix*	_xform  /*=nullptr */, u32 
 
 void CBackend::set_Textures			(STextureList* _T)
 {
+	PROF_EVENT("set_Textures");
 	if (T == _T)	return;
 	T				= _T;
 	//	If resources weren't set at all we should clear from resource #0.

@@ -11,75 +11,86 @@ struct _counter
 	u32	dwCount;
 };
 
+
 void	CBuild::xrPhase_ResolveMaterials()
 {
-	// Count number of materials
-	Status		("Calculating materials/subdivs...");
-	xr_vector<_counter>	counts;
-	{
-		counts.reserve		(256);
-		for (vecFaceIt F_it=lc_global_data()->g_faces().begin(); F_it!=lc_global_data()->g_faces().end(); F_it++)
-		{
-			Face*	F			= *F_it;
-			BOOL	bCreate		= TRUE;
-			for (u32 I=0; I<counts.size(); I++)
-			{
-				if (F->dwMaterial == counts[I].dwMaterial)
-				{
-					counts[I].dwCount	+= 1;
-					bCreate				= FALSE;
-					break;
-				}
-			}
-			if (bCreate)	{
-				_counter	C;
-				C.dwMaterial	= F->dwMaterial;
-				C.dwCount		= 1;
-				counts.push_back(C);
-			}
-			Progress(float(F_it-lc_global_data()->g_faces().begin())/float(lc_global_data()->g_faces().size()));
-		}
-	}
+	CTimer  tProcecss; tProcecss.Start();
 	
-	Status				("Perfroming subdivisions...");
-	{
-		g_XSplit.reserve(64*1024);
-		g_XSplit.resize	(counts.size());
-		for (u32 I=0; I<counts.size(); I++) 
-		{
-			g_XSplit[I] = new vecFace ();
-			g_XSplit[I]->reserve	(counts[I].dwCount);
-		}
-		
-		for (vecFaceIt F_it=lc_global_data()->g_faces().begin(); F_it!=lc_global_data()->g_faces().end(); F_it++)
-		{
-			Face*	F							= *F_it;
-			if (!F->Shader().flags.bRendering)	continue;
+ 	// Count number of materials
+ 	// Calculating materials
+	auto& faces = lc_global_data()->g_faces();
+	std::unordered_map<u16, size_t> matToIndex;
+ 
+	// Локальные хранилища для потоков -> потом сведём в общий map
+	concurrency::combinable<std::unordered_map<u16, u32>> localCounts;
 
-			for (u32 I=0; I<counts.size(); I++)
-			{
-				if (F->dwMaterial == counts[I].dwMaterial)
-				{
-					g_XSplit[I]->push_back	(F);
-				}
-			}
-			Progress(float(F_it-lc_global_data()->g_faces().begin())/float(lc_global_data()->g_faces().size()));
-		}
+ 	xr_parallel_foreach(faces.begin(), faces.end(), [&](Face* F)
+		{
+			localCounts.local()[F->dwMaterial] += 1;
+		});
+
+	// Слияние локальных карт в глобальную
+	std::unordered_map<u16, u32> globalCounts;
+	localCounts.combine_each([&](const std::unordered_map<u16, u32>& lm)
+		{
+			for (const auto& kv : lm)
+				globalCounts[kv.first] += kv.second;
+		});
+
+
+	// ======================================================
+	// 2) Вектор счётчиков + карта material -> index (SC)
+	// ======================================================
+	xr_vector<_counter> count;
+	count.reserve(globalCounts.size());
+	matToIndex.reserve(globalCounts.size());
+
+	size_t idx = 0;
+	for (const auto& kv : globalCounts)
+	{
+		const u16 mat = kv.first;
+		const u32 cnt = kv.second;
+		count.push_back(_counter{ mat, cnt });
+		matToIndex[mat] = idx++;
 	}
 
-	Status				("Removing empty subdivs...");
+	// Performing Subdivs
+	concurrency::concurrent_vector<concurrency::concurrent_vector<Face*>> bins;
+	bins.reserve(count.size());
+	bins.resize(count.size());
+ 	xr_parallel_foreach(faces.begin(), faces.end(), [&](Face* F)
+		{
+			if (!F->Shader().flags.bRendering) return;
+
+			auto it = matToIndex.find(F->dwMaterial);
+			if (it != matToIndex.end())
+			{
+				bins[it->second].push_back(F);
+			}
+		});
+ 
+	// Переносим в итоговый g_XSplit
+	g_XSplit.reserve(count.size());
+	g_XSplit.resize(count.size());
+
+	for (size_t i = 0; i < g_XSplit.size(); ++i)
 	{
-		for (int SP = 0; SP<int(g_XSplit.size()); SP++) 
-			if (g_XSplit[SP]->empty())	xr_delete(g_XSplit[SP]);
+		// vecFace имеет конструктор от итераторов
+		g_XSplit[i] = new vecFace(bins[i].begin(), bins[i].end());
+	}
+ 
+	// Старый код
+ 	{
+		for (int SP = 0; SP<int(g_XSplit.size()); SP++)
+		{
+			if (g_XSplit[SP]->empty())
+				xr_delete(g_XSplit[SP]);
+		}
 		g_XSplit.erase(std::remove(g_XSplit.begin(),g_XSplit.end(),(vecFace*) NULL),g_XSplit.end());
 	}
-	
-	Status				("Detaching subdivs...");
-	{
-		for (u32 it=0; it<g_XSplit.size(); it++)
-		{
-			Detach(g_XSplit[it]);
-		}
-	}
-	clMsg				("%d subdivisions.",g_XSplit.size());
+   
+ 	for (auto F : g_XSplit)
+ 		Detach(F);
+ 
+	clMsg				("Material %u subdivisions. %u ms", g_XSplit.size(), tProcecss.GetElapsed_ms());
 }

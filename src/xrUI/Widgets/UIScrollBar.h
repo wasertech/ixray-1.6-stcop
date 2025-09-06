@@ -51,7 +51,7 @@ public:
 			bool	GetEnabled			()					{return m_b_enabled;}
 	virtual void	Show				(bool b);
 	virtual void	Enable				(bool b);
-	virtual	void	InitScrollBar		(Fvector2 pos, float length, bool bIsHorizontal, LPCSTR profile = "default");
+	virtual	bool	InitScrollBar		(Fvector2 pos, float length, bool bIsHorizontal, LPCSTR profile = "default");
 
 	virtual void	SendMessage			(CUIWindow *pWnd, s16 msg, void *pData);
 	virtual bool	OnMouseAction				(float x, float y, EUIMessages mouse_action);
@@ -82,4 +82,6 @@ public:
 	
 	void			TryScrollInc		(bool by_scrollbox=false);
 	void			TryScrollDec		(bool by_scrollbox=false);
+
+	virtual CUIWindow* ui_cast_window() { return this; }
 };

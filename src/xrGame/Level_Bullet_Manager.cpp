@@ -11,7 +11,6 @@
 #include "mt_config.h"
 #include "game_cl_base_weapon_usage_statistic.h"
 #include "game_cl_mp.h"
-#include "reward_event_generator.h"
 
 #include "../Include/xrRender/UIRender.h"
 #include "../Include/xrRender/Kinematics.h"
@@ -103,16 +102,9 @@ void SBullet::Init(const Fvector& position,
 
 
 CBulletManager::CBulletManager()
-#if 0//def PROFILE_CRITICAL_SECTIONS
-	: m_Lock(MUTEX_PROFILE_ID(CBulletManager))
-#	ifdef DEBUG
-		,m_thread_id(GetCurrentThreadId())
-#	endif // #ifdef DEBUG
-#else // #ifdef PROFILE_CRITICAL_SECTIONS
-#	ifdef DEBUG
-		: m_thread_id(GetCurrentThreadId())
-#	endif // #ifdef DEBUG
-#endif // #ifdef PROFILE_CRITICAL_SECTIONS
+#ifdef DEBUG
+	: m_thread_id(GetCurrentThreadId())
+#endif // #ifdef DEBUG
 {
 	m_Bullets.clear			();
 	m_Bullets.reserve		(100);
@@ -128,7 +120,7 @@ CBulletManager::~CBulletManager()
 void CBulletManager::Load		()
 {
 	char const * bullet_manager_sect = "bullet_manager";
-	if (!IsGameTypeSingle())
+	if (!IsGameTypeSingle() && pSettings->section_exist("mp_bullet_manager"))
 	{
 		bullet_manager_sect = "mp_bullet_manager";
 	}
@@ -213,8 +205,8 @@ void CBulletManager::AddBullet(const Fvector& position,
 	VERIFY						(u16(-1)!=cartridge.bullet_material_idx);
 //	u32 CurID					= Level().CurrentControlEntity()->ID();
 //	u32 OwnerID					= sender_id;
-	m_Bullets.push_back			(SBullet());
-	SBullet& bullet				= m_Bullets.back();
+	xrCriticalSectionGuard guard(&m_Lock);
+	SBullet& bullet				= m_Bullets.emplace_back();
 	bullet.Init					(position, direction, starting_speed, power, /*power_critical,*/ impulse, sender_id, sendersweapon_id, e_hit_type, maximum_distance, cartridge, air_resistance_factor, SendHit);
 //	bullet.frame_num			= Device.dwFrame;
 	bullet.flags.aim_bullet		= AimBullet;
@@ -222,17 +214,15 @@ void CBulletManager::AddBullet(const Fvector& position,
 	{
 		if (SendHit)
 			Game().m_WeaponUsageStatistic->OnBullet_Fire(&bullet, cartridge);
-		game_cl_mp*	tmp_cl_game = smart_cast<game_cl_mp*>(&Game());
-		if (tmp_cl_game->get_reward_generator())
-			tmp_cl_game->get_reward_generator()->OnBullet_Fire(sender_id, sendersweapon_id, position, direction); 
 	}
 	
 }
 
 void CBulletManager::UpdateWorkload()
 {
+	PROF_EVENT("CBulletManager::UpdateWorkload")
 //	VERIFY						( m_thread_id == GetCurrentThreadId() );
-
+	xrCriticalSectionGuard guard(&m_Lock);
 	rq_storage.r_clear			();
 
 	u32 const time_delta		= Device.dwTimeDelta;
@@ -245,6 +235,7 @@ void CBulletManager::UpdateWorkload()
 	// when index in vector passed through the tgt_material field
 	// and we can remove them only in case when we iterate bullets
 	// in the reversed order
+
 	BulletVec::reverse_iterator	i = m_Bullets.rbegin();
 	BulletVec::reverse_iterator	e = m_Bullets.rend();
 	for (u16 j=u16(e - i); i != e; ++i, --j) {
@@ -729,7 +720,7 @@ BOOL CBulletManager::firetrace_callback	(collide::rq_result& result, LPVOID para
 
 	//динамический объект
 	VERIFY							( !(result.O->ID() == bullet.parent_id &&  bullet.fly_dist < parent_ignore_distance) );
-	IKinematics* const kinematics	= smart_cast<IKinematics*>(result.O->Visual());
+	IKinematics* const kinematics	= PKinematics(result.O->Visual());
 	if (!kinematics)
 		return						(FALSE);
 
@@ -925,6 +916,7 @@ float SqrDistancePointToSegment(const Fvector& pt, const Fvector& orig, const Fv
 
 void CBulletManager::Render	()
 {
+	PROF_EVENT("CBulletManager::Render")
 #ifdef DEBUG
 	if (g_bDrawBulletHit && !m_bullet_points.empty()) {
 		VERIFY							(!(m_bullet_points.size() % 2));
@@ -964,22 +956,22 @@ void CBulletManager::Render	()
 	}
 #endif
 
-	if(m_BulletsRendered.empty()) return;
-
+	if(m_Bullets.empty()) return;
+	xrCriticalSectionGuard guard(&m_Lock);
 	//u32	vOffset			=	0	;
-	u32 bullet_num		= (u32)m_BulletsRendered.size();
+	u32 bullet_num		= (u32)m_Bullets.size();
 
 	UIRender->StartPrimitive((u32)bullet_num*12, IUIRender::ptTriList, IUIRender::pttLIT);
 
-	for(BulletVecIt it = m_BulletsRendered.begin(); it!=m_BulletsRendered.end(); it++){
-		SBullet* bullet					= &(*it);
-		if(!bullet->flags.allow_tracer)	
+	for(SBullet& bullet : m_Bullets)
+	{
+		if(!bullet.flags.allow_tracer)	
 			continue;
 
-		if (!bullet->CanBeRenderedNow())
+		if (!bullet.CanBeRenderedNow())
 			continue;
 
-		Fvector const tracer			= Fvector().sub(bullet->bullet_pos, bullet->tracer_start_position);
+		Fvector const tracer			= Fvector().sub(bullet.bullet_pos, bullet.tracer_start_position);
 		float length					= tracer.magnitude();
 		Fvector const tracer_direction	= length >= EPS_L ? Fvector(tracer).mul(1.f/length) : Fvector().set(0.f, 0.f, 1.f);
 
@@ -990,7 +982,7 @@ void CBulletManager::Render	()
 			length			= m_fTracerLengthMax;
 
 		float width			= m_fTracerWidth;
-		float dist2segSqr	= SqrDistancePointToSegment(Device.vCameraPosition, bullet->bullet_pos, tracer);
+		float dist2segSqr	= SqrDistancePointToSegment(Device.vCameraPosition, bullet.bullet_pos, tracer);
 		//---------------------------------------------
 		float MaxDistSqr = 1.0f;
 		float MinDistSqr = 0.09f;
@@ -1000,19 +992,19 @@ void CBulletManager::Render	()
 
 			width *= _sqrt(dist2segSqr/MaxDistSqr);
 		}
-		if (Device.vCameraPosition.distance_to_sqr(bullet->bullet_pos)<(length*length))
+		if (Device.vCameraPosition.distance_to_sqr(bullet.bullet_pos)<(length*length))
 		{
-			length = Device.vCameraPosition.distance_to(bullet->bullet_pos) - 0.3f;
+			length = Device.vCameraPosition.distance_to(bullet.bullet_pos) - 0.3f;
 		}
 
 		Fvector center;
-		center.mad				(bullet->bullet_pos, tracer_direction,  -length*.5f);
+		center.mad				(bullet.bullet_pos, tracer_direction,  -length*.5f);
 		bool bActor				= false;
 		if(Level().CurrentViewEntity())
 		{
-			bActor				= ( bullet->parent_id == Level().CurrentViewEntity()->ID() );
+			bActor				= ( bullet.parent_id == Level().CurrentViewEntity()->ID() );
 		}
-		tracers.Render			(bullet->bullet_pos, center, tracer_direction, length, width, bullet->m_u8ColorID, bullet->speed, bActor);
+		tracers.Render			(bullet.bullet_pos, center, tracer_direction, length, width, bullet.m_u8ColorID, bullet.speed, bActor);
 	}
 	
 	UIRender->CacheSetCullMode		(IUIRender::cmNONE);
@@ -1022,17 +1014,9 @@ void CBulletManager::Render	()
 	UIRender->CacheSetCullMode		(IUIRender::cmCCW);
 }
 
-void CBulletManager::CommitRenderSet		()	// @ the end of frame
-{
-	m_BulletsRendered	= m_Bullets			;
-	if (g_mt_config.test(mtBullets))		{
-		Device.seqParallel.push_back		(xr_make_delegate(this,&CBulletManager::UpdateWorkload));
-	} else {
-		UpdateWorkload						();
-	}
-}
 void CBulletManager::CommitEvents			()	// @ the start of frame
 {
+	PROF_EVENT("CBulletManager::CommitEvents")
 	if (m_Events.size() > 1000)
 		Msg			("! too many bullets during single frame: %d", m_Events.size());
 
@@ -1049,24 +1033,27 @@ void CBulletManager::CommitEvents			()	// @ the start of frame
 			{
 				if (E.bullet.flags.allow_sendhit && !IsGameTypeSingle())
 					Game().m_WeaponUsageStatistic->OnBullet_Remove(&E.bullet);
-				m_Bullets[E.tgt_material] = m_Bullets.back();
-				m_Bullets.pop_back();
+				xrCriticalSectionGuard guard(&m_Lock);
+				if (E.tgt_material < m_Bullets.size())
+				{
+					m_Bullets[E.tgt_material] = m_Bullets.back();
+					m_Bullets.pop_back();
+				}
 			}break;
 		}		
 	}
 	clear_and_reserve(m_Events);
+
+	if (g_mt_config.test(mtBullets)) {
+		Device.seqParallel.push_back(xr_make_delegate(this, &CBulletManager::UpdateWorkload));
+	}
+	else {
+		UpdateWorkload();
+	}
 }
 
 void CBulletManager::RegisterEvent			(EventType Type, BOOL _dynamic, SBullet* bullet, const Fvector& end_point, collide::rq_result& R, u16 tgt_material)
 {
-#if 0//def DEBUG
-	if (m_Events.size() > 1000) {
-		static bool breakpoint = true;
-		if (breakpoint)
-			__debugbreak();
-	}
-#endif // #ifdef DEBUG
-
 	m_Events.push_back	(_event())		;
 	_event&	E		= m_Events.back()	;
 	E.Type			= Type				;
@@ -1097,9 +1084,11 @@ void CBulletManager::RegisterEvent			(EventType Type, BOOL _dynamic, SBullet* bu
 				{
 					if (bullet->targetID != R.O->ID())
 					{
-						CGameObject* pGO = smart_cast<CGameObject*>(R.O);
-						if (!pGO || !pGO->BonePassBullet(R.element))
-							bullet->targetID = R.O->ID();						
+						CGameObject* pGO = R.O->cast_game_object();
+						if (pGO == nullptr || !pGO->BonePassBullet(R.element))
+						{
+							bullet->targetID = R.O->ID();
+						}
 					}
 				}
 			};

@@ -4,10 +4,12 @@
 #include "CustomZone.h"
 #include "Artefact.h"
 #include "../xrSound/ai_sounds.h"
+#include <functional>
 
 #include "CustomDetectorZones.h"
 
 class CUIArtefactDetectorBase;
+typedef std::function<void()> detector_fn_t;
 
 class CCustomDetector :		public CHudItemObject
 {
@@ -18,6 +20,9 @@ protected:
 	bool			m_bNeedActivation;
 	bool			m_bDetectorActive;
 	bool			m_bHideAndRestore;
+
+	detector_fn_t hide_callback;
+
 	u32				m_old_state;
 public:
 					CCustomDetector		();
@@ -25,6 +30,7 @@ public:
 
 	virtual BOOL 	net_Spawn			(CSE_Abstract* DC);
 	virtual void 	Load				(LPCSTR section);
+	virtual void 	LoadSounds			(LPCSTR section);
 
 	virtual void 	OnH_A_Chield		();
 	virtual void 	OnH_B_Independent	(bool just_before_destroy);
@@ -44,12 +50,16 @@ public:
 	virtual void	OnStateSwitch		(u32 S);
 	virtual void	OnAnimationEnd		(u32 state);
 	virtual	void	UpdateXForm			();
+	virtual void	SwitchState			(u32 S);
 	virtual void	UpdateHudAdditonal	(Fmatrix& trans);
 	void			ToggleDetector		(bool bFastMode, bool switching = false);
-	void			HideDetector		(bool bFastMode);
+	void			HideDetector		(bool bFastMode, bool force = false);
 	void			ShowDetector		(bool bFastMode);
 	float			m_fAfDetectRadius;
 	virtual bool	CheckCompatibility	(CHudItem* itm);
+
+	void			ClearCallback() { hide_callback = nullptr; };
+	void			HideAndSetCallback(const detector_fn_t fn);
 
 	virtual u32		ef_detector_type	() const	{return 1;};
 
@@ -59,10 +69,35 @@ public:
 
 	void			SetHideAndRestore(bool val){m_bHideAndRestore = val;};
 
+	virtual void	OnMotionMark(u32 state, const motion_marks&) override;
+
 	virtual bool	can_be_attached		() const;
+	void PlayWpnFinishDetector();
+	void 	TurnDetectorInternal(bool b);
+
+	bool NeedBlockSprint() const;
+	bool CanDrawHand() const;
+	bool CanHideHand() const;
+	bool CanThrowHand() const;
+	bool CanKick() const;
+	bool CanLam() const;
+
+	enum EDetectorStates
+	{
+		eHandHide = eLastBaseState + 1,
+		eHandDraw,
+		eHandThrowStart,
+		eHandThrowIdle,
+		eHandThrowEnd,
+		eHandKick1,
+		eHandKick2,
+		eHandLam,
+	};
+
+	virtual CCustomDetector* cast_custom_detector() { return this; }
+
 protected:
 			bool	CheckCompatibilityInt		(CHudItem* itm, u16* slot_to_activate);
-			void 	TurnDetectorInternal		(bool b);
 	void 			UpdateNightVisionMode		(bool b_off);
 	void			UpdateVisibility			();
 	virtual void	UpfateWork					();

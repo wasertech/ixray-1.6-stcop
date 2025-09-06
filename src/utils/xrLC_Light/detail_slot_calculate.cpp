@@ -7,10 +7,10 @@
 #include "stdafx.h"
 #include "detail_slot_calculate.h"
 
-#include "cl_intersect.h"
 #include "base_lighting.h"
 #include "global_calculation_data.h"
 #include "../Shader_xrLC.h"
+#include "../../xrCore/Collision/cl_intersect.h"
 
 #undef LP_DEFAULT
 enum
@@ -122,7 +122,7 @@ float getLastRP_Scale(CDB::COLLIDER* DB, R_Light& L)//, Face* skip)
 #ifdef		DEBUG
 			const b_BuildTexture	&build_texture  = gl_data.g_textures			[M.surfidx];
 
-			VERIFY( !!(build_texture.THM.HasSurface()) ==  !!(T.pSurface) );
+			VERIFY( !!(build_texture.HasSurface()) ==  !!(T.pSurface) );
 #endif
 
 			if (0==T.pSurface)	T.bHasAlpha = FALSE;
@@ -163,27 +163,40 @@ float getLastRP_Scale(CDB::COLLIDER* DB, R_Light& L)//, Face* skip)
 	return scale;
 }
 
+#include "../xrForms/CompilersUI.h"
+
+extern float RaytraceEmbreeDetails(R_Light& L, Fvector& P, Fvector& N, float range);
 float rayTrace	(CDB::COLLIDER* DB, R_Light& L, Fvector& P, Fvector& D, float R)//, Face* skip)
 {
-	R_ASSERT	(DB);
-
-	// 1. Check cached polygon
-	float _u,_v,range;
-	bool res = CDB::TestRayTri(P,D,L.tri,_u,_v,range,false);
-	if (res) {
-		if (range>0 && range<R) return 0;
+	if (gCompilerMode.Embree)
+	{
+ 		return RaytraceEmbreeDetails(L, P, D, R);
 	}
+	else
+	{
+		R_ASSERT(DB);
 
-	// 2. Polygon doesn't pick - real database query
-	DB->ray_query	(&gl_data.RCAST_Model,P,D,R);
+		// 1. Check cached polygon
+		float _u, _v, range;
+		bool res = CDB::TestRayTri(P, D, L.tri, _u, _v, range, false);
+		if (res) {
+			if (range > 0 && range < R) return 0;
+		}
 
-	// 3. Analyze polygons and cache nearest if possible
-	if (0==DB->r_count()) {
-		return 1;
-	} else {
-		return getLastRP_Scale(DB,L);//,skip);
+		// 2. Polygon doesn't pick - real database query
+		DB->ray_query(&gl_data.RCAST_Model, P, D, R);
+
+		// 3. Analyze polygons and cache nearest if possible
+		if (0 == DB->r_count())
+		{
+			return 1;
+		}
+		else
+		{
+			return getLastRP_Scale(DB, L);//,skip);
+		}
+		return 0;
 	}
-	return 0;
 }
 
 void LightPoint(CDB::COLLIDER* DB, base_color &C, Fvector &P, Fvector &N, base_lighting& lights, u32 flags)
@@ -303,10 +316,11 @@ void LightPoint(CDB::COLLIDER* DB, base_color &C, Fvector &P, Fvector &N, base_l
 
 bool detail_slot_process( u32 _x, u32 _z, DetailSlot&	DS )
 {
-		process_pallete( DS );
-		if ( gl_data.slots_data.skip_slot ( _x, _z ) )
-										return false;
-		return true;
+	process_pallete( DS );
+	if ( gl_data.slots_data.skip_slot ( _x, _z ) )
+		return false;
+
+	return true;
 }
 
 
@@ -342,7 +356,7 @@ bool detail_slot_calculate( u32 _x, u32 _z, DetailSlot&	DS, DWORDVec& box_result
 	base_color		amount;
 	u32				count	= 0;
 	float coeff		= DETAIL_SLOT_SIZE_2/float(LIGHT_Count);
-	FPU::m64r		();
+
 	for (int x=-LIGHT_Count; x<=LIGHT_Count; x++) 
 	{
 		Fvector		P;

@@ -18,12 +18,12 @@ void main(p_bumped_new I, out IXrayGbufferPack O)
 
 #ifdef USE_AREF
     #if defined(USE_HASHED_AREF) && !defined(DETAIL_SHADOW_PASS)
-		clip(M.Color.w - hashed_alpha_test(M.Point));
+		    clip(M.Color.w - hashed_alpha_test(M.Point));
     #else
-		clip(M.Color.w - def_aref);
+		    clip(M.Color.w - def_aref);
     #endif
     #ifdef USE_DXT1_HACK
-		M.Color.xyz *= rcp(max(0.0001f, M.Color.w));
+	      M.Color.xyz *= rcp(max(0.0001f, M.Color.w));
     #endif
 #endif
 
@@ -49,14 +49,21 @@ void main(p_bumped_new I, out IXrayGbufferPack O)
 		M.Color.xyz *= M.AO;
 		M.AO = 1.0f;
 		float Specular = M.Metalness * dot(M.Color.xyz, LUMINANCE_VECTOR);
-		M.Color.xyz = lerp(M.Color.xyz, F0, M.Metalness);
+		M.Color.xyz = lerp(M.Color.xyz, 0.04f, M.Metalness);
 		M.Metalness = 0.5f - M.Roughness * M.Roughness * 0.5f;
 		M.Roughness = Specular;
     #endif
 #endif
 
-#if defined(USE_AREF) && defined(USE_TREEWAVE)
-    M.SSS = 1.0f;
+#ifdef IGNORE_SNOW_MASK
+	M.SnowMask = 0.0f;
+#endif
+
+#ifdef USE_AREF
+	#ifdef USE_TREEWAVE
+		M.SSS = 1.0f;
+	#endif
+	M.SnowMask = 0.0f;
 #endif
 
     O.Velocity = I.hpos_curr.xy / I.hpos_curr.w - I.hpos_old.xy / I.hpos_old.w;

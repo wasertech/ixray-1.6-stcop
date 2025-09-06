@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "UIEditLightAnim.h"
 #include "../xrEngine/LightAnimLibrary.h"
+#include "imgui_user.h"
 
 #include "ui_main.h"
 #define POINTER_HEIGHT 35
@@ -48,7 +49,7 @@ UIEditLightAnim::~UIEditLightAnim()
 	}
 	m_ItemTexture->Release();
 	if (m_PointerTexture) { m_PointerTexture->Release(); xr_delete(m_PointerRawImage); }
-	if (m_Texture) { m_Texture->Release(); }
+	if (m_Texture) { IM_TEXTURE_RELEASE(m_Texture); }
 	m_TextureNull.destroy();
 	xr_delete(m_Props);
 	xr_delete(m_Items);

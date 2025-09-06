@@ -30,6 +30,8 @@ public:
 			void SetVisibleForBtn(ETEAMMENU_BTN btn, bool state);
 			void SetCurTeam(int team);
 
+	virtual CUIWindow* ui_cast_window() { return this; }
+
 protected:
 			void InitTeamLogo();
 
@@ -44,7 +46,7 @@ protected:
 protected:
 	CUIStatic*		m_pCaption;
 	CUIStatic*		m_pBackground;
-	CUIStatic*		m_pFrames[2];
+	CUIStatic*		m_pFrames[3];
 	CUIScrollView*	m_pTextDesc;
 	CUIStatix*		m_pImage1;
 	CUIStatix*		m_pImage2;

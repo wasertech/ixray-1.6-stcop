@@ -5,7 +5,7 @@
 #include "IGame_Persistent.h"
 #include "XR_IOConsole.h"
 #include "std_classes.h"
-#include "../xrCDB/ISpatial.h"
+#include "../xrCore/Collision/ISpatial.h"
 #include "ILoadingScreen.h"
 
 //---------------------------------------------------------------------
@@ -21,8 +21,6 @@ struct _SoundProcessor : public pureFrame
 		Device.Statistic->Sound.End();
 	}
 }	SoundProcessor;
-
-ENGINE_API int ps_rs_loading_stages = 0;
 
 CApplication::CApplication()
 {
@@ -87,6 +85,7 @@ void CApplication::OnEvent(EVENT E, u64 P1, u64 P2)
 	}
 	else if (E == g_pEventManager->eStart)
 	{
+		PROF_EVENT("eStart");
 		LPSTR		op_server = LPSTR(P1);
 		LPSTR		op_client = LPSTR(P2);
 		Level_Current = u32(-1);
@@ -192,8 +191,8 @@ void CApplication::LoadEnd()
 {
 	ll_dwReference--;
 	if (0 == ll_dwReference) {
-		Msg("* phase time: %d ms", phase_timer.GetElapsed_ms());
-		// Msg("* phase cmem: %d K", Memory.mem_usage() / 1024);
+		//Msg("* phase time: %d ms", phase_timer.GetElapsed_ms());
+		//Msg("* phase cmem: %d K", Memory.mem_usage() / 1024);
 		//Console->Execute("stat_memory");
 		g_appLoaded = TRUE;
 		//		DUMP_PHASE;
@@ -230,6 +229,14 @@ void CApplication::LoadDraw()
 void CApplication::LoadForceFinish() {
 	if (loadingScreen)
 		loadingScreen->ForceFinish();
+}
+
+void CApplication::SetLoadStageTitle(pcstr _ls_title)
+{
+	const static bool isLoadingStagesEnabled = EngineExternal()[EEngineExternalUI::ShowLoadingStages];
+	if (loadingScreen && isLoadingStagesEnabled)
+		loadingScreen->SetStageTitle(_ls_title);
+	Log(_ls_title);
 }
 
 void CApplication::LoadTitleInt(LPCSTR str1, LPCSTR str2, LPCSTR str3)

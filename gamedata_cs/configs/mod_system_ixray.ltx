@@ -1,0 +1,199 @@
+;system.ltx
+
+; This is due to the fact that GSC has prescribed the sound of a gun being pulled out
+![inventory]
+slot_persistent_4 = false ;grenades
+
+slot_persistent_13  = false ;backpack
+slot_active_13      = false
+
+![actor_look_cam_psp]
+!offset
+!autoaim_speed_y
+!autoaim_speed_x
+
+offset_right = -0.4,0.2,0.0
+offset_left = 0.314,0.2,0.0
+use_inertion = true
+
+;m_controller.ltx
+![m_controller_e]
+icon = ui_npc_monster_kontroler
+
+![m_controller_normal]
+icon				= ui_npc_monster_kontroler
+
+![m_controller_normal_fat]
+icon				= ui_npc_monster_kontroler_3
+
+![m_controller_old]
+icon				= ui_npc_monster_kontroler_4
+
+![m_controller_old_fat]
+icon				= ui_npc_monster_kontroler_5
+
+;artefacts.ltx
+![af_base]
+default_to_ruck			= true
+
+;items.ltx
+![bread]
+use_text = st_eat
+eat_portions_num = 1
+
+![kolbasa]
+use_text = st_eat
+eat_portions_num = 1
+
+![conserva]
+use_text = st_eat
+eat_portions_num = 1
+
+![vodka]
+use_text = st_drink
+eat_portions_num = 1
+
+![device_torch]
+sound_activate          = device\torch_click
+sound_deactivate        = device\torch_click_off
+
+;device.ltx
+;![detector_simple_hud]
+;anm_bore = dev_detector_1_idle_bore
+;anm_bore_16x9 = dev_detector_1_idle_bore_ws, dev_detector_1_idle_bore
+;
+;![detector_advanced_hud]
+;anm_bore = dev_detector_2_idle_bore
+;anm_bore_16x9 = dev_detector_2_idle_bore_ws, dev_detector_1_idle_bore
+;
+;![detector_elite_hud]
+;anm_bore = dev_detector_3_idle_bore
+;anm_bore_16x9 = dev_detector_3_idle_bore_ws, dev_detector_1_idle_bore
+;
+;![detector_scientific_hud]
+;anm_bore = dev_detector_3_idle_bore
+;anm_bore_16x9 = dev_detector_3_idle_bore_ws, dev_detector_1_idle_bore
+
+;w_f1.ltx
+![grenade_f1]
+detonation_threshold_hit= 0.3
+explosion_on_hit = true
+explosion_hit_types = 6, 8 
+explosive_while_not_activated = true
+
+;w_rgd5.ltx
+![grenade_rgd5]
+detonation_threshold_hit = 0.3
+explosion_on_hit = true
+explosion_hit_types = 6, 8 
+explosive_while_not_activated = true
+
+;helicopter.ltx
+![helicopter]
+ssa_dyn_factor = 0.001
+ssa_d_cam = 300.0
+
+;prefetch_mp.ltx
+; FreeMP mode
+[prefetch_objects_fmp]:prefetch_objects_mp
+[prefetch_visuals_fmp]:prefetch_visuals_mp
+
+[prefetch_objects_freemp]:prefetch_objects_mp
+[prefetch_visuals_freemp]:prefetch_visuals_mp
+
+[night_vision_base]
+snd_night_vision_on			= weapons\nv_start
+snd_night_vision_off		= weapons\nv_off
+snd_night_vision_idle		= weapons\nv_loop
+snd_night_vision_broken		= weapons\nv_off
+
+night_vision_disabled_maps						= ai_test,ai_test2, andy_test_
+
+; m_stalker.ltx
+![stalker]
+;---FIRE QUEUE PARAMETERS
+fire_queue_section = fire_queue_params
+
+[fire_queue_params]  ; min < 15 < medium < 30 < max
+pstl_min_queue_size_far			= 1
+pstl_max_queue_size_far			= 1
+pstl_min_queue_interval_far		= 3000
+pstl_max_queue_interval_far		= 5000
+
+pstl_min_queue_size_medium		= 1
+pstl_max_queue_size_medium		= 1
+pstl_min_queue_interval_medium	= 1000
+pstl_max_queue_interval_medium	= 3000
+
+pstl_min_queue_size_close		= 1
+pstl_max_queue_size_close		= 1
+pstl_min_queue_interval_close	= 500
+pstl_max_queue_interval_close	= 1000
+
+
+
+shtg_min_queue_size_far			= 1
+shtg_max_queue_size_far			= 1
+shtg_min_queue_interval_far		= 1500
+shtg_max_queue_interval_far		= 2000
+
+shtg_min_queue_size_medium		= 1
+shtg_max_queue_size_medium		= 1
+shtg_min_queue_interval_medium	= 1000
+shtg_max_queue_interval_medium	= 1500
+
+shtg_min_queue_size_close		= 2
+shtg_max_queue_size_close		= 2
+shtg_min_queue_interval_close	= 500
+shtg_max_queue_interval_close	= 1000
+
+
+
+snp_min_queue_size_far			= 1
+snp_max_queue_size_far			= 1
+snp_min_queue_interval_far		= 2000
+snp_max_queue_interval_far		= 3000
+
+snp_min_queue_size_medium		= 1
+snp_max_queue_size_medium		= 1
+snp_min_queue_interval_medium	= 1500
+snp_max_queue_interval_medium	= 2000
+
+snp_min_queue_size_close		= 1
+snp_max_queue_size_close		= 1
+snp_min_queue_interval_close	= 1000
+snp_max_queue_interval_close	= 1500
+
+
+
+auto_min_queue_size_far			= 1
+auto_max_queue_size_far			= 2
+auto_min_queue_interval_far		= 1500
+auto_max_queue_interval_far		= 2000
+
+auto_min_queue_size_medium		= 2
+auto_max_queue_size_medium		= 3
+auto_min_queue_interval_medium	= 1000
+auto_max_queue_interval_medium	= 1500
+
+auto_min_queue_size_close		= 3
+auto_max_queue_size_close		= 5
+auto_min_queue_interval_close	= 500
+auto_max_queue_interval_close	= 1000
+
+
+
+mchg_min_queue_size_far			= 10
+mchg_max_queue_size_far			= 15
+mchg_min_queue_interval_far		= 3000
+mchg_max_queue_interval_far		= 4000
+
+mchg_min_queue_size_medium		= 10
+mchg_max_queue_size_medium		= 15
+mchg_min_queue_interval_medium	= 2000
+mchg_max_queue_interval_medium	= 3000
+
+mchg_min_queue_size_close		= 10
+mchg_max_queue_size_close		= 15
+mchg_min_queue_interval_close	= 1000
+mchg_max_queue_interval_close	= 2000

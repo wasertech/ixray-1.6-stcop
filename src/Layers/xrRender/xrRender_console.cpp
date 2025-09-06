@@ -1,10 +1,8 @@
-#include	"stdafx.h"
-#pragma		hdrstop
+#include "stdafx.h"
+#include "xrRender_console.h"
+#include "dxRenderDeviceRender.h"
 
-#include	"xrRender_console.h"
-#include	"dxRenderDeviceRender.h"
-
-u32			ps_Preset				=	2	;
+u32 ps_Preset =	2;
 xr_token							qpreset_token							[ ]={
 	{ "Minimum",					0											},
 	{ "Low",						1											},
@@ -57,13 +55,23 @@ xr_token							qsun_quality_token							[ ]={
 
 u32			ps_r2_aa_type			= 0;			//	=	0;
 xr_token							aa_type_token[] = {
-	{ "st_opt_off",						0												},
+	{ "st_opt_off",						0											},
 	{ "fxaa",						1												},
 #if RENDER != R_R1
 	{ "smaa",						2												},
-#endif // DEBUG
+	{ "taa",						3												},
+#endif // DEBUG	
 	{ 0,							0												}
 };
+
+u32			ps_screenshot_format = 2;			//	=	0;
+xr_token							screenshot_format_token[] = {
+	{ "ss_jpg",						0												},
+	{ "ss_tga",						1												},
+	{ "ss_png",						2												},
+	{ 0,							0												}
+};
+
 // Common
 extern int			psSkeletonUpdate;
 extern float		r__dtex_range;
@@ -174,6 +182,8 @@ int			ps_r2_wait_sleep			= 0;
 float		ps_r2_lt_smooth				= 1.f;				// 1.f
 float		ps_r2_slight_fade			= 0.6f;				// 1.f
 
+float		ps_r4_vslr_distance			= 0.7f;				// 1.f
+
 //	x - min (0), y - focus (1.4), z - max (100)
 Fvector3	ps_r2_dof					= Fvector3().set(-1.25f, 1.4f, 600.f);
 float		ps_r2_dof_sky				= 30;				//	distance to sky
@@ -186,7 +196,7 @@ float		ps_r3_dyn_wet_surf_far		= 30.f;				// 30.0f
 int			ps_r3_dyn_wet_surf_sm_res	= 256;				// 256
 float		ps_r2_gloss_factor = 3.14f;
 
-int			ps_r__detail_radius = 49;
+int			ps_r__detail_radius = 120;
 float		ps_r4_cas_sharpening = 0.0f;
 
 // Test float exported to shaders for development
@@ -196,6 +206,8 @@ float		ps_r__test_exp_to_shaders_3	= 1.0f;
 float		ps_r__test_exp_to_shaders_4	= 1.0f;
 
 BOOL		ps_r2_particle_dt			= FALSE;
+
+int			r_debug_render_depth		= 0;
 
 #ifndef _EDITOR
 #include "../../xrEngine/XR_IOConsole.h"
@@ -307,17 +319,9 @@ public:
 	}
 };
 
-class CCC_ModelPoolStat : public IConsole_Command
-{
-public:
-	CCC_ModelPoolStat(LPCSTR N) : IConsole_Command(N)  { bEmptyArgsHandled = TRUE; };
-	virtual void Execute(LPCSTR args) {
-		RImplementation.Models->dump();
-	}
-};
-
 //-----------------------------------------------------------------------
-class	CCC_Preset		: public CCC_Token
+class CCC_Preset :
+	public CCC_Token
 {
 public:
 	CCC_Preset(LPCSTR N, u32* V, xr_token* T) : CCC_Token(N,V,T)	{}	;
@@ -363,7 +367,7 @@ public:
 
 	virtual void Execute(LPCSTR args) {
 		if (Device.GetRenderDocAPI()) {
-			HWND hwnd = (HWND)SDL_GetProperty(SDL_GetWindowProperties(g_AppInfo.Window), "SDL.window.win32.hwnd", nullptr);
+			HWND hwnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(g_AppInfo.Window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
 			Device.GetRenderDocAPI()->StartFrameCapture(RDevice, hwnd);
 		}
 	}
@@ -377,7 +381,7 @@ public:
 
 	virtual void Execute(LPCSTR args) {
 		if (Device.GetRenderDocAPI()) {
-			HWND hwnd = (HWND)SDL_GetProperty(SDL_GetWindowProperties(g_AppInfo.Window), "SDL.window.win32.hwnd", nullptr);
+			HWND hwnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(g_AppInfo.Window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
 			Device.GetRenderDocAPI()->EndFrameCapture(RDevice, hwnd);
 		}
 	}
@@ -558,8 +562,8 @@ class CCC_DumpResources : public IConsole_Command
 {
 public:
 	CCC_DumpResources(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = TRUE; };
-	virtual void Execute(LPCSTR args) {
-		RImplementation.Models->dump();
+	virtual void Execute(LPCSTR args) 
+	{
 		dxRenderDeviceRender::Instance().Resources->Dump(false);
 	}
 };
@@ -734,11 +738,14 @@ void		xrRender_initconsole	()
 	CMD4(CCC_Integer,	"r3_dynamic_wet_surfaces_sm_res",&ps_r3_dyn_wet_surf_sm_res,64,	2048	);
 
 	CMD3(CCC_Mask,		"r3_volumetric_smoke",			&ps_r2_ls_flags,			R3FLAG_VOLUMETRIC_SMOKE);
-	CMD3(CCC_Mask, "r4_enable_tessellation", &ps_r2_ls_flags_ext, R2FLAGEXT_ENABLE_TESSELLATION);//Need restart
+	CMD3(CCC_Mask, "r4_enable_tessellation", &ps_r2_ls_flags_ext, R2FLAGEXT_ENABLE_TESSELLATION);
+
+	CMD3(CCC_Mask, "r4_enable_vslr", &ps_r2_ls_flags_ext, R4FLAG_OFFSCREEN_REFLECTIONS);
+	CMD4(CCC_Float, "r4_vslr_distance", &ps_r4_vslr_distance, 0.4f, 1.f);
 
 	// IX-Ray
 	CMD3(CCC_Mask, "r__fast_details_update",&ps_r2_ls_flags, R2FLAG_FAST_DETAILS_UPDATE);
-	CMD4(CCC_DetailRadius, "r__detail_radius", &ps_r__detail_radius, 10, 120);
+	CMD4(CCC_DetailRadius, "r__detail_radius", &ps_r__detail_radius, 10, 350);
 	CMD3(CCC_Mask, "r__no_ram_textures", &ps_r__common_flags, RFLAG_NO_RAM_TEXTURES);
 	CMD3(CCC_Mask, "r__mt_texture_load", &ps_r__common_flags, RFLAG_MT_TEX_LOAD);
 	CMD3(CCC_Token, "r_aa", &ps_r2_aa_type, aa_type_token);
@@ -746,6 +753,7 @@ void		xrRender_initconsole	()
 	CMD4(CCC_Integer, "r__optimize_dynamic_geom", &opt_dynamic, 0, 2);
 	CMD3(CCC_Mask, "r__optimize_shadow_geom", &ps_r__common_flags, RFLAG_OPT_SHAD_GEOM);
 	CMD3(CCC_Mask, "r__shader_cache", &ps_r__common_flags, RFLAG_USE_CACHE);
+	CMD3(CCC_Token, "r__screenshot_format", &ps_screenshot_format, screenshot_format_token);
 
 	CMD3(CCC_Mask, "r1_use_terrain_mask", &ps_r1_flags, R1FLAG_TERRAIN_MASK);
 
@@ -760,9 +768,12 @@ void		xrRender_initconsole	()
 	CMD3(CCC_Mask, "r4_hud_shadows", &ps_r2_ls_flags_ext, R4FLAG_SCREEN_SPACE_HUD_SHADOWS);
 	CMD3(CCC_Mask, "r4_hashed_alpha_test", &ps_r2_ls_flags_ext, R4FLAG_HASHED_ALPHA_TEST);
 	CMD3(CCC_Mask, "r4_sslr_water", &ps_r2_ls_flags_ext, R4FLAG_SSLR_ON_WATER);
+	CMD3(CCC_Mask, "r4_sslr_reflections", &ps_r2_ls_flags_ext, R4FLAG_SSLR_ON_WORLD);
 	CMD4(CCC_Float, "r4_cas_sharpening", &ps_r4_cas_sharpening, 0.0f, 1.0f);
 
 	CMD3(CCC_Mask, "r4_puddles", &ps_r2_ls_flags_ext, R4FLAG_PUDDLES);
+	CMD2(CCC_Boolean, "r_use_gasmask", &UseGasmak);
+	CMD2(CCC_Boolean, "r_use_rain_drops", &UseRainDrops);
 
 #ifdef DEBUG_DRAW
 #if RENDER!=R_R1
@@ -773,7 +784,6 @@ void		xrRender_initconsole	()
 	CMD4(CCC_Float, "r__ssa_glod_end", &ps_r__GLOD_ssa_end, 16, 96);
 	CMD4(CCC_Float, "r__wallmark_shift_pp", &ps_r__WallmarkSHIFT, 0.0f, 1.f);
 	CMD4(CCC_Float, "r__wallmark_shift_v", &ps_r__WallmarkSHIFT_V, 0.0f, 1.f);
-	CMD1(CCC_ModelPoolStat, "stat_models");
 
 #ifdef USE_DX11
 	CMD1(CCC_RenderDocCaptureStart, "rdoc_start");
@@ -810,6 +820,8 @@ void		xrRender_initconsole	()
 	CMD3(CCC_Mask, "r2_shadow_cascede_zcul", &ps_r2_ls_flags_ext, R2FLAGEXT_SUN_ZCULLING);
 	CMD3(CCC_Mask, "r2_exp_splitscene", &ps_r2_ls_flags, R2FLAG_EXP_SPLIT_SCENE);
 	CMD3(CCC_Mask, "r2_exp_donttest_uns", &ps_r2_ls_flags, R2FLAG_EXP_DONT_TEST_UNSHADOWED);
+
+	CMD4(CCC_Integer, "rs_dbg_draw_depth", &r_debug_render_depth, 0, 1);
 #endif
 }
 

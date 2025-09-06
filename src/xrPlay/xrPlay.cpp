@@ -8,7 +8,7 @@
 #include "../xrEngine/string_table.h"
 
 #include <SDL3/SDL.h>
-#include "DynamicSplashScreen.h"
+#include "Splash.h"
 
 #include "../xrCore/git_version.h"
 #include "UIEditorMain.h"
@@ -17,11 +17,12 @@
 #include "NvGPUTransferee.h"
 
 #ifndef DEBUG
-#define NO_MULTI_INSTANCES
+//#define NO_MULTI_INSTANCES
 #endif
 
 void EnumerateDisplayModes()
 {
+	PROF_EVENT("EnumerateDisplayModes");
 	SDL_DisplayID primaryDisplay = SDL_GetPrimaryDisplay();
 	if (!primaryDisplay)
 	{
@@ -55,14 +56,28 @@ void EnumerateDisplayModes()
 }
 
 
-void CreateGameWindow()
+void MigrateToGameWindow()
 {
-	if (g_AppInfo.Window == nullptr) {
+	PROF_EVENT("MigrateToGameWindow");
+	SDL_ShowWindow(g_AppInfo.Window);
+	SDL_SetWindowTitle(g_AppInfo.Window, "IX-Ray Engine");
 		
-		EnumerateDisplayModes();
+	Console->Execute("vid_restart");
+	SDL_GetWindowSizeInPixels(g_AppInfo.Window, &Device.Width, &Device.Height);
+	SDL_GetWindowPosition(g_AppInfo.Window, &Device.PosX, &Device.PosY);
+}
 
-		SDL_WindowFlags window_flags = SDL_WINDOW_HIDDEN;
-		g_AppInfo.Window = SDL_CreateWindow("IX-Ray Engine", psCurrentVidMode[0], psCurrentVidMode[1], window_flags);
+static void LoadCustomSettings()
+{
+	PROF_EVENT("LoadCustomSettings");
+	FS_FileSet settingsFiles = {};
+	FS.file_list(settingsFiles, "$game_config$", FS_ListFiles, "ixray_settings\\default_settings*.ltx");
+
+	for (auto& fsFile : settingsFiles)
+	{
+		string_path defaultSettings = {};
+		FS.update_path(defaultSettings, "$game_config$", fsFile.name.c_str());
+		Console->ExecuteScript(defaultSettings);
 	}
 }
 
@@ -74,7 +89,10 @@ int APIENTRY WinMain
 	int nCmdShow
 )
 {
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMEPAD) != 0) {
+	//PROF_START_CAPTURE();
+	{
+		PROF_EVENT("START_ENGINE");
+		if (!SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMEPAD | SDL_INIT_EVENTS)) {
 		return -1;
 	}
 
@@ -99,15 +117,18 @@ int APIENTRY WinMain
 		return 1;
 	}
 #endif
+	EnumerateDisplayModes();
 
-	//SetThreadAffinityMask(GetCurrentThread(), 1);
-	CreateGameWindow();
+	g_AppInfo.Window = SDL_CreateWindow("IX-Ray Engine", 0, 0, 0);
+	SDL_HideWindow(g_AppInfo.Window);
 
-	// Title window
-	RegisterWindowClass(hInstance, nCmdShow);
+	SDL_Window* wnd1 = nullptr;
+	splash::show((void*&)wnd1);
 
 	EngineLoadStage1(lpCmdLine);
 
+		{
+			PROF_EVENT("g_pGPU");
 	g_pGPU = new CNvReader();
 	g_pGPU->Initialize();
 	if (!((CNvReader*)(g_pGPU))->bSupport)
@@ -116,6 +137,7 @@ int APIENTRY WinMain
 		g_pGPU = new CAMDReader;
 		g_pGPU->Initialize();
 	}
+		}
 #ifdef DEBUG
 	xrLogger::EnableFastDebugLog();
 #endif
@@ -123,21 +145,29 @@ int APIENTRY WinMain
 
 	Engine.External.CreateRendererList();
 
+		{
+			PROF_EVENT("Console::Create");
 	Console = new CConsole();
+		}
 	EngineLoadStage3();
 
+		{
+			PROF_EVENT("Select Render");
 	if (Core.ParamsData.test(ECoreParams::r4)) {
 		Console->Execute("renderer renderer_r4");
 	}
 	else if (Core.ParamsData.test(ECoreParams::r2)) {
 		Console->Execute("renderer renderer_r2");
-	} else {
+			}
+			else {
 		CCC_LoadCFG_custom* pTmp = new CCC_LoadCFG_custom("renderer ");
 		pTmp->Execute(Console->ConfigFile);
 		xr_delete(pTmp);
 		// В любом случае надо вызывать команду CCC_R2
 		Console->Execute((std::string("renderer ") + Console->GetToken("renderer")).c_str());
 	}
+		}
+
 	Engine.External.Initialize();
 
 	//Console->Execute("stat_memory");
@@ -145,18 +175,19 @@ int APIENTRY WinMain
 
 	EngineLoadStage4();
 
-	// Destroy LOGO
-	DestroyWindow(logoWindow);
-	logoWindow = nullptr;
-	
-	SDL_ShowWindow(g_AppInfo.Window);
+	LoadCustomSettings();
 
-	// Show main wnd
-	Console->Execute("vid_restart");
+	// Splash wnd => Game wnd
+	splash::hide();
+		SDL_DestroyWindow(wnd1);
+		
+	MigrateToGameWindow();
+	
 #ifdef DEBUG_DRAW
 	RenderUI();
 	EditorLuaInit();
 #endif
+
 	EngineLoadStage5();
 
 	xr_delete(g_pStringTable);
@@ -168,6 +199,7 @@ int APIENTRY WinMain
 	// Delete application presence mutex
 	CloseHandle(hCheckPresenceMutex);
 #endif
+	}
 
 	return (0);
 }

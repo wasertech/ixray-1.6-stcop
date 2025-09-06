@@ -65,6 +65,7 @@ CInventoryItem::CInventoryItem()
 	m_Description					= "";
 	m_section_id					= 0;
 	m_flags.set						(FIsHelperItem,FALSE);
+	m_flags.set						(FCanStack, TRUE);
 
 	m_custom_text					= nullptr;
 	m_custom_text_font				= nullptr;
@@ -106,6 +107,45 @@ void CInventoryItem::Load(LPCSTR section)
 {
 	CHitImmunity::LoadImmunities	(pSettings->r_string(section,"immunities_sect"),pSettings);
 
+	// FFx0001 ++ begin
+	// Highlight separated by delimeter ',' related item sections on mouseover from the actor's inventory
+	m_HiglightRelatedItemSections.clear();
+	if (pSettings->line_exist(section, "highlight_related_sections"))
+	{
+		const char* separated_sections = pSettings->r_string(section, "highlight_related_sections");
+		for (int it = 0, count = _GetItemCount(separated_sections); it < count; ++it)
+		{
+			string128 higlight_section;
+			_GetItem(separated_sections, it, higlight_section);
+			m_HiglightRelatedItemSections.push_back(higlight_section);
+		}
+	}
+	// FFx0001 ++ end
+
+	m_parse_params.m_chances.clear();
+	m_parse_params.m_items.clear();
+
+	if (pSettings->line_exist(section, "parse_spawn_items") && pSettings->line_exist(section, "parse_spawn_chances"))
+	{
+		shared_str SpawnList = pSettings->r_string(section, "parse_spawn_items");
+		shared_str ChanceList = pSettings->r_string(section, "parse_spawn_chances");
+
+		int Count = _GetItemCount(SpawnList.c_str());
+		int Count2 = _GetItemCount(ChanceList.c_str());
+
+		string256 sItem = {};
+
+		for (int i = 0; i < Count; ++i)
+		{
+			m_parse_params.m_items.push_back(_GetItem(SpawnList.c_str(), i, sItem));
+		}
+
+		for (int i = 0; i < Count2; ++i)
+		{
+			m_parse_params.m_chances.push_back(atof(_GetItem(ChanceList.c_str(), i, sItem)));
+		}
+	}
+
 	if (cast_game_object())
 	{
 		cast_game_object()->SpatialComponent->spatial.type |= STYPE_VISIBLEFORAI;
@@ -128,10 +168,13 @@ void CInventoryItem::Load(LPCSTR section)
 	m_can_trade = READ_IF_EXISTS(pSettings, r_bool, section, "can_trade", TRUE);
 	m_flags.set(FCanTake, READ_IF_EXISTS(pSettings, r_bool, section, "can_take", TRUE));
 	m_flags.set(FCanTrade, m_can_trade);
+	m_flags.set(FCanStack,		READ_IF_EXISTS(pSettings, r_bool, section, "can_stack", TRUE));
 	m_flags.set(FIsQuestItem,	READ_IF_EXISTS(pSettings, r_bool, section, "quest_item",FALSE));
 
 	// Added by Axel, to enable optional condition use on any item
 	m_flags.set(FUsingCondition, READ_IF_EXISTS(pSettings, r_bool, section, "use_condition", false));
+
+	m_highlight_equipped = !!READ_IF_EXISTS(pSettings, r_bool, section, "highlight_equipped", FALSE);
 
 	if ( BaseSlot() != NO_ACTIVE_SLOT || Belt())
 	{
@@ -289,10 +332,14 @@ void CInventoryItem::OnEvent (NET_Packet& P, u16 type)
 	case GE_ADDON_ATTACH:
 		{
 			u16 ItemID;
-			P.r_u16			(ItemID);
-			CInventoryItem*	 ItemToAttach	= smart_cast<CInventoryItem*>(Level().Objects.net_Find(ItemID));
-			if (!ItemToAttach) break;
-			Attach(ItemToAttach,true);
+			P.r_u16(ItemID);
+			CObject* finded = Level().Objects.net_Find(ItemID);
+			PIItem ItemToAttach = finded != nullptr ? finded->cast_inventory_item() : nullptr;
+			if (ItemToAttach == nullptr)
+			{
+				break;
+			}
+			Attach(ItemToAttach, true);
 		}break;
 	case GE_ADDON_DETACH:
 		{
@@ -300,6 +347,11 @@ void CInventoryItem::OnEvent (NET_Packet& P, u16 type)
 			P.r_stringZ			(i_name);
 			Detach(i_name, true);
 		}break;	
+
+	case GE_REPAIR_ITEM:
+	{
+		SetCondition(1.0f);
+	}break;
 	case GE_CHANGE_POS:
 		{
 			Fvector p; 
@@ -668,7 +720,7 @@ void CInventoryItem::net_Export			(NET_Packet& P)
 		//Optimization, as I can't think of very many cases where we need update condition change when item is not actor's
 		if (g_actor && this->parent_id() == g_actor->ID())
 		{
-			CGameObject* obj = smart_cast<CGameObject*>(this);
+			CGameObject* obj = cast_game_object();
 			NET_Packet stpk;
 			obj->u_EventGen(stpk, GE_SYNC_ALIFEITEM, obj->ID());
 			stpk.w_float(m_fCondition);
@@ -713,98 +765,8 @@ void CInventoryItem::net_Export			(NET_Packet& P)
 		net_Export_Anim_Params(P);
 	}*/
 	net_Export_PH_Params(P,State,num_items);
-	
-	if (object().PPhysicsShell() && object().PPhysicsShell()->isEnabled())
-	{
-		P.w_u8(1);	//not freezed
-	} else
-	{
-		P.w_u8(0);  //freezed
-	}
 
-	/*if (object().H_Parent() || IsGameTypeSingle()) 
-	{
-		P.w_u8				(0);
-		return;
-	}
-	CPHSynchronize* pSyncObj				= nullptr;
-	SPHNetState								State;
-	pSyncObj = object().PHGetSyncItem		(0);
-
-	if (pSyncObj && !object().H_Parent()) 
-		pSyncObj->get_State					(State);
-	else 	
-		State.position.set					(object().Position());
-
-
-	mask_num_items			num_items;
-	num_items.mask			= 0;
-	u16						temp = object().PHGetSyncItemsNumber();
-	R_ASSERT				(temp < (u16(1) << 5));
-	num_items.num_items		= u8(temp);
-
-	if (State.enabled)									num_items.mask |= CSE_ALifeInventoryItem::inventory_item_state_enabled;
-	if (fis_zero(State.angular_vel.square_magnitude()))	num_items.mask |= CSE_ALifeInventoryItem::inventory_item_angular_null;
-	if (fis_zero(State.linear_vel.square_magnitude()))	num_items.mask |= CSE_ALifeInventoryItem::inventory_item_linear_null;
-
-	P.w_u8					(num_items.common);
-
-	P.w_vec3				(State.position);
-
-	float					magnitude = _sqrt(State.quaternion.magnitude());
-	if (fis_zero(magnitude)) {
-		magnitude			= 1;
-		State.quaternion.x	= 0.f;
-		State.quaternion.y	= 0.f;
-		State.quaternion.z	= 1.f;
-		State.quaternion.w	= 0.f;
-	}
-	else {
-		float				invert_magnitude = 1.f/magnitude;
-		
-		State.quaternion.x	*= invert_magnitude;
-		State.quaternion.y	*= invert_magnitude;
-		State.quaternion.z	*= invert_magnitude;
-		State.quaternion.w	*= invert_magnitude;
-
-		clamp				(State.quaternion.x, -1.f, 1.f);
-		clamp				(State.quaternion.y, -1.f, 1.f);
-		clamp				(State.quaternion.z, -1.f, 1.f);
-		clamp				(State.quaternion.w, -1.f, 1.f);
-	}
-
-	P.w_float_q8			(State.quaternion.x, -1.f, 1.f);
-	P.w_float_q8			(State.quaternion.y, -1.f, 1.f);
-	P.w_float_q8			(State.quaternion.z, -1.f, 1.f);
-	P.w_float_q8			(State.quaternion.w, -1.f, 1.f);
-
-	if (!(num_items.mask & CSE_ALifeInventoryItem::inventory_item_angular_null)) {
-		clamp				(State.angular_vel.x,0.f,10.f*PI_MUL_2);
-		clamp				(State.angular_vel.y,0.f,10.f*PI_MUL_2);
-		clamp				(State.angular_vel.z,0.f,10.f*PI_MUL_2);
-
-		P.w_float_q8		(State.angular_vel.x,0.f,10.f*PI_MUL_2);
-		P.w_float_q8		(State.angular_vel.y,0.f,10.f*PI_MUL_2);
-		P.w_float_q8		(State.angular_vel.z,0.f,10.f*PI_MUL_2);
-	}
-
-	if (!(num_items.mask & CSE_ALifeInventoryItem::inventory_item_linear_null)) {
-		clamp				(State.linear_vel.x,-32.f,32.f);
-		clamp				(State.linear_vel.y,-32.f,32.f);
-		clamp				(State.linear_vel.z,-32.f,32.f);
-
-		P.w_float_q8		(State.linear_vel.x,-32.f,32.f);
-		P.w_float_q8		(State.linear_vel.y,-32.f,32.f);
-		P.w_float_q8		(State.linear_vel.z,-32.f,32.f);
-	}
-
-	if (object().PPhysicsShell() && object().PPhysicsShell()->isEnabled())
-	{
-		P.w_u8(1);	//not freezed
-	} else
-	{
-		P.w_u8(0);  //freezed
-	}*/
+	P.w_u8(!!object().PPhysicsShell() && object().PPhysicsShell()->isEnabled());	//not freezed
 };
 
 void CInventoryItem::load(IReader &packet)
@@ -1282,8 +1244,9 @@ bool CInventoryItem::ready_to_kill		() const
 
 void CInventoryItem::activate_physic_shell()
 {
-	CEntityAlive*	E		= smart_cast<CEntityAlive*>(object().H_Parent());
-	if (!E) {
+	CEntityAlive* E = object().H_Parent() != nullptr ? object().H_Parent()->cast_entity_alive() : nullptr;
+	if (E == nullptr)
+	{
 		on_activate_physic_shell();
 		return;
 	};
@@ -1298,57 +1261,77 @@ void CInventoryItem::setControlInertionFactor(float value)
 	m_fControlInertionFactor = value;
 }
 
-void CInventoryItem::UpdateXForm	()
+void CInventoryItem::UpdateXForm()
 {
-	if (0==object().H_Parent())	return;
+	CObject* obj_parent = object().H_Parent();
+	if (obj_parent == nullptr)
+	{
+		return;
+	}
 
 	// Get access to entity and its visual
-	CEntityAlive*	E		= smart_cast<CEntityAlive*>(object().H_Parent());
-	if (!E) return;
-	
-	if (E->cast_base_monster()) return;
-
-	const CInventoryOwner	*parent = smart_cast<const CInventoryOwner*>(E);
-	if (parent && parent->use_simplified_visual())
+	CEntityAlive* E = obj_parent->cast_entity_alive();
+	if (E == nullptr)
+	{
 		return;
+	}
+
+	if (E->cast_base_monster())
+	{
+		return;
+	}
+
+	const CInventoryOwner* parent = E->cast_inventory_owner();
+	
+	if (parent == nullptr)
+	{
+		return;
+	}
+
+	if (parent->use_simplified_visual())
+	{
+		return;
+	}
 
 	if (parent->attached(this))
+	{
 		return;
+	}
 
-	R_ASSERT		(E);
-	IKinematics*	V		= smart_cast<IKinematics*>	(E->Visual());
-	VERIFY			(V);
+	R_ASSERT(E);
+	IKinematics* V = PKinematics(E->Visual());
+	VERIFY(V);
 
 	// Get matrices
 	int						boneL = -1, boneR = -1, boneR2 = -1;
-	E->g_WeaponBones(boneL,boneR,boneR2);
+	E->g_WeaponBones(boneL, boneR, boneR2);
 	if (boneR == -1)	return;
 	//	if ((HandDependence() == hd1Hand) || (STATE == eReload) || (!E->g_Alive()))
 	//		boneL = boneR2;
 #pragma todo("TO ALL: serious performance problem")
-	V->CalculateBones	();
-	Fmatrix& mL			= V->LL_GetTransform(u16(boneL));
-	Fmatrix& mR			= V->LL_GetTransform(u16(boneR));
+	V->CalculateBones();
+	Fmatrix& mL = V->LL_GetTransform(u16(boneL));
+	Fmatrix& mR = V->LL_GetTransform(u16(boneR));
 	// Calculate
 	Fmatrix			mRes;
-	Fvector			R,D,N;
-	D.sub			(mL.c,mR.c);	D.normalize_safe();
+	Fvector			R, D, N;
+	D.sub(mL.c, mR.c);	D.normalize_safe();
 
-	if(fis_zero(D.magnitude()))
+	if (fis_zero(D.magnitude()))
 	{
 		mRes.set(E->XFORM());
 		mRes.c.set(mR.c);
 	}
 	else
-	{		
+	{
 		D.normalize();
-		R.crossproduct	(mR.j,D);
+		R.crossproduct(mR.j, D);
 
-		N.crossproduct	(D,R);
+		N.crossproduct(D, R);
 		N.normalize();
 
-		mRes.set		(R,N,D,mR.c);
-		mRes.mulA_43	(E->XFORM());
+		mRes.set(R, N, D, mR.c);
+		mRes.mulA_43(E->XFORM());
 	}
 
 	//	UpdatePosition	(mRes);
@@ -1437,11 +1420,12 @@ void CInventoryItem::OnRender()
 }
 #endif
 
-DLL_Pure *CInventoryItem::_construct	()
+DLL_Pure *CInventoryItem::_construct()
 {
-	m_object	= smart_cast<CPhysicsShellHolder*>(this);
-	VERIFY		(m_object);
-	return		(inherited::_construct());
+	m_object = smart_cast<CPhysicsShellHolder*>(this);
+	VERIFY(m_object);
+
+	return inherited::_construct();
 }
 
 void CInventoryItem::modify_holder_params	(float &range, float &fov) const

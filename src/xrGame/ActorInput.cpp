@@ -33,7 +33,9 @@
 #include "HUDManager.h"
 #include "Weapon.h"
 #include "ai/monsters/basemonster/base_monster.h"
-#include "HUDAnimItem.h"
+#include "ActorHelmet.h"
+#include "HudItem.h"
+#include "../xrEngine/XR_IOConsole.h"
 
 extern u32 hud_adj_mode;
 
@@ -84,6 +86,13 @@ void CActor::IR_OnKeyboardPress(int cmd)
 		return;
 	}
 #endif //DEBUG
+
+
+	if (IsWaunded)
+	{
+		return;
+	}
+
 	switch(cmd)
 	{
 	case kJUMP:		
@@ -117,37 +126,22 @@ void CActor::IR_OnKeyboardPress(int cmd)
 			SwitchTorch();
 			break;
 		}
-
+	case kCLEARGASMASK:
+	{
+		ClearMask();
+		break;
+	}
 	case kDETECTOR:
 		{
-			PIItem det_active					= inventory().ItemFromSlot(DETECTOR_SLOT);
-			if(det_active)
+			PIItem det_active = inventory().ItemFromSlot(DETECTOR_SLOT);
+			if (det_active)
 			{
-				CCustomDetector* det			= smart_cast<CCustomDetector*>(det_active);
-				if(det)
+				if (CCustomDetector* det = det_active->cast_custom_detector())
+				{
 					det->switch_detector();
-				return;
+				}
 			}
 		}break;
-/*
-	case kFLARE:{
-			PIItem fl_active = inventory().ItemFromSlot(FLARE_SLOT);
-			if(fl_active)
-			{
-				CFlare* fl			= smart_cast<CFlare*>(fl_active);
-				fl->DropFlare		();
-				return				;
-			}
-
-			PIItem fli = inventory().Get(CLSID_DEVICE_FLARE, true);
-			if(!fli)			return;
-
-			CFlare* fl			= smart_cast<CFlare*>(fli);
-			
-			if(inventory().Slot(fl))
-				fl->ActivateFlare	();
-		}break;
-*/
 	case kUSE:
 		ActorUse();
 		break;
@@ -163,17 +157,37 @@ void CActor::IR_OnKeyboardPress(int cmd)
 		{
 			OnPrevWeaponSlot();
 		}break;
-
+	case kUSE_BANDAGE:
+	case kUSE_MEDKIT:
+	{
+		if (IsGameTypeSingle())
+		{
+			PIItem itm = inventory().item((cmd == kUSE_BANDAGE) ? CLSID_IITEM_BANDAGE : CLSID_IITEM_MEDKIT);
+			if (itm)
+			{
+				inventory().Eat(itm);
+				SDrawStaticStruct* _s = CurrentGameUI()->AddCustomStatic("item_used", true, 3.0f);
+				string1024					str;
+				xr_strconcat(str, *CStringTable().translate("st_item_used"), ": ", itm->NameItem());
+				_s->wnd()->TextItemControl()->SetText(str);
+			}
+		}
+	}break;
 	case kQUICK_USE_1:
 	case kQUICK_USE_2:
 	case kQUICK_USE_3:
 	case kQUICK_USE_4:
 		{
-			if (smart_cast<CHUDAnimItem*>(inventory().ActiveItem()) != nullptr || inventory().GetNextActiveSlot() == ANIM_SLOT)
+			if (HudAnimator() && HudAnimator()->IsActive())
+			{
+				return;
+			}
+
+			if (!CurrentGameUI()->ActorMenu().m_pQuickSlot)
 			{
 				break;
 			}
-
+			
 			const shared_str& item_name		= g_quick_use_slots[cmd-kQUICK_USE_1];
 			if(item_name.size())
 			{
@@ -226,9 +240,15 @@ void CActor::IR_OnKeyboardRelease(int cmd)
 {
 	if(hud_adj_mode && pInput->iGetAsyncKeyState(SDL_SCANCODE_LSHIFT))	return;
 
-	if (Remote())	return;
+	if (Remote())
+		return;
 
 	if (m_input_external_handler && !m_input_external_handler->authorized(cmd))	return;
+
+	if (IsWaunded)
+	{
+		return;
+	}
 
 	if (g_Alive())	
 	{
@@ -273,6 +293,12 @@ void CActor::IR_OnKeyboardHold(int cmd)
 		return;
 	}
 #endif //DEBUG
+
+	if (IsWaunded)
+	{
+		return;
+	}
+
 	float LookFactor = GetLookFactor();
 	switch(cmd)
 	{
@@ -315,35 +341,53 @@ void CActor::IR_OnKeyboardHold(int cmd)
 void CActor::IR_OnMouseMove(int dx, int dy)
 {
 
-	if(hud_adj_mode)
+	if (hud_adj_mode)
 	{
-		g_player_hud->tune	(Ivector().set(dx,dy,0));
+		g_player_hud->tune(Ivector().set(dx, dy, 0));
 		return;
 	}
 
 	PIItem iitem = inventory().ActiveItem();
-	if(iitem && iitem->cast_hud_item())
-		iitem->cast_hud_item()->ResetSubStateTime();
-
-	if (Remote())		return;
-
-	if(m_holder) 
+	if (iitem != nullptr && iitem->cast_hud_item())
 	{
-		m_holder->OnMouseMove(dx,dy);
+		iitem->cast_hud_item()->ResetSubStateTime();
+	}
+
+	if (Remote())
+	{
+		return;
+	}
+
+	if (m_holder)
+	{
+		m_holder->OnMouseMove(dx, dy);
 		return;
 	}
 
 	float LookFactor = GetLookFactor();
 
-	CCameraBase* C	= cameras	[cam_active];
-	float scale		= (C->f_fov/g_fov)*psMouseSens * psMouseSensScale/50.f  / LookFactor;
-	if (dx){
-		float d = float(dx)*scale;
-		cam_Active()->Move((d<0)?kLEFT:kRIGHT, _abs(d));
+	CCameraBase* C = cameras[cam_active];
+	float scale = (C->f_fov / g_fov) * psMouseSens * psMouseSensScale / 50.0f / LookFactor;
+
+	if (CWeapon* wpn = iitem != nullptr ? iitem->cast_weapon() : nullptr)
+	{
+		if (!wpn->IsGrenadeMode() && wpn->IsLensedScopeInstalled())
+		{
+			float zoom_scale = scale * (wpn->GetLensFOV() * 0.02f);
+			scale = _lerp(scale, zoom_scale, wpn->GetAimFactor());
+		}
 	}
-	if (dy){
-		float d = ((psMouseInvert.test(1))?-1:1)*float(dy)*scale*3.f/4.f;
-		cam_Active()->Move((d>0)?kUP:kDOWN, _abs(d));
+
+	if (dx)
+	{
+		float d = float(dx) * scale;
+		cam_Active()->Move((d < 0) ? kLEFT : kRIGHT, _abs(d));
+	}
+
+	if (dy)
+	{
+		float d = ((psMouseInvert.test(1)) ? -1 : 1) * float(dy) * scale * 3.0f / 4.0f;
+		cam_Active()->Move((d > 0) ? kUP : kDOWN, _abs(d));
 	}
 }
 
@@ -454,47 +498,226 @@ void CActor::IR_GamepadKeyPress(int id)
 	}
 }
 
-#include "HudItem.h"
-bool CActor::use_Holder				(CHolderCustom* holder)
+static bool IsKeyPressed(int dik)
 {
+	if (pInput != nullptr)
+	{
+		return pInput->iGetAsyncKeyState(dik);
+	}
 
-	if(m_holder){
-		bool b = false;
-		CGameObject* holderGO			= smart_cast<CGameObject*>(m_holder);
-		
-		if(smart_cast<CCar*>(holderGO))
-			b = use_Vehicle(0);
+	return false;
+}
+
+static bool IsActionKeyPressed(const EGameActions& EGameAction)
+{
+	int key1 = get_action_dik(EGameAction, 0);
+	int key2 = get_action_dik(EGameAction, 1);
+
+	return ((key1 != 0) && IsKeyPressed(key1)) || ((key2 != 0) && IsKeyPressed(key2));
+}
+
+static bool IsActionKeyPressedInGame(const EGameActions& EGameAction)
+{
+	return IsActionKeyPressed(EGameAction) && !Console->bVisible && CurrentGameUI() != nullptr && !CurrentGameUI()->TopInputReceiver() && g_pGameLevel && g_pGameLevel->Cameras().GetCamEffector(cefDemo) == nullptr;
+}
+
+void CActor::SetActorKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags mask, bool state, bool ignore_suicide)
+{
+	//if (!ignore_suicide && IsActorSuicideNow())
+	//{
+	//	return;
+	//}
+
+	if (state)
+	{
+		m_iKeyFlags |= mask;
+	}
+	else
+	{
+		m_iKeyFlags &= ~mask;
+	}
+}
+
+extern BOOL b_toggle_weapon_aim;
+
+void CActor::ProcessKeys(CHudItem* itm)
+{
+	if (itm == nullptr)
+	{
+		m_iKeyFlags = 0;
+		return;
+	}
+
+	if ((m_iKeyFlags & kfHEADLAMP) != 0 && itm->CanStartAction(this))
+	{
+		SwitchTorch();
+		SetActorKeyRepeatFlag(kfHEADLAMP, false);
+	}
+
+	if ((m_iKeyFlags & kfNIGHTVISION) != 0 && itm->CanStartAction(this))
+	{
+		SwitchNightVision();
+		SetActorKeyRepeatFlag(kfNIGHTVISION, false);
+	}
+
+	if ((m_iKeyFlags & kfCLEARMASK) != 0 && itm->CanStartAction(this))
+	{
+		ClearMask();
+		SetActorKeyRepeatFlag(kfCLEARMASK, false);
+	}
+
+	CWeapon* wpn = itm->cast_weapon();
+	if (wpn == nullptr)
+	{
+		return;
+	}
+	
+	if (IsActionKeyPressedInGame(kWPN_ZOOM) && (wpn->GetState() == CWeapon::eIdle || wpn->GetState() == CWeapon::eFire))
+	{
+		if (!b_toggle_weapon_aim && wpn->CanAimNow() && !wpn->IsZoomed())
+		{
+			wpn->Action(kWPN_ZOOM, CMD_START);
+			SetActorKeyRepeatFlag(kfUNZOOM, false);
+		}
+	}
+
+	if ((m_iKeyFlags & kfUNZOOM) != 0)
+	{
+		if (wpn->IsZoomed())
+		{
+			if (wpn->CanLeaveAimNow())
+			{
+				if (b_toggle_weapon_aim)
+				{
+					wpn->Action(kWPN_ZOOM, CMD_START);
+				}
+				else
+				{
+					wpn->Action(kWPN_ZOOM, CMD_STOP);
+				}
+			}
+		}
 		else
-			if (holderGO->CLS_ID==CLSID_OBJECT_W_STATMGUN)
-				b = use_MountedWeapon(0);
+		{
+			SetActorKeyRepeatFlag(kfUNZOOM, false);
+		}
+	}
 
-		if(inventory().ActiveItem()){
-			CHudItem* hi = smart_cast<CHudItem*>(inventory().ActiveItem());
-			if(hi) hi->OnAnimationEnd(hi->GetState());
+	/*if (!wpn->IsActionProcessing() && wpn->GetState() != CWeapon::eSprintEnd && (GetMovementState(eReal) & mcSprint) == 0 && (m_iKeyFlags & kfFIRE) != 0)
+	{
+		wpn->Action(kWPN_FIRE, CMD_START);
+
+		if (!IsActionKeyPressed(kWPN_FIRE))
+		{
+			wpn->Action(kWPN_FIRE, CMD_STOP);
 		}
 
-		return b;
-	}else{
-		bool b = false;
-		CGameObject* holderGO			= smart_cast<CGameObject*>(holder);
-		if(smart_cast<CCar*>(holder))
-			b = use_Vehicle(holder);
+		SetActorKeyRepeatFlag(kfFIRE, false);
+	}*/
 
-		if (holderGO->CLS_ID==CLSID_OBJECT_W_STATMGUN)
-			b = use_MountedWeapon(holder);
+	if ((m_iKeyFlags & kfGLAUNCHSWITCH) != 0 && itm->CanStartAction(this))
+	{
+		wpn->Action(kWPN_FUNC, CMD_START);
+		SetActorKeyRepeatFlag(kfGLAUNCHSWITCH, false);
+	}
+
+	if ((m_iKeyFlags & kfNEXTFIREMODE) != 0 && itm->CanStartAction(this))
+	{
+		wpn->Action(kWPN_FIREMODE_NEXT, CMD_START);
+		SetActorKeyRepeatFlag(kfNEXTFIREMODE, false);
+	}
+
+	if ((m_iKeyFlags & kfPREVFIREMODE) != 0 && itm->CanStartAction(this))
+	{
+		wpn->Action(kWPN_FIREMODE_PREV, CMD_START);
+		SetActorKeyRepeatFlag(kfPREVFIREMODE, false);
+	}
+
+	if ((m_iKeyFlags & kfRELOAD) != 0 && itm->CanStartAction(this))
+	{
+		wpn->Action(kWPN_RELOAD, CMD_START);
+		SetActorKeyRepeatFlag(kfRELOAD, false);
+	}
+
+	if ((m_iKeyFlags & kfNEXTAMMO) != 0 && itm->CanStartAction(this))
+	{
+		wpn->Action(kWPN_NEXT, CMD_START);
+		SetActorKeyRepeatFlag(kfNEXTAMMO, false);
+	}
+
+	if ((m_iKeyFlags & kfTACTICALTORCH) != 0 && itm->CanStartAction(this))
+	{
+		wpn->Action(kTACTICALTORCH, CMD_START);
+		SetActorKeyRepeatFlag(kfTACTICALTORCH, false);
+	}
+
+	if ((m_iKeyFlags & kfLASER) != 0 && itm->CanStartAction(this))
+	{
+		wpn->Action(kLASER, CMD_START);
+		SetActorKeyRepeatFlag(kfLASER, false);
+	}
+}
+
+bool CActor::use_Holder(CHolderCustom* holder)
+{
+	if (CHolderCustom* get_holder = m_holder)
+	{
+		bool b = false;
+		CGameObject* holderGO = get_holder->cast_game_object();
 		
-		if(b){//used succesfully
-			// switch off torch...
-			CAttachableItem *I = CAttachmentOwner::attachedItem(CLSID_DEVICE_TORCH);
-			if (I){
-				CTorch* torch = smart_cast<CTorch*>(I);
-				if (torch) torch->Switch(false);
+		if (holderGO->cast_car())
+		{
+			b = use_Vehicle(0);
+		}
+		else if (holderGO->CLS_ID == CLSID_OBJECT_W_STATMGUN || holderGO->CLS_ID == CLSID_OBJECT_HOLDER_ENT)
+		{
+			b = use_HolderEx(0, false);
+		}
+
+		if (inventory().ActiveItem())
+		{
+			if (CHudItem* hi = inventory().ActiveItem()->cast_hud_item())
+			{
+				hi->OnAnimationEnd(hi->GetState());
 			}
 		}
 
-		if(inventory().ActiveItem()){
-			CHudItem* hi = smart_cast<CHudItem*>(inventory().ActiveItem());
-			if(hi) hi->OnAnimationEnd(hi->GetState());
+		return b;
+	}
+	else
+	{
+		bool b = false;
+		CGameObject* holderGO = holder->cast_game_object();
+		if (holder->cast_car())
+		{
+			b = use_Vehicle(holder);
+		}
+
+		if (holderGO->CLS_ID == CLSID_OBJECT_W_STATMGUN || holderGO->CLS_ID == CLSID_OBJECT_HOLDER_ENT)
+		{
+			b = use_HolderEx(holder, false);
+		}
+		
+		if (b)
+		{
+			//used succesfully
+			// switch off torch...
+			CAttachableItem *I = CAttachmentOwner::attachedItem(CLSID_DEVICE_TORCH);
+			if (I != nullptr)
+			{
+				if (CTorch* torch = I->cast_torch())
+				{
+					torch->Switch(false);
+				}
+			}
+		}
+
+		if (inventory().ActiveItem())
+		{
+			if (CHudItem* hi = inventory().ActiveItem()->cast_hud_item())
+			{
+				hi->OnAnimationEnd(hi->GetState());
+			}
 		}
 
 		return b;
@@ -503,13 +726,18 @@ bool CActor::use_Holder				(CHolderCustom* holder)
 
 void CActor::ActorUse()
 {
-	if (m_holder)
+	if (HudAnimator() && HudAnimator()->IsActive())
 	{
-		CGameObject*	GO			= smart_cast<CGameObject*>(m_holder);
-		NET_Packet		P;
-		CGameObject::u_EventGen		(P, GEG_PLAYER_DETACH_HOLDER, ID());
-		P.w_u16						(GO->ID());
-		CGameObject::u_EventSend	(P);
+		return;
+	}
+
+	if (m_holder != nullptr)
+	{
+		CGameObject* GO = m_holder->cast_game_object();
+		NET_Packet P;
+		CGameObject::u_EventGen(P, GEG_PLAYER_DETACH_HOLDER, ID());
+		P.w_u16(GO->ID());
+		CGameObject::u_EventSend(P);
 		return;
 	}
 				
@@ -533,38 +761,36 @@ void CActor::ActorUse()
 		return;
 	}
 
-	if(!m_pUsableObject||m_pUsableObject->nonscript_usable())
+	if (!m_pUsableObject || m_pUsableObject->nonscript_usable())
 	{
-		if(m_pPersonWeLookingAt)
+		if (m_pPersonWeLookingAt != nullptr)
 		{
-			CEntityAlive* pEntityAliveWeLookingAt = 
-				smart_cast<CEntityAlive*>(m_pPersonWeLookingAt);
+			CEntityAlive* pEntityAliveWeLookingAt = m_pPersonWeLookingAt->cast_entity_alive();
 
 			VERIFY(pEntityAliveWeLookingAt);
 
-			if (IsGameTypeSingle())
+			if (IsGameTypeSingleCompatible())
 			{			
-				CBaseMonster* pMonster = smart_cast<CBaseMonster*>(pEntityAliveWeLookingAt);
+				CBaseMonster* pMonster = pEntityAliveWeLookingAt != nullptr ? pEntityAliveWeLookingAt->cast_base_monster() : nullptr;
 				const static bool isMonstersInventory = EngineExternal()[EEngineExternalGame::EnableMonstersInventory];
-				bool TestMonster =	(pMonster == nullptr) ||
-									(pMonster != nullptr && isMonstersInventory);
+				bool TestMonster = (pMonster == nullptr) || (pMonster != nullptr && isMonstersInventory);
 
-				if(pEntityAliveWeLookingAt->g_Alive())
+				if (pEntityAliveWeLookingAt->g_Alive())
 				{
 					TryToTalk();
 				}
 				else
 				{
 					//только если находимся в режиме single
-					CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
+					CUIGameCustom* pGameSP = CurrentGameUI();
 					if (pGameSP && TestMonster)
 					{
 						if (!m_pPersonWeLookingAt->deadbody_closed_status())
 						{
-							if (pEntityAliveWeLookingAt->AlreadyDie() &&
-								pEntityAliveWeLookingAt->GetLevelDeathTime() + 3000 < Device.dwTimeGlobal)
-								// 99.9% dead
+							if (pEntityAliveWeLookingAt->AlreadyDie() && pEntityAliveWeLookingAt->GetLevelDeathTime() + 3000 < Device.dwTimeGlobal && !Level().IR_GetKeyState(SDL_SCANCODE_LSHIFT))
+							{
 								pGameSP->StartCarBody(this, m_pPersonWeLookingAt);
+							}
 						}
 					}
 				}
@@ -572,40 +798,40 @@ void CActor::ActorUse()
 		}
 
 		collide::rq_result& RQ = HUD().GetCurrentRayQuery();
-		CPhysicsShellHolder* object = smart_cast<CPhysicsShellHolder*>(RQ.O);
+		CPhysicsShellHolder* object = RQ.O != nullptr ? RQ.O->cast_physics_shell_holder() : nullptr;
 		u16 element = BI_NONE;
-		if(object) 
-			element = (u16)RQ.element;
-
-		if(object && Level().IR_GetKeyState(SDL_SCANCODE_LSHIFT))
+		if (object) 
 		{
-			bool b_allow = !!pSettings->line_exist("ph_capture_visuals",object->cNameVisual());
-			if(b_allow && !character_physics_support()->movement()->PHCapture())
+			element = (u16)RQ.element;
+		}
+
+		if (object && Level().IR_GetKeyState(SDL_SCANCODE_LSHIFT))
+		{
+			bool b_allow = !!pSettings->line_exist("ph_capture_visuals", object->cNameVisual());
+			if (b_allow && !character_physics_support()->movement()->PHCapture())
 			{
-				character_physics_support()->movement()->PHCaptureObject( object, element );
+				character_physics_support()->movement()->PHCaptureObject(object, element);
 
 			}
-
 		}
 		else
 		{
-			if (object && smart_cast<CHolderCustom*>(object))
+			if (object != nullptr && object->cast_holder_custom() != nullptr)
 			{
-					NET_Packet		P;
-					CGameObject::u_EventGen		(P, GEG_PLAYER_ATTACH_HOLDER, ID());
-					P.w_u16						(object->ID());
-					CGameObject::u_EventSend	(P);
-					return;
+				NET_Packet P;
+				CGameObject::u_EventGen(P, GEG_PLAYER_ATTACH_HOLDER, ID());
+				P.w_u16(object->ID());
+				CGameObject::u_EventSend(P);
+				return;
 			}
 
 		}
 	}
 }
 
-BOOL CActor::HUDview				( )const 
-{ 
-	return IsFocused() && (cam_active==eacFirstEye)&&
-		((!m_holder) || (m_holder && m_holder->allowWeapon() && m_holder->HUDView() ) ); 
+BOOL CActor::HUDview()const
+{
+	return IsFocused() && (cam_active == eacFirstEye) && ((!m_holder) || (m_holder && m_holder->allowWeapon() && m_holder->HUDView()));
 }
 
 static	u16 SlotsToCheck [] = {
@@ -720,30 +946,103 @@ void CActor::set_input_external_handler(CActorInputHandler *handler)
 
 void CActor::SwitchNightVision()
 {
-	CWeapon* wpn1 = nullptr;
-	CWeapon* wpn2 = nullptr;
-	if(inventory().ItemFromSlot(INV_SLOT_2))
-		wpn1 = smart_cast<CWeapon*>(inventory().ItemFromSlot(INV_SLOT_2));
-
-	if(inventory().ItemFromSlot(INV_SLOT_3))
-		wpn2 = smart_cast<CWeapon*>(inventory().ItemFromSlot(INV_SLOT_3));
-
-	xr_vector<CAttachableItem*> const& all = CAttachmentOwner::attached_objects();
-	xr_vector<CAttachableItem*>::const_iterator it = all.begin();
-	xr_vector<CAttachableItem*>::const_iterator it_e = all.end();
-	for ( ; it != it_e; ++it )
+	if (CurrentGameUI() && CurrentGameUI()->TopInputReceiver())
 	{
-		CTorch* torch = smart_cast<CTorch*>(*it);
-		if ( torch )
-		{	
-			if(wpn1 && wpn1->IsZoomed())
-				return;
+		return;
+	}
 
-			if(wpn2 && wpn2->IsZoomed())
-				return;
+	bool has_nvg = GetOutfit() && GetOutfit()->m_NightVisionSect.size() > 0 || GetHelmet() && GetHelmet()->m_NightVisionSect.size() > 0;
 
-			torch->SwitchNightVision();
+	if (!has_nvg)
+	{
+		return;
+	}
+
+	PIItem active_item = inventory().ActiveItem();
+	CHudItem* itm = active_item != nullptr ? active_item->cast_hud_item() : nullptr;
+	CWeapon* wpn = itm != nullptr ? itm->cast_weapon() : nullptr;
+	CCustomDetector* det = GetDetector();
+
+	if (itm != nullptr && det != nullptr)
+	{
+		if (wpn != nullptr && wpn->IsZoomed())
+		{
 			return;
+		}
+
+		if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_nvg) && det->m_eAnimationsFlags.test(CCustomDetector::EAnimationsFlags::af_nvg))
+		{
+			if (!itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfNIGHTVISION))
+			{
+				return;
+			}
+
+			if (itm->GetState() != CHUDState::eIdle || det->GetState() != CCustomDetector::eIdle)
+			{
+				return;
+			}
+
+			itm->m_eDevicesFlags.set(CHudItem::EDevicesFlags::df_nvg, true);
+			itm->SwitchState(CHUDState::eDeviceSwitch);
+			det->m_eDevicesFlags.set(CCustomDetector::EDevicesFlags::df_nvg, true);
+			det->SwitchState(CCustomDetector::eDeviceSwitch);
+			return;
+		}
+	}
+
+	if (itm != nullptr)
+	{
+		if (wpn != nullptr && wpn->IsZoomed())
+		{
+			return;
+		}
+
+		if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_nvg))
+		{
+			if (!itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfNIGHTVISION))
+			{
+				return;
+			}
+
+			if (itm->GetState() != CHUDState::eIdle)
+			{
+				return;
+			}
+
+			itm->m_eDevicesFlags.set(CHudItem::EDevicesFlags::df_nvg, true);
+			itm->SwitchState(CHUDState::eDeviceSwitch);
+			return;
+		}
+	}
+
+	if (det != nullptr)
+	{
+		if (det->m_eAnimationsFlags.test(CCustomDetector::EAnimationsFlags::af_nvg))
+		{
+			if (det->GetState() != CCustomDetector::eIdle)
+			{
+				return;
+			}
+
+			det->m_eDevicesFlags.set(CCustomDetector::EDevicesFlags::df_nvg, true);
+			det->SwitchState(CCustomDetector::eDeviceSwitch);
+			return;
+		}
+	}
+
+	if (GetNightVisionEffector())
+	{
+		if (m_sNVGAnimator.size() > 0)
+		{
+			if (HudAnimator() && !HudAnimator()->IsActive())
+			{
+				HudAnimator()->StartAnimator(m_sNVGAnimator);
+				HudAnimator()->SetLeftCallback({ GetNightVisionEffector(), &CNightVisionEffector::SwitchNightVision });
+			}
+		}
+		else
+		{
+			GetNightVisionEffector()->SwitchNightVision();
 		}
 	}
 }
@@ -751,20 +1050,195 @@ void CActor::SwitchNightVision()
 void CActor::SwitchTorch()
 { 
 	if (CurrentGameUI() && CurrentGameUI()->TopInputReceiver())
-		return;
-
-	xr_vector<CAttachableItem*> const& all = CAttachmentOwner::attached_objects();
-	xr_vector<CAttachableItem*>::const_iterator it = all.begin();
-	xr_vector<CAttachableItem*>::const_iterator it_e = all.end();
-	for ( ; it != it_e; ++it )
 	{
-		CTorch* torch = smart_cast<CTorch*>(*it);
-		if ( torch )
-		{		
+		return;
+	}
+
+	PIItem item_from_slot = inventory().ItemFromSlot(TORCH_SLOT);
+
+	if (CTorch* torch = item_from_slot ? item_from_slot->cast_torch() : nullptr)
+	{
+		PIItem active_item = inventory().ActiveItem();
+		CHudItem* itm = active_item != nullptr ? active_item->cast_hud_item() : nullptr;
+		CWeapon* wpn = itm != nullptr ? itm->cast_weapon() : nullptr;
+		CCustomDetector* det = GetDetector();
+
+		if (itm != nullptr && det != nullptr)
+		{
+			if (wpn && wpn->IsZoomed())
+			{
+				return;
+			}
+
+			if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_nvg) && det->m_eAnimationsFlags.test(CCustomDetector::EAnimationsFlags::af_nvg))
+			{
+				if (!itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfHEADLAMP))
+				{
+					return;
+				}
+
+				if (itm->GetState() != CHUDState::eIdle || det->GetState() != CCustomDetector::eIdle)
+				{
+					return;
+				}
+
+				itm->m_eDevicesFlags.set(CHudItem::EDevicesFlags::df_torch, true);
+				itm->SwitchState(CHUDState::eDeviceSwitch);
+				det->m_eDevicesFlags.set(CCustomDetector::EDevicesFlags::df_torch, true);
+				det->SwitchState(CCustomDetector::eDeviceSwitch);
+				return;
+			}
+		}
+
+		if (itm != nullptr)
+		{
+			if (wpn && wpn->IsZoomed())
+			{
+				return;
+			}
+
+			if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_torch))
+			{
+				if (!itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfHEADLAMP))
+				{
+					return;
+				}
+
+				if (itm->GetState() != CHUDState::eIdle)
+				{
+					return;
+				}
+
+				itm->m_eDevicesFlags.set(CHudItem::EDevicesFlags::df_torch, true);
+				itm->SwitchState(CHUDState::eDeviceSwitch);
+				return;
+			}
+		}
+
+		if (det != nullptr)
+		{
+			if (det->m_eAnimationsFlags.test(CCustomDetector::EAnimationsFlags::af_torch))
+			{
+				if (det->GetState() != CCustomDetector::eIdle)
+				{
+					return;
+				}
+
+				det->m_eDevicesFlags.set(CCustomDetector::EDevicesFlags::df_torch, true);
+				det->SwitchState(CCustomDetector::eDeviceSwitch);
+				return;
+			}
+		}
+
+		if (m_sHeadlampAnimator.size() > 0)
+		{
+			if (HudAnimator() && !HudAnimator()->IsActive())
+			{
+				HudAnimator()->StartAnimator(m_sHeadlampAnimator);
+				HudAnimator()->SetLeftCallback({ torch, &CTorch::Switch });
+			}
+		}
+		else
+		{
 			torch->Switch();
+		}
+	}
+}
+
+void CActor::ClearMask()
+{
+	bool has_glass = GetOutfit() != nullptr && GetOutfit()->GlassPresent || GetHelmet() != nullptr && GetHelmet()->GlassPresent;
+	
+	if (!has_glass)
+	{
+		return;
+	}
+
+	PIItem active_item = inventory().ActiveItem();
+	CHudItem* itm = active_item != nullptr ? active_item->cast_hud_item() : nullptr;
+	CWeapon* wpn = itm != nullptr ? itm->cast_weapon() : nullptr;
+	CCustomDetector* det = GetDetector();
+
+	if (itm != nullptr && det != nullptr)
+	{
+		if (wpn != nullptr && wpn->IsZoomed())
+		{
+			return;
+		}
+
+		if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_clear_mask) && det->m_eAnimationsFlags.test(CCustomDetector::EAnimationsFlags::af_clear_mask))
+		{
+			if (!itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfCLEARMASK))
+			{
+				return;
+			}
+
+			if (itm->GetState() != CHUDState::eIdle || det->GetState() != CCustomDetector::eIdle)
+			{
+				return;
+			}
+
+			itm->m_eDevicesFlags.set(CHudItem::EDevicesFlags::df_clear_mask, true);
+			itm->SwitchState(CHUDState::eDeviceSwitch);
+			det->m_eDevicesFlags.set(CCustomDetector::EDevicesFlags::df_clear_mask, true);
+			det->SwitchState(CCustomDetector::eDeviceSwitch);
 			return;
 		}
 	}
+
+	if (itm != nullptr)
+	{
+		if (wpn != nullptr && wpn->IsZoomed())
+		{
+			return;
+		}
+
+		if (itm->m_eAnimationsFlags.test(CHudItem::EAnimationsFlags::af_clear_mask))
+		{
+			if (!itm->SetKeyRepeatFlag(ACTOR_DEFS::EActorKeyflags::kfCLEARMASK))
+			{
+				return;
+			}
+
+			if (itm->GetState() != CHUDState::eIdle)
+			{
+				return;
+			}
+
+			itm->m_eDevicesFlags.set(CHudItem::EDevicesFlags::df_clear_mask, true);
+			itm->SwitchState(CHUDState::eDeviceSwitch);
+			return;
+		}
+	}
+
+	if (det != nullptr)
+	{
+		if (det->m_eAnimationsFlags.test(CCustomDetector::EAnimationsFlags::af_clear_mask))
+		{
+			if (det->GetState() != CCustomDetector::eIdle)
+			{
+				return;
+			}
+
+			det->m_eDevicesFlags.set(CCustomDetector::EDevicesFlags::df_clear_mask, true);
+			det->SwitchState(CCustomDetector::eDeviceSwitch);
+			return;
+		}
+	}
+
+	if (m_sClearMaskAnimator.size() > 0)
+	{
+		if (HudAnimator() && !HudAnimator()->IsActive())
+		{
+			HudAnimator()->StartAnimator(m_sClearMaskAnimator);
+			HudAnimator()->SetLeftCallback({ this, &CActor::ClearMaskCB });
+		}
+	}
+}
+
+void CActor::ClearMaskCB()
+{
+	//RAVLIK TO LVUTNER: KOGDA KAPLI NA EBAL'NIKE?
 }
 
 #ifndef MASTER_GOLD
@@ -844,14 +1318,18 @@ void CActor::NoClipFly(int cmd)
 			break;
 		case kDETECTOR:
 		{
-			if ((mstate_real&mcClimb)) break;
-			PIItem det_active = inventory().ItemFromSlot(DETECTOR_SLOT);
-			if(det_active)
+			if ((mstate_real&mcClimb))
 			{
-				CCustomDetector* det = smart_cast<CCustomDetector*>(det_active);
-				if (det)
+				break;
+			}
+
+			PIItem det_active = inventory().ItemFromSlot(DETECTOR_SLOT);
+			if (det_active)
+			{
+				if (CCustomDetector* det = det_active->cast_custom_detector())
+				{
 					det->switch_detector();
-				return;
+				}
 			}
 		}break;
 	}

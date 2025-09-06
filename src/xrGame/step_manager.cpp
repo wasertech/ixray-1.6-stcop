@@ -6,6 +6,11 @@
 #include "GamePersistent.h"
 #include "material_manager.h"
 #include "IKLimbsController.h"
+#include "../xrEngine/Rain.h"
+
+#include "CustomOutfit.h"
+#include "InventoryOwner.h"
+
 
 #ifdef	DEBUG
 BOOL debug_step_info = FALSE;
@@ -13,19 +18,75 @@ BOOL debug_step_info_load = FALSE;
 #endif
 
 extern float psHUDStepSoundVolume;
+static xr_hash_set<xr_string_view> exoVisuals = {};
+static FS_FileSet stepExoSounds = {};
+static FS_FileSet stepRainSounds = {};
+static bool isExoSection = false;
 
 CStepManager::CStepManager()
 {
+	if (stepRainSounds.empty())
+	{
+		FS.file_list(stepRainSounds, "$game_sounds$", FS_ListFiles, R"(material\human\step\rain_*)");
+	}
+
+	if (m_rain_steps.empty())
+	{
+		for (auto& stepRainSound : stepRainSounds)
+		{
+			m_rain_steps.emplace_back().create(stepRainSound.name.c_str(), st_Effect, sg_SourceType);
+		}
+	}
+	isExoSection = pSettings->section_exist("exo_visuals");
+	if (!isExoSection)
+	{
+		return;
+	}
+
+	if (stepExoSounds.empty())
+	{
+		FS.file_list(stepExoSounds, "$game_sounds$", FS_ListFiles, R"(exo\exo_step*)");
+	}
+
+	if (m_exo_steps.empty())
+	{
+		for (auto& stepExoSound : stepExoSounds)
+		{
+			m_exo_steps.emplace_back().create(stepExoSound.name.c_str(), st_Effect, sg_SourceType);
+		}
+	}
+
+	if (exoVisuals.empty())
+	{
+		LPCSTR exoVisualName = {}, vall = {};
+		for (int k = 0; pSettings->r_line("exo_visuals", k, &exoVisualName, &vall); ++k)
+		{
+			exoVisuals.insert(exoVisualName);
+		}
+
+	}
 }
 
 CStepManager::~CStepManager()
 {
+	for (auto& rainStep : m_rain_steps)
+	{
+		rainStep.destroy();
+	}
+	m_rain_steps.clear();
+
+	for (auto& exoStep : m_exo_steps)
+	{
+		exoStep.destroy();
+	}
+	m_exo_steps.clear();
 }
 
 DLL_Pure *CStepManager::_construct	()
 {
 	m_object			= smart_cast<CEntityAlive*>(this);
 	VERIFY				(m_object);
+
 	return				(m_object);
 }
 
@@ -49,7 +110,7 @@ void CStepManager::reload(LPCSTR section)
 	LPCSTR				anim_name, val;
 	string16			cur_elem;
 
-	IKinematicsAnimated	*skeleton_animated = smart_cast<IKinematicsAnimated*>(m_object->Visual());
+	IKinematicsAnimated	*skeleton_animated = m_object->Visual()->dcast_PKinematicsAnimated();
 
 	VERIFY3(skeleton_animated, "object is not animated", m_object->cNameVisual().c_str());
 #ifdef	DEBUG
@@ -74,7 +135,7 @@ void CStepManager::reload(LPCSTR section)
 		{
 #ifdef	DEBUG
 
-			IKinematicsAnimated *KA = smart_cast<IKinematicsAnimated*>(m_object->Visual());
+			IKinematicsAnimated *KA = m_object->Visual()->dcast_PKinematicsAnimated();
 			VERIFY( KA );
 			
 			Msg( "! (CStepManager::reload) no anim :%s object:%s, visual: %s, step_params section: %s ", anim_name, m_object->cName().c_str(), m_object->cNameVisual().c_str(), anim_section );
@@ -85,7 +146,7 @@ void CStepManager::reload(LPCSTR section)
 #ifdef	DEBUG
 		if( debug_step_info_load )
 		{
-			IKinematicsAnimated *KA = smart_cast<IKinematicsAnimated*>(m_object->Visual());
+			IKinematicsAnimated *KA = m_object->Visual()->dcast_PKinematicsAnimated();
 			VERIFY( KA );
 			std::pair<LPCSTR,LPCSTR> anim_name_ = KA->LL_MotionDefName_dbg( motion_id );
 			Msg( "step_params loaded for object :%s, visual: %s, motion: %s, anim set: %s  ", m_object->cName().c_str(), m_object->cNameVisual().c_str(), anim_name_.first, anim_name_.second );
@@ -104,7 +165,7 @@ void CStepManager::reload(LPCSTR section)
 
 	
 	m_time_anim_started	= 0;
-	m_blend				= 0;
+	m_blend				= nullptr;
 }
 
 void CStepManager::on_animation_start(MotionID motion_id, CBlend *blend)
@@ -112,8 +173,10 @@ void CStepManager::on_animation_start(MotionID motion_id, CBlend *blend)
 	m_blend	= blend;
 	if (!m_blend) return;
 
-	if(m_object->character_ik_controller	())
-		m_object->character_ik_controller	()->PlayLegs(blend);
+	if (!g_dedicated_server && m_object->character_ik_controller())
+	{
+		m_object->character_ik_controller()->PlayLegs(blend);
+	}
 
 	m_time_anim_started = Device.dwTimeGlobal; 
 	
@@ -123,7 +186,7 @@ void CStepManager::on_animation_start(MotionID motion_id, CBlend *blend)
 #ifdef	DEBUG
 		if( debug_step_info )
 		{
-			IKinematicsAnimated *KA = smart_cast<IKinematicsAnimated*>(m_object->Visual());
+			IKinematicsAnimated *KA = m_object->Visual()->dcast_PKinematicsAnimated();
 			VERIFY( KA );
 			std::pair<LPCSTR,LPCSTR> anim_name = KA->LL_MotionDefName_dbg( motion_id );
 			Msg( "! no step_params found for object :%s, visual: %s, motion: %s, anim set: %s  ", m_object->cName().c_str(), m_object->cNameVisual().c_str(), anim_name.first, anim_name.second );
@@ -192,11 +255,17 @@ void CStepManager::update(bool b_hud_view)
 
 			// Играть звук
 			if(b_play && is_on_ground() )
+			{
 				m_step_sound.play_next(mtl_pair, m_object, m_step_info.params.step[i].power, b_hud_view);
+				PlayRainStep(b_hud_view);
+				PlayExoStep(b_hud_view);
+			}
 
-			CGameObject* object = smart_cast<CGameObject*>(m_object);
+			CGameObject* object = m_object->cast_game_object();
 			if (object)
+			{
 				object->FootStepCallback(m_step_info.params.step[i].power, b_play, is_on_ground(), b_hud_view);
+			}
 
 			// Играть партиклы
 			if(b_play && !mtl_pair->CollideParticles.empty())	
@@ -255,33 +324,46 @@ Fvector	CStepManager::get_foot_position(ELegType leg_type)
 {
 	R_ASSERT2(m_foot_bones[leg_type] != BI_NONE, "foot bone had not been set");
 
-	IKinematics *pK					= smart_cast<IKinematics*>(m_object->Visual());
-	const Fmatrix& bone_transform = pK->LL_GetBoneInstance(m_foot_bones[leg_type]).mTransform;	
+	IKinematics* pK = PKinematics(m_object->Visual());
+	const Fmatrix& bone_transform = pK->LL_GetBoneInstance(m_foot_bones[leg_type]).mTransform;
 
-	Fmatrix					global_transform;
-	global_transform.mul_43	(m_object->XFORM(),bone_transform);
+	Fmatrix global_transform;
+	global_transform.mul_43(m_object->XFORM(), bone_transform);
 
 	return global_transform.c;
 }
 
-void CStepManager::load_foot_bones	(CInifile::Sect &data)
+void CStepManager::load_foot_bones(CInifile::Sect& data)
 {
-	for (CInifile::SectCIt I=data.Data.begin(); I!=data.Data.end(); ++I){
-		const CInifile::Item& item	= *I;
+	for (CInifile::SectCIt I = data.Data.begin(); I != data.Data.end(); ++I)
+	{
+		const CInifile::Item& item = *I;
 
-		u16 index = smart_cast<IKinematics*>(m_object->Visual())->LL_BoneID(*item.second);
+		u16 index = PKinematics(m_object->Visual())->LL_BoneID(*item.second);
 		R_ASSERT3(index != BI_NONE, "foot bone not found", *item.second);
 
-		if (xr_strcmp(*item.first, "front_left") == 0) 			m_foot_bones[eFrontLeft]	= index;
-		else if (xr_strcmp(*item.first, "front_right")== 0)		m_foot_bones[eFrontRight]	= index;
-		else if (xr_strcmp(*item.first, "back_right")== 0)		m_foot_bones[eBackRight]	= index;
-		else if (xr_strcmp(*item.first, "back_left")== 0)		m_foot_bones[eBackLeft]		= index;
+		if (xr_strcmp(*item.first, "front_left") == 0) 
+		{
+			m_foot_bones[eFrontLeft] = index;
+		}
+		else if (xr_strcmp(*item.first, "front_right") == 0)
+		{
+			m_foot_bones[eFrontRight] = index;
+		}
+		else if (xr_strcmp(*item.first, "back_right") == 0)
+		{
+			m_foot_bones[eBackRight] = index;
+		}
+		else if (xr_strcmp(*item.first, "back_left") == 0)
+		{
+			m_foot_bones[eBackLeft] = index;
+		}
 	}
 }
 
 void CStepManager::reload_foot_bones()
 {
-	CInifile* ini = smart_cast<IKinematics*>(m_object->Visual())->LL_UserData();
+	CInifile* ini = PKinematics(m_object->Visual())->LL_UserData();
 
 	if (ini && ini->section_exist("foot_bones"))
 	{
@@ -336,4 +418,74 @@ void CStepManager::material_sound::play_next(SGameMtlPair* mtl_pair, CEntityAliv
 																	0, 
 																	&sound_pos, 
 																	&vol );
+}
+
+inline void CStepManager::PlayRainStep(const bool bHudView)
+{
+	if (m_rain_steps.empty())
+	{
+		return;
+	}
+
+	float rainVolume = g_pGamePersistent->Environment().eff_Rain->GetRainVolume();
+	if (rainVolume <= 0.1f)
+	{
+		return;
+	}
+
+	Fvector pos = m_object->Position();
+	if (bHudView)
+	{
+		pos = zero_vel;
+	}
+	const int count = m_rain_steps.size();
+	m_rain_steps[Random.randI(count)].play_no_feedback(m_object, bHudView ? sm_2D : 0, 0, &pos, &rainVolume);
+}
+
+inline void CStepManager::PlayExoStep(const bool bHudView)
+{
+	if (!is_exo || m_exo_steps.empty())
+	{
+		return;
+	}
+
+	Fvector pos = m_object->Position();
+	if (bHudView)
+	{
+		pos = zero_vel;
+	}
+
+	float vol = Random.randF(2.2f, 2.8f);
+
+	const int count = m_exo_steps.size();
+	m_exo_steps[Random.randI(count)].play_no_feedback(m_object, bHudView ? sm_2D : 0, 0, &pos, &vol);
+}
+
+void CStepManager::CheckExo()
+{
+	if (exoVisuals.empty())
+	{
+		return;
+	}
+
+	if (m_object == nullptr)
+	{
+		return;
+	}
+
+	const char* vis = m_object->cNameVisual().c_str();
+	if (vis == nullptr || vis[0] == '\0')
+	{
+		return;
+	}
+
+	xr_string_view visual(vis);
+
+	constexpr xr_string_view ext = ".ogf";
+	if (visual.ends_with(ext))
+	{
+		visual.remove_suffix(ext.size());
+	}
+
+	is_exo = exoVisuals.contains(visual);
 }

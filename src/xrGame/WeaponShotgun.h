@@ -11,7 +11,9 @@ public:
 	virtual			~CWeaponShotgun		();
 
 	virtual void	Load				(LPCSTR section);
+	virtual void	LoadSounds			(LPCSTR section);
 	
+	virtual BOOL	net_Spawn			(CSE_Abstract* DC);
 	virtual void	net_Destroy			();
 	virtual void	net_Export			(NET_Packet& P);
 	virtual void	net_Import			(NET_Packet& P);
@@ -22,9 +24,15 @@ public:
 	void			switch2_AddCartgidge();
 	void			switch2_EndReload	();
 
+	shared_str		SelectOpenWeaponAnimation();
+	shared_str		SelectAddCartridgeWeaponAnimation();
+	shared_str		SelectCloseWeaponAnimation();
+
 	virtual void	PlayAnimOpenWeapon	();
 	virtual void	PlayAnimAddOneCartridgeWeapon();
 	void			PlayAnimCloseWeapon	();
+
+	virtual void	OnMotionMark(u32 state, const motion_marks&);
 
 protected:
 	virtual void	OnAnimationEnd		(u32 state);

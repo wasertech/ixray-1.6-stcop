@@ -1,4 +1,4 @@
-#include "../xrEngine/stdafx.h"
+﻿#include "../xrEngine/stdafx.h"
 #include "../xrEngine/Environment.h"
 #include "../xrEngine/IGame_Persistent.h"
 #include "../xrEngine/IGame_Level.h"
@@ -87,7 +87,14 @@ void saveWeather(shared_str name, const xr_vector<CEnvDescriptor*>& env)
 		f.w_float(el->m_identifier.c_str(), "fog_density", el->fog_density);
 		f.w_fvector3(el->m_identifier.c_str(), "fog_color", el->fog_color);
 		f.w_fvector3(el->m_identifier.c_str(), "rain_color", el->rain_color);
+		f.w_string(el->m_identifier.c_str(), "rain_type", el->rain_type.c_str());
 		f.w_float(el->m_identifier.c_str(), "rain_density", el->rain_density);
+		f.w_float(el->m_identifier.c_str(), "rain_angle", el->rain_angle);
+		f.w_float(el->m_identifier.c_str(), "rain_length", el->rain_length);
+		f.w_float(el->m_identifier.c_str(), "rain_width", el->rain_width);
+		f.w_float(el->m_identifier.c_str(), "rain_speed_min", el->rain_speed_min);
+		f.w_float(el->m_identifier.c_str(), "rain_speed_max", el->rain_speed_max);
+		f.w_float(el->m_identifier.c_str(), "rain_angle_rotation", el->rain_angle_rotation);
 		f.w_fvector3(el->m_identifier.c_str(), "sky_color", el->sky_color);
 		f.w_float(el->m_identifier.c_str(), "sky_rotation", rad2deg(el->sky_rotation));
 		f.w_string(el->m_identifier.c_str(), "sky_texture", el->sky_texture_name.c_str());
@@ -180,9 +187,52 @@ int compare_naturally(const void* a_ptr, const void* b_ptr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+struct FileNode {
+	std::map<xr_string, FileNode> children;
+	bool isFile = false;
+};
+void AddPathToTree(FileNode& root, const xr_path& path) {
+	auto* node = &root;
+	for (const xr_path& part : path) {
+		node = &node->children[part.xstring()];
+	}
+	node->isFile = true;
+}
+
+void DrawFileTree(FileNode& node, bool&changed, const xr_string& label, shared_str& selectedPath, const shared_str& currentPath = "") {
+	string_path fullPath;// = currentPath + "\\" + label;
+	sprintf(fullPath, "%s\\%s", currentPath.c_str(), label.c_str());
+
+	if (node.isFile) {
+		if (ImGui::Selectable(label.c_str(), selectedPath == fullPath, ImGuiSelectableFlags_DontClosePopups)) {
+			selectedPath = fullPath;
+
+			//if (selectedPath.size()>0 && selectedPath[0] == '\\')
+			if (selectedPath.size()>0 && selectedPath.c_str()[0] == '\\') {
+				selectedPath = selectedPath.c_str() + 1;
+			}
+
+			changed = true;
+		}
+	}
+	else {
+		ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
+		bool open = ImGui::TreeNodeEx(label.c_str(), flags);
+		if (open) {
+			for (auto& [name, child] : node.children) {
+				DrawFileTree(child, changed, name, selectedPath, fullPath);
+			}
+			ImGui::TreePop();
+		}
+	}
+}
+
 
 bool editTexture(const char* label, shared_str& texName)
 {
+	static FileNode root;
+	static bool initialized = false;
+
 	char tex[100];
 	strncpy(tex, texName.c_str(), 100);
 	bool changed = false;
@@ -201,53 +251,47 @@ bool editTexture(const char* label, shared_str& texName)
 	ImGui::Text(label);
 	ImGui::SetNextWindowSize(ImVec2(250, 400), ImGuiCond_FirstUseEver);
 	if (ImGui::BeginPopupModal("Choose texture", nullptr, 0)) {
-		string_path dir, fn;
-		_splitpath(tex, nullptr, dir, fn, nullptr);
-		xr_strconcat(fn, fn, ".dds");
-		static xr_map<xr_string, xr_vector<xr_string>> dirs;
-		auto filtered = dirs[dir];
-		if (filtered.empty()) {
-			xr_vector<LPSTR>* files = FS.file_list_open("$game_textures$", dir, FS_ListFiles);
-			if (files) {
+
+		if (!initialized) {
+
+			xr_vector<LPSTR>* files = FS.file_list_open("$game_textures$", FS_ListFiles);
+			xr_vector<xr_string> filtered;
+
+			if (files)
+			{
 				filtered.resize(files->size());
 				auto e = std::copy_if(files->begin(), files->end(), filtered.begin(),
-					[](auto x) { return strstr(x, "#small") == nullptr && strstr(x, ".thm") == nullptr; });
+					[](auto x) { return strstr(x, "#small") == nullptr && strstr(x, ".dds") != nullptr; });
 				filtered.resize(e - filtered.begin());
 				std::sort(filtered.begin(), filtered.end(),
 					[](auto a, auto b) { return compare_naturally(a.c_str(), b.c_str()) < 0; });
-				dirs[dir] = filtered;
 			}
-			FS.file_list_close(files);
-		}
-		int cur = -1;
-		for (size_t i = 0; i != filtered.size(); i++)
-			if (filtered[i] == fn) {
-				cur = (int)i;
-				break;
+			for (const auto& file : filtered) {
+				AddPathToTree(root, xr_path(file));
 			}
-		if (ImGui_ListBox("##listbox", &cur,
-			[](void* data, int idx, const char** out_text) -> bool {
-				xr_vector<xr_string>* textures = (xr_vector<xr_string>*)data;
-				*out_text = (*textures)[idx].c_str();
-				return true;
-			},
-			&filtered, (int)filtered.size(), ImVec2(-1.0f, -20.0f))) {
-			string_path newFn;
-			_splitpath(filtered[cur].c_str(), nullptr, nullptr, newFn, nullptr);
-			xr_strconcat(tex, dir, newFn);
-			texName = tex;
-			changed = true;
+			initialized = true;
 		}
+
+		if (ImGui::BeginChild("##files", { -1,ImGui::GetContentRegionAvail().y - 55 }))
+		{
+			for (auto& [name, child] : root.children) {
+				DrawFileTree(child, changed, name, texName);
+			}
+			ImGui::EndChild();
+		}
+		ImGui::Separator();
+		ImGui::Text("Selected: %s", texName.c_str());
 		if (ImGui::Button("OK", ImVec2(120, 0))) {
 			ImGui::CloseCurrentPopup();
+			//changed = true;
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Cancel", ImVec2(120, 0))) {
 			ImGui::CloseCurrentPopup();
-			string_path newFn;
-			_splitpath(prevValue.c_str(), nullptr, nullptr, newFn, nullptr);
-			xr_strconcat(tex, dir, newFn);
-			texName = tex;
+			//string_path newFn;
+			//_splitpath(prevValue.c_str(), nullptr, nullptr, newFn, nullptr);
+			//xr_strconcat(tex, dir, newFn);
+			texName = prevValue;
 			changed = true;
 		}
 		ImGui::EndPopup();
@@ -280,6 +324,8 @@ void RenderUIWeather() {
 
 	CEnvironment& env = g_pGamePersistent->Environment();
 	CEnvDescriptor* cur = env.Current[0];
+	const static bool isReadSunConfig = EngineExternal()[EEngineExternalEnvironment::ReadSunConfig];
+	static bool update_itudes = true;
 
 	u64 time = g_pGameLevel->GetEnvironmentGameTime() / 1000;
 	ImGui::Text("Time: %02d:%02d:%02d", int(time / (60 * 60) % 24), int(time / 60 % 60), int(time % 60));
@@ -288,6 +334,11 @@ void RenderUIWeather() {
 
 	if (ImGui::SliderFloat("Time factor", &tf, 0.0f, 1000.0f)) {
 		g_pGameLevel->SetEnvironmentTimeFactor(tf);
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Default"))
+	{
+		g_pGameLevel->SetEnvironmentTimeFactor(10.f);
 	}
 
 	xr_vector<shared_str> cycles;
@@ -301,6 +352,7 @@ void RenderUIWeather() {
 
 	if (ImGui::Combo("Weather cycle", &iCycle, enumCycle, &cycles, (int)env.WeatherCycles.size())) {
 		env.SetWeather(cycles[iCycle], true);
+		update_itudes = true;
 	}
 
 	int sel = -1;
@@ -317,11 +369,79 @@ void RenderUIWeather() {
 		time += u64(env.CurrentWeather->at(sel)->exec_time * 1000 + 0.5f);
 		g_pGameLevel->SetEnvironmentGameTimeFactor(time, tf);
 		env.SetWeather(cycles[iCycle], true);
+		update_itudes = true;
 	}
 
-	//static bool b = getScriptWeather();
-	//if (ImGui::Checkbox("Script weather", &b))
-	//	setScriptWeather(b);
+#if 0 //v 1
+	static int tTime[3] = { -1,0,0 };
+	static bool refreshTime = false;
+
+	if (refreshTime)
+	{
+		tTime[0] = int(time / (60 * 60) % 24);
+		tTime[1] = int(time / 60 % 60);
+		tTime[2] = int(time % 60);
+	}
+	
+	if (tTime[0] == -1)
+	{
+		refreshTime = true;
+		ImGui::Text("...");
+	}
+	else
+	{
+		ImGui::BeginGroup();
+
+		if (ImGui::DragInt3("Game time", tTime, 1.0, 0, 60))
+		{
+			if (tTime[0] > 24) tTime[0] = 24;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Apply")) 
+		{
+			xr_string cmd;
+			cmd = "set_game_time ";
+			cmd += cmd.ToString(tTime[0]);
+			cmd += " ";
+			cmd += cmd.ToString(tTime[1]);
+			cmd += " ";
+			cmd += cmd.ToString(tTime[2]);
+
+			g_pEventManager->Event.Defer("KERNEL:console", size_t(xr_strdup(cmd.c_str())));
+		}
+		ImGui::EndGroup();
+
+		refreshTime = !ImGui::IsItemHovered();
+	}
+#else //v 2
+	static int tTime[3] = { 0,0,0 };
+
+	if (ImGui::DragInt3("Game time", tTime, 1.0, 0, 60))
+	{
+		if (tTime[0] > 24) tTime[0] = 24;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Apply"))
+	{
+		xr_string cmd;
+		cmd = "set_game_time ";
+		cmd += cmd.ToString(tTime[0]);
+		cmd += " ";
+		cmd += cmd.ToString(tTime[1]);
+		cmd += " ";
+		cmd += cmd.ToString(tTime[2]);
+
+		g_pEventManager->Event.Defer("KERNEL:console", size_t(xr_strdup(cmd.c_str())));
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Sync"))
+	{
+		tTime[0] = int(time / (60 * 60) % 24);
+		tTime[1] = int(time / 60 % 60);
+		tTime[2] = int(time % 60);
+	}
+
+#endif
 
 	ImGui::Separator();
 	bool changed = false;
@@ -337,7 +457,7 @@ void RenderUIWeather() {
 		changed = true;
 	}
 
-	if (ImGui::ColorEdit3("ambient_color", (float*)&cur->ambient)) {
+	if (ImGui::ColorEdit4("ambient_color", (float*)&cur->ambient, ImGuiColorEditFlags_AlphaBar)) {
 		changed = true;
 	}
 	if (ImGui::ColorEdit4("clouds_color", (float*)&cur->clouds_color, ImGuiColorEditFlags_AlphaBar)) {
@@ -360,12 +480,45 @@ void RenderUIWeather() {
 	if (ImGui::SliderFloat("fog_density", &cur->fog_density, 0.0f, 1.0f)) {
 		changed = true;
 	}
-	if (ImGui::ColorEdit3("fog_color", (float*)&cur->fog_color)) {
+	if (ImGui::ColorEdit4("fog_color", (float*)&cur->fog_color, ImGuiColorEditFlags_AlphaBar)) {
 		changed = true;
 	}
 	if (ImGui::ColorEdit4("hemisphere_color", (float*)&cur->hemi_color, ImGuiColorEditFlags_AlphaBar)) {
 		changed = true;
 	}
+
+	static std::unordered_set<xr_string> validRainTypes =
+	{
+		"default", 
+		"drizzle",
+		"dense", 
+		"spherical" 
+	};
+
+	static xr_string previousRainType;
+	previousRainType = cur->rain_type.c_str();
+
+	static char rainTypeBuffer[100];
+	strcpy_s(rainTypeBuffer, previousRainType.c_str());
+
+	if (ImGui::InputText("rain_type", rainTypeBuffer, sizeof(rainTypeBuffer))) 
+	{
+		static xr_string newRainType;
+		newRainType = rainTypeBuffer;
+		if (validRainTypes.find(newRainType) != validRainTypes.end()) 
+		{
+			if (newRainType != previousRainType) 
+			{
+				cur->rain_type = newRainType.c_str();
+				changed = true;
+			}
+		}
+		else 
+		{
+			ImGui::TextColored(ImVec4(1, 0, 0, 1), "Invalid rain_type. Allowed values: default, drizzle, dense, spherical");
+		}
+	}
+
 	if (ImGui::SliderFloat("rain_density", &cur->rain_density, 0.0f, 1.0f)) {
 		changed = true;
 	}
@@ -373,7 +526,25 @@ void RenderUIWeather() {
 		changed = true;
 	}
 
-	if (ImGui::ColorEdit3("sky_color", (float*)&cur->sky_color)) {
+	if (ImGui::SliderFloat("rain_angle", &cur->rain_angle, -30.0f, 30.0f))
+		changed = true;
+	if (ImGui::SliderFloat("rain_length", &cur->rain_length, 0.0f, 10.0f))
+		changed = true;
+	if (ImGui::SliderFloat("rain_width", &cur->rain_width, 0.0f, 1.0f))
+		changed = true;
+	if (ImGui::SliderFloat("rain_speed_min", &cur->rain_speed_min, 20.0f, 50.0f))
+		changed = true;
+	if (ImGui::SliderFloat("rain_speed_max", &cur->rain_speed_max, 50.0f, 100.0f))
+		changed = true;
+
+	if (cur->rain_speed_min > cur->rain_speed_max) {
+		std::swap(cur->rain_speed_min, cur->rain_speed_max);
+	}
+
+	if (ImGui::SliderFloat("rain_angle_rotation", &cur->rain_angle_rotation, 0.0f, 360.0f))
+		changed = true;
+
+	if (ImGui::ColorEdit4("sky_color", (float*)&cur->sky_color, ImGuiColorEditFlags_AlphaBar)) {
 		changed = true;
 	}
 
@@ -383,6 +554,9 @@ void RenderUIWeather() {
 
 	if (editTexture("sky_texture", cur->sky_texture_name))
 	{
+		cur->sky_texture_name = xr_string(cur->sky_texture_name.c_str(), 
+			cur->sky_texture_name.size() - 4).c_str(); // .dds
+
 		xr_strconcat(buf, cur->sky_texture_name.c_str(), "#small");
 		cur->sky_texture_env_name = buf;
 		cur->on_device_create();
@@ -405,21 +579,41 @@ void RenderUIWeather() {
 		changed = true;
 	}
 
-	if (ImGui::ColorEdit3("sun_color", (float*)&cur->sun_color)) {
+	if (ImGui::ColorEdit4("sun_color", (float*)&cur->sun_color, ImGuiColorEditFlags_AlphaBar)) {
 		changed = true;
 	}
-
 	static float editor_altitude = 0.f;
 	static float editor_longitude = 0.f;
+
+	ImGui::BeginDisabled(!isReadSunConfig);
+
+	if (update_itudes)
+	{
+		update_itudes = false;
+		cur->sun_dir.getHP(editor_longitude, editor_altitude);
+	}
 
 	if (ImGui::SliderFloat("sun_altitude", &editor_altitude, -360.0f, 360.0f)) {
 		changed = true;
 		cur->sun_dir.setHP(deg2rad(editor_longitude), deg2rad(editor_altitude));
 	}
+	ImGui::SameLine();
+	if (ImGui::Button("update"))
+	{
+		editor_altitude = cur->sun_dir.getP();
+	}
+
 	if (ImGui::SliderFloat("sun_longitude", &editor_longitude, -360.0f, 360.0f)) {
 		changed = true;
 		cur->sun_dir.setHP(deg2rad(editor_longitude), deg2rad(editor_altitude));
 	}
+	ImGui::SameLine();
+	if (ImGui::Button("update"))
+	{
+		editor_longitude = cur->sun_dir.getH();
+	}
+	ImGui::EndDisabled();
+
 	if (ImGui::SliderFloat("sun_shafts_intensity", &cur->m_fSunShaftsIntensity, 0.0f, 1.0f)) {
 		changed = true;
 	}
@@ -473,6 +667,18 @@ void RenderUIWeather() {
 		}
 		modifiedWeathers.clear();
 	}
+	ImGui::BeginDisabled(modifiedWeathers.empty());
+	ImGui::SameLine();
+	if (ImGui::Button("Reset", ImVec2(100, 50)))
+	{
+		env.WeatherCycles.clear();
+		env.load();
+		env.SetWeather(cycles[iCycle], true);
+
+		modifiedWeathers.clear();
+	}
+	ImGui::EndDisabled();
+
 
 	ImGui::End();
 }

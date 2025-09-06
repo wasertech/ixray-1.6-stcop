@@ -15,6 +15,7 @@ public:
 	virtual			~CWeaponMagazinedWGrenade	();
 
 	virtual void	Load				(LPCSTR section);
+	virtual void	LoadSounds			(LPCSTR section) override;
 	
 	virtual BOOL	net_Spawn			(CSE_Abstract* DC);
 	virtual void	net_Destroy			();
@@ -34,7 +35,6 @@ public:
 	virtual void	InitAddons				();
 	virtual bool	UseScopeTexture			();
 	virtual	float	CurrentZoomFactor		();
-	virtual	u8		GetCurrentHudOffsetIdx	();
 	virtual void	FireStart				();
 	virtual void	FireEnd					();
 			void	LaunchGrenade_Correct	(Fvector3* v);
@@ -62,23 +62,23 @@ public:
 	virtual float Weight() const;
 
 	//виртуальные функции для проигрывания анимации HUD
-	virtual void	PlayAnimShow		();
-	virtual void	PlayAnimHide		();
-	virtual void	PlayAnimReload		();
-	virtual void	PlayAnimIdle		();
-	virtual void	PlayAnimShoot		();
-	virtual void	PlayAnimModeSwitch	();
-	virtual void	PlayAnimBore		();
-	virtual void	PlayAnimIdleMoving	();
-	virtual void	PlayAnimIdleSprint	();
-	virtual void	PlayAnimAim			();
+	virtual void	PlayAnimModeSwitch();
+	virtual shared_str SetCurrentReloadAnimation();
+	virtual shared_str SetCurrentStateAnimation(const shared_str& first_name);
+	virtual shared_str SetCurrentShootAnimation();
 	
+	virtual CWeaponMagazinedWGrenade* cast_weapon_magazined_w_grenade() { return this; }
+
+	virtual bool	IsGrenadeMode() const { return m_bGrenadeMode; }
 private:
 	virtual	void	net_Spawn_install_upgrades	( Upgrades_type saved_upgrades );
 	virtual bool	install_upgrade_impl		( LPCSTR section, bool test );
 	virtual	bool	install_upgrade_ammo_class	( LPCSTR section, bool test );
 	
 			int		GetAmmoCount2				( u8 ammo2_type ) const;
+
+protected:
+	virtual void ForceUpdateHUD() override;
 
 public:
 	//дополнительные параметры патронов 
@@ -94,6 +94,10 @@ public:
 
 	CCartridge				m_DefaultCartridge2;
 	u8						iAmmoElapsed2;
+
+	virtual u8				GetTargetAmmoType(bool for_grenade_mode = false) const override;
+	virtual u8				GetAmmoType(bool for_grenade_mode = false) const override;
+	virtual const xr_vector<shared_str>& getAmmoTypes(bool for_grenade_mode = false) const override;
 
 	virtual void UpdateGrenadeVisibility(bool visibility);
 };

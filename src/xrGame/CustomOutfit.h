@@ -1,6 +1,7 @@
 #pragma once
 
 #include "inventory_item_object.h"
+#include "../xrScripts/script_export_space.h"
 
 struct SBoneProtections;
 
@@ -29,17 +30,24 @@ public:
 	virtual void			OnMoveToRuck		(const SInvItemPlace& previous_place);
 	virtual void			OnH_A_Chield		();
 
+	virtual CCustomOutfit* cast_outfit() { return this; }
+
 protected:
 	HitImmunity::HitTypeSVec		m_HitTypeProtection;
 
-	shared_str				m_ActorVisual;
 	shared_str				m_full_icon_name;
+	shared_str				m_character_portrait;
 	SBoneProtections*		m_boneProtection;	
 protected:
 	u32						m_ef_equipment_type;
 	u32						m_artefact_count;
 
 public:
+	shared_str				m_ActorVisual;
+	bool IsExo = false;
+	bool IsExoProto = false;
+	bool GlassPresent = false;
+
 	float					m_fPowerLoss;
 	float					m_additional_weight;
 	float					m_additional_weight2;
@@ -54,6 +62,8 @@ public:
 	shared_str				m_NightVisionSect;
 
 	bool					bIsHelmetAvaliable;
+	bool					bIsHudGasMaskAvialable;		// FFx0001 ++
+	bool					bIsHudRainDropsAvialable;	// FFx0001 ++
 	bool					isDisableChangeSkin = true;
 
 	virtual u32				ef_equipment_type		() const;
@@ -68,6 +78,9 @@ public:
 			void			ReloadBonesProtection	();
 			void			AddBonesProtection		(LPCSTR bones_section);
 
+	shared_str GetPortrait() const { return m_character_portrait; }
+
 protected:
 	virtual bool			install_upgrade_impl( LPCSTR section, bool test );
+	DECLARE_SCRIPT_REGISTER_FUNCTION
 };

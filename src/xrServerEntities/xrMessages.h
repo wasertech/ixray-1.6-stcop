@@ -75,6 +75,7 @@ enum {
 	M_CREATE_PLAYER_STATE,
 	M_COMPRESSED_UPDATE_OBJECTS,
 	M_VOICE_MESSAGE,
+	M_SCRIPT_EVENT,
 
 	MSG_FORCEDWORD				= u32(-1)
 };
@@ -106,10 +107,13 @@ enum {
 
 	GE_WPN_AMMO_ADD,
 	GE_WPN_STATE_CHANGE,
+	GE_WPN_UNLOAD_AMMO,
+	GE_WPN_UPDATE_AMMO,
 
 	GE_ADDON_ATTACH,
 	GE_ADDON_DETACH,
 	GE_ADDON_CHANGE,
+	GE_REPAIR_ITEM,
 	GE_INSTALL_UPGRADE,
 	
 	GE_GRENADE_EXPLODE,
@@ -166,9 +170,15 @@ enum {
 	GE_BURER_GRAVI_PARTICLES,
 	GE_BURER_GRAVI_WAVE,
 	GE_BURER_SHIELD,
+	GE_BURER_SHIELD_HIT,
 	GE_BLOODSUCKER_VAMPIRE_START,
 	GE_BLOODSUCKER_VAMPIRE_STOP,
 	GE_CONTROLLER_PSY_FIRE,
+
+
+	GE_STALKER_DIALOG,
+	GE_STALKER_ANIMATION,
+	GE_TRADER_FLAGS,
 
 	GE_FORCEDWORD				= u32(-1)
 };
@@ -239,7 +249,10 @@ enum EGameMessages {  //game_cl <----> game_sv messages
 
 	//-----------------------------------------
 	GAME_EVENT_MP_TRADE,
+	GAME_EVENT_MP_REPAIR,
+	GAME_EVENT_MP_REPAIR_SUCCESS,
 	GAME_EVENT_TRANSFER_MONEY,
+	GAME_EVENT_MP_ACTOR_SPAWN,
 
 	//-----------------------------------------
 	GAME_EVENT_SCRIPT_BEGINS_FROM,		// don't add messages after this
@@ -263,7 +276,6 @@ enum
 enum enum_connection_results
 {
 	ecr_data_verification_failed		=	0x00,
-	ecr_cdkey_validation_failed,
 	ecr_password_verification_failed,
 	ecr_have_been_banned,
 	ecr_profile_error,

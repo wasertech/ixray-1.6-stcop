@@ -1,7 +1,14 @@
 #include "stdafx.h"
 #include "ContentView.h"
 
-#include "../../utils/xrDXT/xrDXT.h"
+#include "../../Nodes/UIDialogsView.h"
+#include "../../../../utils/xrDXT/xrDXT.h"
+#include "../../../xrECore/Editor/ParticleEffectActions.h"
+
+#include "Viewports/ViewportMesh.h"
+#include "Viewports/ViewportParticle.h"
+#include "IconsFontAwesome6.h"
+#include "../../UI/UITextureViewer.h"
 
 CContentView* GContentView = nullptr;
 
@@ -13,7 +20,8 @@ CContentView::CContentView():
 
 	RootDir = xr_path(Dir).xstring();
 	CurrentDir = RootDir;
-	CopyObjectPath.clear();
+	CopiedObjects.clear();
+	ExtDesc.clear();
 	IsCutting = false;
 
 	FS.update_path(Dir, "$logs$", "");
@@ -29,7 +37,7 @@ void CContentView::Draw()
 	{
 		DrawHeader();
 
-		if ((NeedRescan || Files.empty()) && !IsFindResult && !IsSpawnElement)
+		if ((NeedRescan || Files.empty()) && !IsFindResult && !IsSpawnElement && !IsParticles)
 		{
 			RescanDirectory();
 			NeedRescan = false;
@@ -37,25 +45,34 @@ void CContentView::Draw()
 
 		if (ImGui::BeginChild("##contentbrowserscroll"))
 		{
-			if (ImGui::IsWindowHovered(ImGuiHoveredFlags_None) && ImGui::IsMouseReleased(1) && !ImGui::IsItemHovered())
-			{
-				if (!xr_path(CurrentDir).has_root_path() && !IsSpawnElement)
-				ImGui::OpenPopup("##contentbrowsercontext");
-			}
-			else if (!RenameObject.Focus && ImGui::IsMouseClicked(0) /*ImGui::IsMouseReleased(0)*/)
-			{
-				RenameObject.Active = false;
-			}
-
-			DrawFormContext();
-
 			const size_t IterCount = (ImGui::GetWindowSize().x / (BtnSize.x + 15)) - 1;
 			size_t HorBtnIter = 0;
 			xr_string NextDir = CurrentDir;
 
+			if (ImGui::IsWindowHovered(ImGuiHoveredFlags_None) && ImGui::IsMouseReleased(1) && !ImGui::IsAnyItemHovered())
+			{
+				if (!xr_path(CurrentDir).has_root_path() && !IsSpawnElement)
+					ImGui::OpenPopup("##contentbrowsercontext");
+				SelectedObjects.clear();
+			}
+			else if (!RenameObject.Focus && ImGui::IsMouseClicked(0))
+			{
+				RenameObject.Active = false;
+			}
+			else if (ImGui::IsWindowHovered(ImGuiHoveredFlags_None) && ImGui::IsMouseReleased(0) && !ImGui::IsAnyItemHovered())
+			{
+				SelectedObjects.clear();
+			}
+
+			DrawFormContext();
+
 			if ((!RootDir.Contains(CurrentDir) && !IsSpawnElement) || IsFindResult)
 			{
 				DrawOtherDir(HorBtnIter, IterCount, NextDir);
+			}
+			else if (IsParticles)
+			{
+				DrawParticlesDir(HorBtnIter, IterCount);
 			}
 			else if (IsSpawnElement)
 			{
@@ -65,6 +82,10 @@ void CContentView::Draw()
 			{
 				DrawRootDir(HorBtnIter, IterCount, NextDir);
 			}
+
+			//He y6upaTb!!! 6e3 eTo7o ContentBrowser pa6oTaeT HeCTA6u/\bHO!!!! \
+					Expression: (0) && "Code uses SetCursorPos()/SetCursorScreenPos() to extend window/parent boundaries.\nPlease submit an item e.g. Dummy() afterwards in order to grow window/parent boundaries."
+			ImGui::Dummy({ 0,0 });
 
 			CurrentDir = NextDir;
 			xr_strlwr(CurrentDir);
@@ -78,23 +99,38 @@ void CContentView::Draw()
 		}
 
 		ImGui::EndChild();
+		const ImGuiPayload* payload = ImGui::GetDragDropPayload();
+
+		if (payload && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+		{
+			ImDrawList* draw_list = ImGui::GetWindowDrawList();
+			ImVec2 p_min = ImGui::GetItemRectMin();
+			ImVec2 p_max = ImGui::GetItemRectMax();
+			draw_list->AddRectFilled(p_min, p_max, IM_COL32(50, 50, 70, 100));
+			draw_list->AddRect(p_min, p_max, IM_COL32(100, 180, 255, 255));
+		}
+
 	}
 
 	ImGui::End();
+
 
 	ThmPropWnd.Draw();
 }
 
 void CContentView::DrawHeader()
 {
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+
 	BtnSize = (ViewMode == EViewMode::Tile) ? ImVec2(64.f, 64.f) : ImVec2(32.f, 32.f);
 	if (ImGui::Button("root"))
 	{
 		CurrentDir = RootDir;
 		IsSpawnElement = false;
+		IsParticles = false;
 		IsFindResult = false;
 		std::memset(FindStr, 0, sizeof(FindStr));
-		ISEPath.clear();
+		VirtualPath.clear();
 	}
 
 	TextHeight = ImGui::CalcTextSize("1").y;
@@ -108,24 +144,28 @@ void CContentView::DrawHeader()
 
 		for (const xr_string& Path : Pathes)
 		{
-			ImGui::SameLine();
+			ImGui::SameLine(0, 0);
+
 			if (ImGui::Button(Platform::ANSI_TO_UTF8(Path).data()))
 			{
-				xr_string NewPath = "";
+				xr_string NewPath;
 				for (const xr_string& LocPath : Pathes)
 				{
 					NewPath += LocPath;
-
 					if (LocPath == Path)
 						break;
-
 					NewPath += "\\";
 				}
 
 				if (IsSpawnElement)
 				{
-					ISEPath = NewPath;
-					RescanISEDirectory(ISEPath);
+					VirtualPath = NewPath;
+					RescanISEDirectory(VirtualPath);
+				}
+				else if (IsParticles)
+				{
+					VirtualPath = NewPath;
+					RescanParticlesDirectory(VirtualPath);
 				}
 				else
 				{
@@ -134,31 +174,47 @@ void CContentView::DrawHeader()
 				}
 			}
 
-			ImGui::SameLine();
-			ImGui::Text("/");
+			if (&Path != &Pathes.back())
+			{
+				ImGui::SameLine(0, 0);
+				ImGui::TextUnformatted("/");
+			}
 		}
 	};
 
-	if (IsSpawnElement)
+
+	if (IsSpawnElement || IsParticles)
 	{
 		ImGui::SameLine();
-		if (ImGui::Button("Spawn Element"))
+		shared_str DirPartialName = IsSpawnElement ? "spawn element" : "particles";
+
+		if (ImGui::Button(*DirPartialName))
 		{
-			ISEPath.clear();
-			RescanISEDirectory(ISEPath);
+			VirtualPath.clear();
+
+			if (IsSpawnElement)
+			{
+				RescanISEDirectory(VirtualPath);
+			}
+			else
+			{
+				RescanParticlesDirectory(VirtualPath);
+			}
 		}
 		ImGui::SameLine();
 		ImGui::Text("/");
 
-		if (!ISEPath.empty())
+		if (!VirtualPath.empty())
 		{
-			DrawByPathLambda(ISEPath);
+			DrawByPathLambda(VirtualPath);
 		}
 	}
 	else if (CurrentDir != RootDir)
 	{
 		DrawByPathLambda(CurrentDir);
 	}
+
+	ImGui::PopStyleVar();
 
 
 	int FindStartPosX = (int)ImGui::GetWindowSize().x;
@@ -236,12 +292,16 @@ void CContentView::DrawHeader()
 
 		ImGui::EndPopup();
 	}
+	/*
+	Exception thrown: read access violation.
+this->MenuIcon.p_ was nullptr.
+	*/
 
-	if (ImGui::ImageButton("##MenuCB", MenuIcon->pSurface, { 15, 15 }))
+	//if (MenuIcon && ImGui::ImageButton("##MenuCB", MenuIcon->pSurface, { 15, 15 }))
+	if (MenuIcon && ImGui::Button(ICON_FA_BARS"##IMenuCB" ))
 	{
 		ImGui::OpenPopup("MenuCBPpp");
 	}
-
 	ImGui::Separator();
 }
 
@@ -305,7 +365,7 @@ void CContentView::FindFile()
 
 		if (IsSpawnElement)
 		{
-			RescanISEDirectory(ISEPath);
+			RescanISEDirectory(VirtualPath);
 		}
 		else
 		{
@@ -335,15 +395,15 @@ void CContentView::DrawISEDir(size_t& HorBtnIter, const size_t IterCount)
 {
 	if (DrawItem({ "..", true }, HorBtnIter, IterCount))
 	{
-		if (ISEPath.empty())
+		if (VirtualPath.empty())
 		{
 			IsSpawnElement = false;
-			ISEPath = "";
+			VirtualPath = "";
 			ClearFileList();
 		}
 		else
 		{
-			xr_string Validate = ISEPath;
+			xr_string Validate = VirtualPath;
 			if (Validate.ends_with('\\'))
 			{
 				Validate = Validate.erase(Validate.length() - 1);
@@ -353,11 +413,11 @@ void CContentView::DrawISEDir(size_t& HorBtnIter, const size_t IterCount)
 			if (ISEFS.has_parent_path())
 			{
 				RescanISEDirectory(ISEFS.parent_path().string().data());
-				ISEPath = ISEFS.parent_path().string().data();
+				VirtualPath = ISEFS.parent_path().string().data();
 			}
 			else
 			{
-				ISEPath = "";
+				VirtualPath = "";
 				RescanISEDirectory("");
 			}
 		}
@@ -374,6 +434,54 @@ void CContentView::DrawISEDir(size_t& HorBtnIter, const size_t IterCount)
 			}
 
 			break;
+		}
+	}
+}
+
+void CContentView::DrawParticlesDir(size_t& HorBtnIter, const size_t IterCount)
+{
+	// Draw ".." button to go up one level
+	if (DrawItem({ "..", true }, HorBtnIter, IterCount))
+	{
+		xr_path TryVirtualPath = VirtualPath;
+		if (VirtualPath.empty())
+		{
+			IsParticles = false;
+		}
+		else if (TryVirtualPath.has_parent_path())
+		{
+			VirtualPath = TryVirtualPath.parent_path().string().c_str();
+		}
+		else
+		{
+			VirtualPath = "";
+		}
+
+		ClearFileList();
+
+		if (IsParticles)
+		{
+			RescanParticlesDirectory(VirtualPath);
+		}
+	}
+
+	// Draw particle items
+	for (const FileOptData& Data : Files)
+	{
+		if (DrawItem(Data, HorBtnIter, IterCount))
+		{
+			// Handle particle item double-click
+			if (!Data.IsDir) // Particles are files, not directories
+			{
+				// You might want to implement particle editing functionality here
+				// For example:
+				// ExecCommand(COMMAND_EDIT_PARTICLE, Data.File.xstring());
+			}
+			else
+			{
+				VirtualPath = Data.File;
+				RescanParticlesDirectory(Data.File);
+			}
 		}
 	}
 }
@@ -415,7 +523,12 @@ void CContentView::DrawRootDir(size_t& HorBtnIter, const size_t& IterCount, xr_s
 	FS.update_path(FSEntry, "$game_data$", "");
 	PathClickLambda();
 
-	if (DrawItem({ "Spawn Elements", true }, HorBtnIter, IterCount))
+	if (DrawItem({ "particles", true }, HorBtnIter, IterCount))
+	{
+		RescanParticlesDirectory("");
+	}
+
+	if (DrawItem({ "spawn elements", true }, HorBtnIter, IterCount))
 	{
 		RescanISEDirectory("");
 	}
@@ -425,12 +538,12 @@ void CContentView::RescanISEDirectory(const xr_string& StartPath)
 {
 	ClearFileList();
 
-	if (!StartPath.empty() && StartPath != ISEPath)
+	if (!StartPath.empty() && StartPath != VirtualPath)
 	{
-		if (!ISEPath.empty() && !ISEPath.ends_with('\\'))
-			ISEPath += "\\";
+		if (!VirtualPath.empty() && !VirtualPath.ends_with('\\'))
+			VirtualPath += "\\";
 
-		ISEPath += StartPath + '\\';
+		VirtualPath += StartPath + '\\';
 	}
 
 	auto TempPath = ScanConfigs(StartPath);
@@ -451,13 +564,93 @@ void CContentView::RescanISEDirectory(const xr_string& StartPath)
 		}
 	}
 
-	if (ISEPath.empty())
+	if (VirtualPath.empty())
 	{
 		Files.push_back({ xr_string(xr_string(ENVMOD_CHOOSE_NAME) + ".ise") , false, ENVMOD_CHOOSE_NAME });
 		Files.push_back({ xr_string(xr_string(RPOINT_CHOOSE_NAME) + ".ise") , false, RPOINT_CHOOSE_NAME });
 	}
 
 	IsSpawnElement = true;
+}
+
+void CContentView::RescanParticlesDirectory(const xr_string& path)
+{
+	ClearFileList();
+
+	xr_vector<xr_string> Directories;
+
+	auto ApplyParticleLambda = [&](const char* Name, const char* ext, void* Ptr)
+	{
+		xr_path PEPath = Name;
+		if (PEPath.has_parent_path() && !path.empty())
+		{
+			xr_string ParentPath = PEPath.parent_path().string().c_str();
+			if (ParentPath == path)
+			{
+				FileOptData FileInfo;
+				FileInfo.File = Name;
+				FileInfo.File.replace_extension(ext);
+
+				Files.push_back(FileInfo);
+				ParticlesCache[xr_string(Name) + "." + ext] = Ptr;
+			}
+			else if (!path.empty() && ParentPath.contains(path))
+			{
+				auto Iter = std::find(Directories.begin(), Directories.end(), ParentPath);
+				if (Iter == Directories.end())
+				{
+					FileOptData FileInfo;
+					FileInfo.File = ParentPath;
+					FileInfo.IsDir = true;
+					Directories.push_back(ParentPath);
+
+					Files.push_back(FileInfo);
+				}
+			}
+		}
+		else if (path.empty() && !PEPath.has_parent_path())
+		{
+			FileOptData FileInfo;
+			FileInfo.File = Name;
+			Files.push_back(FileInfo);
+			ParticlesCache[xr_string(Name) + "." + ext] = Ptr;
+		}
+		else if (path.empty() && PEPath.has_parent_path())
+		{
+			xr_path TestDir = PEPath.parent_path();
+			while (TestDir.has_parent_path())
+			{
+				TestDir = TestDir.parent_path();
+			}
+
+			auto Iter = std::find(Directories.begin(), Directories.end(), TestDir.xfilename());
+			if (Iter == Directories.end())
+			{
+				FileOptData FileInfo;
+				FileInfo.File = TestDir;
+				FileInfo.IsDir = true;
+				Directories.push_back(TestDir.xfilename());
+
+				Files.push_back(FileInfo);
+			}
+		}
+	};
+
+	PS::PEDIt Pe = RImplementation.PSLibrary.FirstPED();
+	PS::PEDIt Ee = RImplementation.PSLibrary.LastPED();
+	for (; Pe != Ee; Pe++)
+	{
+		ApplyParticleLambda(*(*Pe)->m_Name, "pe", (*Pe));
+	}
+
+	PS::PGDIt Pg = RImplementation.PSLibrary.FirstPGD();
+	PS::PGDIt Eg = RImplementation.PSLibrary.LastPGD();
+	for (; Pg != Eg; Pg++)
+	{
+		ApplyParticleLambda(*(*Pg)->m_Name, "pg", (*Pg));
+	}
+
+	IsParticles = true;
 }
 
 void CContentView::DrawOtherDir(size_t& HorBtnIter, const size_t IterCount, xr_string& NextDir)
@@ -482,7 +675,8 @@ void CContentView::DrawOtherDir(size_t& HorBtnIter, const size_t IterCount, xr_s
 				NextDir = FilePath.File.xstring();
 				if (NextDir.ends_with('\\'))
 				{
-					NextDir = NextDir.erase(NextDir.length() - 1);
+					//NextDir = NextDir.erase(NextDir.length() - 1);
+					NextDir.pop_back();
 				}
 				ClearFileList();
 				break;
@@ -492,6 +686,17 @@ void CContentView::DrawOtherDir(size_t& HorBtnIter, const size_t IterCount, xr_s
 		{
 			if (DrawItem(FilePath, HorBtnIter, IterCount))
 			{
+				if (FilePath.File.extension() == ".xml")
+				{
+					xr_string FileName = FilePath.File.xfilename();
+					FileName = FileName.substr(0, FileName.size() - 4);
+
+					auto Iter = std::find(GameDialogs.begin(), GameDialogs.end(), FileName);
+					if (Iter != GameDialogs.end())
+					{
+						CUIDialogView::OpenFile(FilePath.File.xfilename());
+					}
+				}
 				if (FilePath.File.extension() == ".thm")
 				{
 					ThmPropWnd.Load(FilePath.File);
@@ -625,205 +830,62 @@ void CContentView::Init()
 	Icons["dll"]	= {EDevice->Resources->_CreateTexture("ed\\content_browser\\dll"),		true};
 	Icons["backup"] = {EDevice->Resources->_CreateTexture("ed\\content_browser\\backup"),	true};
 	Icons["env_mod"]= {EDevice->Resources->_CreateTexture("ed\\content_browser\\env_mod"),	true};
+	Icons["dialogs"] = { EDevice->Resources->_CreateTexture("ed\\content_browser\\dialogs"),true};
+	Icons["multi"]	= {EDevice->Resources->_CreateTexture("ed\\content_browser\\multi"),	true};
 
 	Icons["search"]= {EDevice->Resources->_CreateTexture("ed\\content_browser\\search"),	false};
 
 	MenuIcon = EDevice->Resources->_CreateTexture("ed\\bar\\menu");
 
 	LoadCustomIcons();
+	LoadExtDest();
+
+	xr_string Files = pSettings->r_string("dialogs", "files");
+	Files.RemoveWhitespaces();
+	GameDialogs = Files.Split(',');
+}
+
+void CContentView::LoadExtDest()
+{
+	ExtDesc["_dir"] = "Directory";
+	ExtDesc[".dds"] = "Texture Asset";
+	ExtDesc[".tga"] = "Raw Texture Asset";
+	ExtDesc[".png"] = "Image";
+	ExtDesc[".object"] = "Object Asset";
+	ExtDesc[".group"] = "Group object Asset";
+	ExtDesc[".r16"] = "HeightMap Asset";
+	ExtDesc[".ogf"] = "Object";
+	ExtDesc[".wav"] = "Raw Sound";
+	ExtDesc[".ogg"] = "Sound Asset";
+	ExtDesc[".ise"] = "Spawn Component";
+	ExtDesc[".skl"] = "Raw Single Animation Asset";
+	ExtDesc[".skls"] = "Raw Animations Asset";
+	ExtDesc[".omf"] = "Animations Asset";
+	ExtDesc["_script_ltx"] = "Logic Preference";
+	ExtDesc[".ltx"] = "Config";
+	ExtDesc[".script"] = "Lua Script";
+	ExtDesc["dialogs"] = "Dialog Description";
 }
 
 bool CContentView::DrawItem(const FileOptData& FilePath, size_t& HorBtnIter, const size_t IterCount)
 {
 	bool IsClicked = false;
 
-	switch (ViewMode)
-	{
-	case EViewMode::Tile: IsClicked = DrawItemByTile(FilePath, HorBtnIter, IterCount); break;
-	case EViewMode::List: IsClicked = DrawItemByList(FilePath, HorBtnIter, IterCount); break;
-	}
+	IsClicked = DrawItemN(FilePath, HorBtnIter, IterCount);
+
+	if (IsClicked)
+		SelectedObjects.clear();
 
 	return IsClicked;
 }
 
-bool CContentView::DrawItemByList(const FileOptData& InitFileName, size_t& HorBtnIter, const size_t IterCount)
+void CContentView::AcceptDragDropAction(const CContentView::FileOptData& InitFileName)
 {
-	if (InitFileName.File.empty())
-		return false;
-
-	xr_path FilePath = InitFileName.File;
-	const ImVec2& CursorPos = ImGui::GetCursorPos();
-
-	xr_string FileName = FilePath.xfilename();
-	IconData* IconPtr = nullptr;
-
-	bool OutValue = false;
-	//if (Contains())
-	{
-		ImVec4* colors = ImGui::GetStyle().Colors;
-		IconPtr = InitFileName.IsDir ? &GetTexture("Folder") : &GetTexture(FilePath);
-		ImVec4 IconColor = IconPtr->UseButtonColor ? colors[ImGuiCol_CheckMark] : ImVec4(1, 1, 1, 1);
-
-		if (!IconPtr->Icon)
-			return false;
-
-		if (FilePath == CopyObjectPath && IsCutting)
-			IconColor.w = 0.3;
-
-		OutValue = ImGui::ImageButton
-		(
-			FileName.c_str(),
-			IconPtr->Icon->pSurface, BtnSize,
-			ImVec2(0, 0), ImVec2(1, 1),
-			ImVec4(0, 0, 0, 0), IconColor
-		);
-	}
-
-	ImVec4 TextColor = ImGui::GetStyle().Colors[ImGuiCol_Text];
-
-	bool RenameThisItem = RenameObject.Active && RenameObject.Path == FilePath;
-
-	if (!RenameThisItem && DrawItemHelper(FilePath, FileName, InitFileName, IconPtr))
-		TextColor.w = 0.3;
-
-	ImVec2 NextCursorPos = ImGui::GetCursorPos();
-	ImGui::SameLine(); 
-
-	ImVec2 StartCursorPos = ImGui::GetCursorPos();
-	StartCursorPos.y += BtnSize.y / 2.f;
-	StartCursorPos.y -= (TextHeight + 2) ;
-	ImGui::SetCursorPos(StartCursorPos);
-
-	if (RenameObject.Path == FilePath)
-	{
-		if (RenameObject.Active)
-		{
-			if (RenameObject.SetText)
-			{
-				RenameObject.SetText = false;
-				RenameObject.RenameBuf = Platform::ANSI_TO_UTF8(FileName).c_str();
-				ImGui::SetKeyboardFocusHere();
-			}
-
-			ImGuiIO& io = ImGui::GetIO();
-
-			if (ImGui::InputText("##ren", RenameObject.RenameBuf.data(), 255, ImGuiInputTextFlags_EnterReturnsTrue))
-				RenameObject.Active = false;
-			
-			if (io.KeysDown[ImGuiKey_Escape])
-				RenameActionEnd();
-
-			RenameObject.Focus = ImGui::IsItemHovered();
-		}
-		else
-		{
-			if (strcmp(Platform::ANSI_TO_UTF8(FileName).c_str(), RenameObject.RenameBuf.c_str()))
-				RenameAction(FilePath, RenameObject.RenameBuf.c_str());
-
-			RenameActionEnd();
-		}
-	}
-	else
-	{
-		ImGui::TextColored(TextColor, Platform::ANSI_TO_UTF8(FileName).c_str());
-
-		if (ImGui::IsMouseDoubleClicked(0) && ImGui::IsItemHovered())
-		{
-			if (FilePath.xstring() != ".." && !FilePath.parent_path().empty() && !IsSpawnElement)
-				RenameActionActivate(FilePath);
-		}
-	}
-	
-	StartCursorPos.y += TextHeight + 2.f;
-	ImGui::SetCursorPos(StartCursorPos);
-
-	ImVec4 TooltipTextColor = ImGui::GetStyle().Colors[ImGuiCol_Text];
-	TooltipTextColor.w *= 0.5f;
-
-	{
-		if (InitFileName.IsDir)
-		{
-			ImGui::TextColored(TooltipTextColor, "Directory");
-		}
-		else if (FileName.ends_with(".dds"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Texture Asset");
-		}
-		else if (FileName.ends_with(".tga"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Raw Texture Asset");
-		}
-		else if (FileName.ends_with(".png"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Image");
-		}
-		else if (FileName.ends_with(".object"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Object Asset");
-		}
-		else if (FileName.ends_with(".group"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Group object Asset");
-		}
-		else if (FileName.ends_with(".ogf"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Object");
-		}
-		else if (FileName.ends_with(".wav"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Raw Sound");
-		}
-		else if (FileName.ends_with(".ogg"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Sound Asset");
-		}
-		else if (FileName.ends_with(".ise"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Spawn Component");
-		}
-		else if (FileName.ends_with(".skl"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Raw Single Animation Asset");
-		}
-		else if (FileName.ends_with(".skls"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Raw Animations Asset");
-		}
-		else if (FileName.ends_with(".omf"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Animations Asset");
-		}
-		else if (FileName.ends_with(".ltx"))
-		{
-			xr_string PathName = FilePath;
-			if (PathName.Contains("scripts\\"))
-			{
-				ImGui::TextColored(TooltipTextColor, "Logic Preference");
-			}
-			else
-			{
-				ImGui::TextColored(TooltipTextColor, "Config");
-			}
-		}
-		else if (FileName.ends_with(".script"))
-		{
-			ImGui::TextColored(TooltipTextColor, "Lua Script");
-		}
-	}
-	ImGui::SetCursorPos(NextCursorPos);
-	ImGui::Separator();
-
-	return OutValue;
-}
-
-
-void CContentView::AcceptDragDropAction(xr_path& FilePath)
-{
-	if (!std::filesystem::is_directory(FilePath) || (FilePath==".." && xr_path(CurrentDir).parent_path().empty()) || IsSpawnElement || !ImGui::BeginDragDropTarget())
+	if (/*!InitFileName.IsDir ||*/ (InitFileName.File == ".." && CurrentDir.find_last_of("/\\") == xr_string::npos) || IsSpawnElement || !ImGui::BeginDragDropTarget())
 	{
 		return;
 	}
-	
+
 	auto ImData = ImGui::AcceptDragDropPayload("TEST");
 
 	if (ImData == nullptr)
@@ -837,10 +899,10 @@ void CContentView::AcceptDragDropAction(xr_path& FilePath)
 		if (ImData != nullptr)
 			Data = *(DragDropData*)ImData->Data;
 
-		if (Data.FileName != FilePath.xstring()) //На всякий случай
+		if (Data.FileName != InitFileName.File.xstring()) //На всякий случай
 		{
-			CutAction(Data.FileName);
-			PasteAction(FilePath);
+			CutAction(/*Data.FileName*/);
+			PasteAction(InitFileName.File);
 		}
 	}
 
@@ -865,11 +927,17 @@ bool CContentView::BeginDragDropAction(xr_path& FilePath, xr_string& FileName, c
 
 	bool WeCanDrag = false;
 
-	
 	if (FilePath.has_extension()) //File DnD
 	{
 		xr_string Extension = FilePath.extension().string().c_str();
-		WeCanDrag = Extension == ".object" || Extension == ".group" || Extension == ".ise" || Extension == ".dti";
+		WeCanDrag = Extension == ".object" || Extension == ".group" || Extension == ".r16" || Extension == ".ise" || Extension == ".dti" || Extension == ".rai";
+		
+		bool IsGameLogicFile = false;
+		if (FilePath.xstring().Contains("scripts\\") && Extension == ".ltx")
+		{
+			WeCanDrag = true;
+			IsGameLogicFile = true;
+		}
 
 		if (!ImGui::BeginDragDropSource())
 		{
@@ -891,9 +959,27 @@ bool CContentView::BeginDragDropAction(xr_path& FilePath, xr_string& FileName, c
 			}
 
 			xr_string PayloadName = "TEST";
-			if (FilePath.xstring().ends_with(".dti"))
+			GUIManager->DnDType = EDragDropType::Viewport;
+
+			if (SelectedObjects.size() != 1)
+			{
+				PayloadName = "OTHR";
+				GUIManager->DnDType = EDragDropType::File;
+			}
+			else if (FilePath.xstring().ends_with(".dti"))
 			{
 				PayloadName += "#dti";
+				GUIManager->DnDType = EDragDropType::Details;
+			}
+			else if (FilePath.xstring().ends_with(".rai"))
+			{
+				PayloadName += "#rai";
+				GUIManager->DnDType = EDragDropType::RandomAppend;
+			}
+			else if (IsGameLogicFile)
+			{
+				PayloadName += "#cd";
+				GUIManager->DnDType = EDragDropType::Logic;
 			}
 
 			ImGui::SetDragDropPayload(PayloadName.c_str(), &Data, sizeof(DragDropData));
@@ -902,14 +988,15 @@ bool CContentView::BeginDragDropAction(xr_path& FilePath, xr_string& FileName, c
 		{
 			Data.FileName = FilePath;
 			ImGui::SetDragDropPayload("OTHR", &Data, sizeof(DragDropData));
+			GUIManager->DnDType = EDragDropType::File;
 		}
 	}
 	else
 	{
 		if (
 				FilePath == ".." || 
-				!std::filesystem::is_directory(FilePath) ||
-				FilePath.parent_path().empty() || 
+				!InitFileName.IsDir ||
+				FilePath.xstring().find_last_of("/\\") == xr_string::npos ||
 				!ImGui::BeginDragDropSource()
 		   )
 		{
@@ -917,18 +1004,27 @@ bool CContentView::BeginDragDropAction(xr_path& FilePath, xr_string& FileName, c
 		}
 
 		Data.FileName = FilePath;
+		GUIManager->DnDType = EDragDropType::Folder;
 		ImGui::SetDragDropPayload("FLDR", &Data, sizeof(DragDropData));
 	}
 
 	xr_string LabelText = FilePath.has_extension() ? FileName.substr(0, FileName.length() - FilePath.extension().string().length()).c_str() : FileName.c_str();
-
-	ImGui::ImageButton(FilePath.xfilename().c_str(), IconPtr->Icon->pSurface, BtnSize);
-	ImGui::Text(LabelText.data());
+	if (SelectedObjects.size() == 1) 
+	{
+		ImGui::ImageButton(FilePath.xfilename().c_str(), IconPtr->Icon->pSurface, BtnSize);
+		ImGui::Text(LabelText.data());
+	}
+	else 
+	{
+		ImGui::ImageButton(FilePath.xfilename().c_str(), Icons["multi"].Icon->pSurface, BtnSize);
+		ImGui::Text("%d objects", SelectedObjects.size());
+	}
+	
 	ImGui::EndDragDropSource();
 	return true; 
 }
 
-bool CContentView::DrawItemHelper(xr_path& FilePath, xr_string& FileName, const CContentView::FileOptData& InitFileName, CContentView::IconData* IconPtr)
+bool CContentView::DrawItemHelper(xr_path& FilePath, xr_string& FileName, const CContentView::FileOptData& InitFileName, CContentView::IconData* IconPtr, bool isSelected)
 {
 	if (!DrawContext(FilePath))
 	{
@@ -940,158 +1036,339 @@ bool CContentView::DrawItemHelper(xr_path& FilePath, xr_string& FileName, const 
 		}
 	}
 
-	AcceptDragDropAction(FilePath);
+	if (!isSelected)
+		AcceptDragDropAction(InitFileName);
+
 	return BeginDragDropAction(FilePath, FileName, InitFileName, IconPtr);
 }
 
-
-bool CContentView::DrawItemByTile(const FileOptData& InitFileName, size_t& HorBtnIter, const size_t IterCount)
+bool CContentView::DrawItemN(const FileOptData& InitFileName, size_t& HorBtnIter, const size_t IterCount)
 {
 	if (InitFileName.File.empty())
 		return false;
-	
+
+	const ImGuiStyle& style = ImGui::GetStyle();
+
 	xr_path FilePath = InitFileName.File;
 	xr_string FileName = FilePath.xfilename();
+	bool inSelectedList = false;
+	bool isClicked = false;
+
+	bool isRenaming = RenameObject.Path == FilePath;
 
 	if (FileName.empty())
 		return false;
 
+	if (ViewMode == EViewMode::List)
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+
 	const ImVec2& CursorPos = ImGui::GetCursorPos();
-	IconData* IconPtr = nullptr;
-	bool OutValue = false;
-	
 	auto InvalidateLambda = [&FileName, this, &CursorPos, &HorBtnIter, IterCount]()
+		{
+			if (HorBtnIter != IterCount)
+			{
+				ImGui::SetCursorPosY(CursorPos.y);
+				ImGui::SetCursorPosX(CursorPos.x + 15 + BtnSize.x);
+				HorBtnIter++;
+			}
+			else
+			{
+				HorBtnIter = 0;
+			}
+		};
+	int padding = 10;
+
+	ImVec2 ImageSize = BtnSize;
+
+	ImVec2 buttonSize
 	{
-		if (HorBtnIter != IterCount)
-		{
-			ImGui::SetCursorPosY(CursorPos.y);
-			ImGui::SetCursorPosX(CursorPos.x + 15 + BtnSize.x);
-			HorBtnIter++;
-		}
-		else
-		{
-			HorBtnIter = 0;
-		}
+		ImageSize.x + padding,
+		ImageSize.y + (ViewMode == EViewMode::Tile ? padding + 10 : padding)
 	};
 
-	if (Contains())
+	IconData* IconPtr = nullptr;
+
+	if (InitFileName.IsDir)
 	{
-		ImVec4* colors = ImGui::GetStyle().Colors;
+		IconPtr = &GetTexture("Folder");
+	}
+	else if (InitFileName.ISESect.size() > 0)
+	{
+		xr_string HackName = InitFileName.ISESect.c_str(); HackName += ".ise";
+		IconPtr = &GetTexture(HackName.c_str());
+	}
+	else
+		IconPtr = &GetTexture(FilePath);
 
-		if (InitFileName.IsDir)
+	if (!IconPtr->Icon)
+		return false;
+
+	ImVec4* colors = ImGui::GetStyle().Colors;
+	ImVec4 IconColor = IconPtr->UseButtonColor ? colors[ImGuiCol_CheckMark] : ImVec4(1, 1, 1, 1);
+
+	xr_string ButtonId = "##";
+	ButtonId += FileName;
+
+	ImVec2 availableSpace = ImGui::GetContentRegionAvail();
+
+	if (ViewMode == EViewMode::List || Contains(buttonSize))
+	{
+		if (!SelectedObjects.empty() && std::find(SelectedObjects.begin(), SelectedObjects.end(), FilePath) != SelectedObjects.end())
 		{
-			IconPtr = &GetTexture("Folder");
+			inSelectedList = true;
+			ImGui::PushStyleColor(ImGuiCol_Button, colors[ImGuiCol_ButtonActive]);
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colors[ImGuiCol_ButtonActive]);
+			ImGui::PushStyleColor(ImGuiCol_ButtonActive, colors[ImGuiCol_ButtonActive]);
 		}
-		else if (InitFileName.ISESect.size() > 0)
+
+		ImGui::BeginGroup();
 		{
-			xr_string HackName = InitFileName.ISESect.c_str();
-			HackName += ".ise";
+			if (ViewMode == EViewMode::List)
+				ImGui::Dummy(ImVec2(0, padding / 2));
+			
+			if (ImGui::Button(ButtonId.c_str(), ImVec2(buttonSize.x, (isRenaming && ViewMode == EViewMode::Tile) ? buttonSize.y - 20: buttonSize.y)))
+			//if (ImGui::Button(ButtonId.c_str(), ImVec2(buttonSize.x, buttonSize.y-20)))
+			{
+				ImGuiIO& io = ImGui::GetIO();
 
-			IconPtr = &GetTexture(HackName.c_str());
+				if (!io.KeyCtrl)
+				{
+					SelectedObjects.clear();
+				}
+
+				if (inSelectedList && io.KeyCtrl)
+					SelectedObjects.erase(std::find(SelectedObjects.begin(), SelectedObjects.end(), FilePath));
+				else if (FileName != "..")
+					SelectedObjects.push_back(FilePath);
+			}
+
+			isClicked = ImGui::IsMouseDoubleClicked(0) && ImGui::IsItemActive();
+
+			DrawItemHelper(FilePath, FileName, InitFileName, IconPtr, inSelectedList);
+
+			ImVec2 cursorPos = ImGui::GetItemRectMin();
+			ImVec2 imagePos = ImVec2(
+				cursorPos.x + (buttonSize.x - ImageSize.x) / 2,
+				cursorPos.y + (ViewMode == EViewMode::Tile ? 0 : (buttonSize.y - ImageSize.y) / 2)
+			);
+			ImGui::SetCursorScreenPos(imagePos);
+			
+			if (std::find(CopiedObjects.begin(), CopiedObjects.end(), FilePath) != CopiedObjects.end() && IsCutting || ImGui::IsItemActive() &&
+				ImGui::IsMouseDragging(ImGuiMouseButton_Left) && ImGui::GetDragDropPayload() != nullptr)
+			{
+				if (!inSelectedList)
+				{
+					if (SelectedObjects.size() != 0)
+						SelectedObjects.clear();
+
+					SelectedObjects.push_back(FilePath);
+				}
+				IconColor.w = 0.3;
+			}
+
+			ImGui::Image(IconPtr->Icon->pSurface, ImageSize, ImVec2(0, 0), ImVec2(1, 1), IconColor, ImVec4(0,0,0,0));
+
+			/*
+				Два варианта
+					Во втором попытка уменьшить обращения к ImGui API увел. шагом проходки
+			*/
+			ImVec2 textSize;
+			xr_string LabelText = FilePath.has_extension()
+				? FileName.substr(0, FileName.length() - FilePath.extension().string().length())
+				: FileName;
+			if (!isRenaming)
+			{
+				if (ViewMode == EViewMode::Tile)
+				{
+#if 1
+					textSize = ImGui::CalcTextSize(Platform::ANSI_TO_UTF8(LabelText).data());
+					float textWidth = textSize.x;
+
+					while (textWidth > buttonSize.x - padding)
+					{
+						LabelText = LabelText.substr(0, LabelText.length() - 4) + "..";
+						textWidth = ImGui::CalcTextSize(Platform::ANSI_TO_UTF8(LabelText).data()).x;
+					}
+#else
+					float maxTextWidth = buttonSize.x - padding;
+					float textWidth = ImGui::CalcTextSize(LabelText.c_str()).x;
+
+					if (textWidth > maxTextWidth)
+					{
+						size_t trimSize = LabelText.length();
+						while (textWidth > maxTextWidth && trimSize > 2)
+						{
+							trimSize -= 2;
+							LabelText = LabelText.substr(0, trimSize) + "..";
+							textWidth = ImGui::CalcTextSize(LabelText.c_str()).x;
+						}
+					}
+
+#endif
+					textSize.x = textWidth;
+				}
+				else
+					textSize = ImGui::CalcTextSize(Platform::ANSI_TO_UTF8(LabelText).data());
+			}
+			
+			float TextPosY = ImageSize.y;
+
+			xr_string ExtDescription = "";
+
+			if (ViewMode == EViewMode::List)
+			{
+				if (InitFileName.IsDir)
+				{
+					ExtDescription = ExtDesc["_dir"];
+				}
+				else if (InitFileName.File.xstring().ends_with(".xml"))
+				{
+					xr_string FileName = InitFileName.File.xfilename();
+					FileName = FileName.substr(0, FileName.size() - 4);
+
+					auto Iter = std::find(GameDialogs.begin(), GameDialogs.end(), FileName);
+					if (Iter != GameDialogs.end())
+					{
+						ExtDescription = ExtDesc["dialogs"];
+					}
+				}
+				else if (FilePath.extension().string() == ".ltx")
+				{
+					xr_string PathName = FilePath;
+					ExtDescription = (PathName.Contains("scripts\\") ? ExtDesc["_script_ltx"] : ExtDesc[".ltx"]) ;
+				}
+				else
+					ExtDescription = ExtDesc[FilePath.extension().string().c_str()];
+
+				TextPosY = ImageSize.y < 18 ? (buttonSize.y - textSize.y) / 2 : (padding)/2;
+			}
+
+			ImVec2 scrPos = ImVec2(
+				cursorPos.x + (ViewMode == EViewMode::Tile ? (buttonSize.x - textSize.x) / 2 : padding * 2 + ImageSize.x),
+				cursorPos.y + TextPosY
+			);
+
+			ImGui::SetCursorScreenPos(scrPos);
+
+
+			if (isRenaming)
+			{
+				if (RenameObject.Active)
+				{
+					if (RenameObject.SetText)
+					{
+						RenameObject.SetText = false;
+						RenameObject.RenameBuf = Platform::ANSI_TO_UTF8(LabelText);
+						ImGui::SetKeyboardFocusHere();
+
+						SelectedObjects.clear();
+						SelectedObjects.push_back(FilePath);
+					}
+
+					ImGuiIO& io = ImGui::GetIO();
+
+					if (ViewMode == EViewMode::Tile)
+					{
+						ImGui::SetCursorPosX(CursorPos.x);
+						ImGui::SetNextItemWidth(buttonSize.x);
+					}
+
+					if (ImGui::InputText("##ren", RenameObject.RenameBuf.data(), 255, ImGuiInputTextFlags_EnterReturnsTrue))
+						RenameObject.Active = false;
+					//<IX> TODO: FIX ME 
+					//if (io.KeysDown[ImGuiKey_Escape])
+					//	RenameActionEnd();
+
+					RenameObject.Focus = ImGui::IsItemHovered();
+				}
+				else
+				{
+					if (strcmp(Platform::ANSI_TO_UTF8(LabelText).c_str(), RenameObject.RenameBuf.c_str()))
+						RenameAction(FilePath, RenameObject.RenameBuf.c_str());
+
+					RenameActionEnd();
+				}
+			}
+			else
+			{
+				ImGui::Text("%s", LabelText.c_str());
+
+				if (ImGui::IsMouseReleased(0) && ImGui::IsItemHovered())
+				{
+					if (FilePath.xstring() != ".." && !FilePath.parent_path().empty() && !IsSpawnElement)
+						RenameActionActivate(FilePath);
+				}
+			}
+
+			if (ViewMode == EViewMode::List)
+			{
+
+				ImVec4 TooltipTextColor = ImGui::GetStyle().Colors[ImGuiCol_Text];
+				TooltipTextColor.w *= 0.5f;
+
+				ImGui::SetCursorScreenPos(ImVec2(scrPos.x, ImGui::GetCursorScreenPos().y));
+
+				if (ExtDescription.empty())
+				{
+					
+					ExtDescription = InitFileName.File.extension().string().c_str();
+					ExtDescription += " File";
+					
+				}
+
+				if (!isRenaming)
+				{
+					float inputHeight = ImGui::GetFrameHeight();
+					float textHeight = ImGui::GetTextLineHeight();
+					float textOffset = (inputHeight - textHeight) ;
+
+					ImGui::SetCursorPosY(ImGui::GetCursorPosY() + textOffset);
+				}
+
+				ImGui::TextColored(TooltipTextColor, ExtDescription.c_str());
+
+				ImGui::SetCursorScreenPos(ImVec2(
+					cursorPos.x,
+					cursorPos.y + buttonSize.y
+				));
+				ImGui::Dummy(ImVec2(0, padding/2));
+				ImGui::Separator();
+			}
 		}
-		else
-		{
-			IconPtr = &GetTexture(FilePath);
-		}
-		ImVec4 IconColor = IconPtr->UseButtonColor ? colors[ImGuiCol_CheckMark] : ImVec4(1, 1, 1, 1);
+		ImGui::EndGroup();
 
-		if (!IconPtr->Icon)
-			return false;
-
-		if (FilePath == CopyObjectPath && IsCutting)
-			IconColor.w = 0.3;
-
-		OutValue = ImGui::ImageButton
-		(
-			FileName.c_str(),
-			IconPtr->Icon->pSurface, BtnSize,
-			ImVec2(0, 0), ImVec2(1, 1),
-			ImVec4(0, 0, 0, 0), IconColor
-		);
+		if (inSelectedList)
+			ImGui::PopStyleColor(3);
 	}
 	else
 	{
-		ImGui::Button(FileName.c_str(), BtnSize);
-		ImGui::Text(FileName.c_str());
-
+		ImGui::Button(ButtonId.c_str(), buttonSize);
 		InvalidateLambda();
 		return false;
 	}
 
-	ImVec4 TextColor = ImGui::GetStyle().Colors[ImGuiCol_Text];
-
-	bool RenameThisItem = RenameObject.Active && RenameObject.Path == FilePath;
-
-	if (!RenameThisItem && DrawItemHelper(FilePath, FileName, InitFileName, IconPtr))
-		TextColor.w = 0.3;
-
-	xr_string LabelText = FilePath.has_extension() ? FileName.substr(0, FileName.length() - FilePath.extension().string().length()).c_str() : FileName.c_str();
-	
-	if (RenameObject.Path == FilePath)
+	if (ViewMode == EViewMode::Tile)
 	{
-		if (RenameObject.Active)
-		{
-			if (RenameObject.SetText)
-			{
-				RenameObject.SetText = false;
-				RenameObject.RenameBuf = Platform::ANSI_TO_UTF8(LabelText);
-				ImGui::SetKeyboardFocusHere();
-			}
+		InvalidateLambda();
 
-			ImGuiIO& io = ImGui::GetIO();
-
-			ImGui::SetCursorPosX(CursorPos.x);
-			ImGui::SetNextItemWidth(BtnSize.x + 10);
-			if (ImGui::InputText("##ren", RenameObject.RenameBuf.data(), 255,ImGuiInputTextFlags_EnterReturnsTrue))
-				RenameObject.Active = false;
-			 
-			if (io.KeysDown[ImGuiKey_Escape])
-				RenameActionEnd();
-
-			RenameObject.Focus = ImGui::IsItemHovered();
-		}
-		else 
-		{
-			if (strcmp(Platform::ANSI_TO_UTF8(LabelText).c_str(), RenameObject.RenameBuf.c_str()))
-				RenameAction(FilePath, RenameObject.RenameBuf.c_str());
-			
-			RenameActionEnd();
-		}
+		if (availableSpace.x - ImGui::GetCursorPosX() - buttonSize.x > buttonSize.x + style.ItemSpacing.x)
+			ImGui::SameLine();
 	}
-	else 
-	{
-		float TextPixels = ImGui::CalcTextSize(Platform::ANSI_TO_UTF8(LabelText).data()).x;
+	else if (ViewMode == EViewMode::List)
+		ImGui::PopStyleVar();
 
-		while (TextPixels > BtnSize.x)
-		{
-			LabelText = LabelText.substr(0, LabelText.length() - 4) + "..";
-			TextPixels = ImGui::CalcTextSize(Platform::ANSI_TO_UTF8(LabelText).data()).x;
-		}
-
-		ImGui::SetCursorPosX(CursorPos.x + (((10 + BtnSize.x) - TextPixels) / 2));
-		ImGui::TextColored(TextColor, Platform::ANSI_TO_UTF8(LabelText).data());
-
-		if (ImGui::IsMouseDoubleClicked(0) && ImGui::IsItemHovered())
-		{
-			if (FilePath.xstring() != ".." && !FilePath.parent_path().empty() && !IsSpawnElement)
-			RenameActionActivate(FilePath);
-		}
-	}
-
-	InvalidateLambda();
-	return OutValue;
+	return isClicked;
 }
 
-bool CContentView::Contains()
+bool CContentView::Contains(const ImVec2& ButtonSize)
 {
 	float ScrollValue = ImGui::GetScrollY();
 	float CursorPosY = ImGui::GetCursorPosY();
 
 	bool IsNotAfter = CursorPosY < ScrollValue + ImGui::GetWindowSize().y;
-	bool IsNotBefor = CursorPosY > ScrollValue - BtnSize.y;
+	bool IsNotBefor = CursorPosY > ScrollValue - ButtonSize.y;
 	return IsNotAfter && IsNotBefor;
 }
-
 
 
 bool CContentView::CheckFile(const xr_path& File) const
@@ -1109,7 +1386,7 @@ bool CContentView::DrawFormContext()
 		return false;
 	}
 
-	ImGui::BeginDisabled(CopyObjectPath.empty());
+	ImGui::BeginDisabled(CopiedObjects.empty());
 	if (ImGui::MenuItem("Paste"))
 	{
 		PasteAction(CurrentDir);
@@ -1122,6 +1399,7 @@ bool CContentView::DrawFormContext()
 	{
 		CreateAction();
 	}
+
 	ImGui::EndPopup();
 	return true;
 }
@@ -1133,65 +1411,127 @@ bool CContentView::DrawContext(const xr_path& Path)
 		return false;
 	}
 
-
-	if (Path.has_extension() && Path.extension().string() == ".level")
+	if (Path.has_extension())
 	{
-		if (ImGui::MenuItem("Open"))
+		if (Path.extension().string() == ".object")
 		{
-			UI->SetStatus("Level loading...");
-			ExecCommand(COMMAND_CLEAR);
-			FS.TryLoad(Path.xstring());
-			IReader* R = FS.r_open(Path.xstring().c_str());
-			if (!R)
+			if (ImGui::MenuItem("Open"))
 			{
-				ImGui::EndPopup();
-				return false;
-			}
-			char ch;
-			R->r(&ch, sizeof(ch));
-			bool is_ltx = (ch == '[');
-			FS.r_close(R);
-			bool res;
-			LTools->m_LastFileName = Path.xstring();
+				CViewportMesh* MeshView = new CViewportMesh;
+				MeshView->OpenModel(Path);
 
-			if (is_ltx)
-				Scene->LoadLTX(Path.xstring().c_str(), false);
-			else
-				Scene->Load(Path.xstring().c_str(), false);
+				UI->Push(MeshView);
+			}
 		}
-		ImGui::Separator();
+		else if (Path.extension().string() == ".pg" || Path.extension().string() == ".pe")
+		{
+			if (ImGui::MenuItem("Open"))
+			{
+				CViewportParticle* MeshView = new CViewportParticle;
+				void* Ptr = ParticlesCache[Path.xstring()];
+
+				if (Path.extension().string() == ".pg")
+				{
+					MeshView->OpenModel((PS::CPGDef*)Ptr);
+				}
+				else
+				{
+					MeshView->OpenModel((PS::CPEDef*)Ptr);
+				}
+
+				UI->Push(MeshView);
+			}
+		}
+		else if (Path.extension().string() == ".level")
+		{
+			if (ImGui::MenuItem("Open"))
+			{
+				UI->SetStatus("Level loading...");
+				ExecCommand(COMMAND_CLEAR);
+				FS.TryLoad(Path.xstring());
+				IReader* R = FS.r_open(Path.xstring().c_str());
+				if (!R)
+				{
+					ImGui::EndPopup();
+					return false;
+				}
+				char ch;
+				R->r(&ch, sizeof(ch));
+				bool is_ltx = (ch == '[');
+				FS.r_close(R);
+				bool res;
+				LTools->m_LastFileName = Path.xstring();
+
+				if (is_ltx)
+					Scene->LoadLTX(Path.xstring().c_str(), false);
+				else
+					Scene->Load(Path.xstring().c_str(), false);
+			}
+			ImGui::Separator();
+		}
 	}
 
-	if (Path.has_extension() && Path.extension().string() == ".wav")
+	if (Path.has_extension())
 	{
-		if (ImGui::MenuItem("Open"))
+		if (Path.extension().string() == ".wav")
 		{
-			ExecCommand(COMMAND_SOUND_EDITOR, xr_path(Path.stem()).xstring());
+			if (ImGui::MenuItem("Open"))
+			{
+				ExecCommand(COMMAND_SOUND_EDITOR, xr_path(Path.stem()).xstring());
+			}
 		}
+		else if (Path.extension().string() == ".dds")
+		{
+			if (ImGui::MenuItem("Open"))
+			{
+				CUITextureViewer* TexView = new CUITextureViewer;
+				TexView->LoadFromFile(Path);
 
+				UI->Push(TexView);
+			}
+		}
 		ImGui::Separator();
 	}
 
 
 	if (ImGui::MenuItem("Cut"))
 	{
-		CutAction(Path);
+		if (SelectedObjects.empty())
+			SelectedObjects.push_back(Path);
+
+		CutAction();
 	}
+
 	if (ImGui::MenuItem("Copy"))
 	{
-		CopyAction(Path);
+		if (SelectedObjects.empty())
+			SelectedObjects.push_back(Path);
+
+		CopyAction();
 	}
+
 	if (ImGui::MenuItem("Rename"))
 	{
 		RenameActionActivate(Path);
 	}
+
 	if (ImGui::MenuItem("Delete"))
 	{
-		DeleteAction(Path);
+		if (SelectedObjects.empty())
+		{
+			DeleteAction(Path);
+		}
+		else
+		{
+			for (const xr_path& obj : SelectedObjects)
+			{
+				DeleteAction(obj);
+			}
+			SelectedObjects.clear();
+		}
 	}
 
 	ImGui::Separator();
-
 
 	if (ImGui::BeginMenu("Properties"))
 	{
@@ -1200,12 +1540,8 @@ bool CContentView::DrawContext(const xr_path& Path)
 			ExecCommand(COMMAND_ICON_PICKER, Path.xstring());
 		}
 
-
 		ImGui::EndMenu();
 	}
-
-
-	
 
 	bool ShowConvert = false;
 
@@ -1273,6 +1609,18 @@ CContentView::IconData & CContentView::GetTexture(const xr_string & IconPath)
 	
 	if (IconPath.ends_with(".wav"))
 		return Icons["wav"];
+	
+	if (IconPath.ends_with(".xml"))
+	{
+		xr_string FileName = xr_path(IconPath).xfilename();
+		FileName = FileName.substr(0, FileName.size() - 4);
+
+		auto Iter = std::find(GameDialogs.begin(), GameDialogs.end(), FileName);
+		if (Iter != GameDialogs.end())
+		{
+			return Icons["dialogs"];
+		}
+	}
 
 	if (IconPath.ends_with(".seq"))
 		return Icons["seq"];
@@ -1497,35 +1845,47 @@ void CContentView::CheckFileNameRecursive(xr_path& FilePath, const xr_string& po
 
 void CContentView::PasteAction(const xr_string& Path) /*const*/
 {
-	xr_path OutDir = ((Path == "..") ? CurrentDir / xr_path(Path) : xr_path(Path)) / CopyObjectPath.xfilename();
-
-	if (CopyObjectPath == OutDir || std::filesystem::exists(OutDir))
+	xr_path OutPath = Path;
+	if (Path != ".." && !std::filesystem::is_directory(OutPath))
 	{
-		CheckFileNameRecursive(OutDir, "Copy");
+		OutPath = OutPath.parent_path();
 	}
 
-	if (std::filesystem::is_directory(CopyObjectPath))
+	xr_path OutDir;
+	for (const xr_path& obj : CopiedObjects)
 	{
-		std::filesystem::copy(CopyObjectPath, OutDir, std::filesystem::copy_options::recursive);
-	}
-	else 
-	{
-		std::filesystem::copy(CopyObjectPath, OutDir);
+		OutDir = ((Path == "..") ? CurrentDir / OutPath : OutPath) / obj.xfilename().c_str();
 
-		if (auto ThmFile = CopyObjectPath; ShouldTheFileHaveTHM(CopyObjectPath) && 
-			ThmFile.extension() != ".thm" && std::filesystem::exists(ThmFile.replace_extension(".thm")))
+		if (obj == OutDir || std::filesystem::exists(OutDir))
 		{
-			std::filesystem::copy(ThmFile, OutDir.replace_extension(".thm"));
+			if (IsCutting)
+				continue;
+
+			CheckFileNameRecursive(OutDir, "Copy");
 		}
+
+		if (std::filesystem::is_directory(obj))
+		{
+			std::filesystem::copy(obj, OutDir, std::filesystem::copy_options::recursive);
+		}
+		else
+		{
+			std::filesystem::copy(obj, OutDir);
+
+			if (auto ThmFile = obj; ShouldTheFileHaveTHM(obj) &&
+				ThmFile.extension() != ".thm" && std::filesystem::exists(ThmFile.replace_extension(".thm")))
+			{
+				std::filesystem::copy(ThmFile, OutDir.replace_extension(".thm"));
+			}
+		}
+		if (IsCutting)
+			DeleteAction(obj);
 	}
+
 	if (IsCutting)
-	{
-		DeleteAction(CopyObjectPath);
 		IsCutting = false;
-	}
 
-	CopyObjectPath.clear();
-
+	CopiedObjects.clear();
 	FS.rescan_path(OutDir.parent_path().string().c_str(), true);
 }
 
@@ -1553,15 +1913,15 @@ void CContentView::DeleteAction(const xr_path& Path) /*const*/
 	RescanDirectory();
 }
 
-void CContentView::CopyAction(const xr_path& Path) const
+void CContentView::CopyAction(/*const xr_path& Path*/)
 {
-	CopyObjectPath = Path;
+	CopiedObjects = SelectedObjects;
 	IsCutting = false;
 }
 
-void CContentView::CutAction(const xr_path& Path) const
+void CContentView::CutAction(/*const xr_path& Path*/) 
 {
-	CopyAction(Path);
+	CopyAction();
 	IsCutting = true;
 }
 

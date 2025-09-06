@@ -122,8 +122,17 @@ public:
 	virtual void			net_Import						(NET_Packet& P);
 	virtual void			net_Relcase						(CObject *O);
 
+	virtual void			SyncRead(NET_Packet& Packet) override;
+	virtual void			SyncWrite(NET_Packet& Packet) override;
+
 	virtual void			net_Export_Sounds(NET_Packet& P);
 	virtual void			net_Import_Sounds(NET_Packet& P);
+
+	//NET MP simple Sync
+
+	virtual bool			HasCustomSyncFlag() const { return false; }
+	virtual u8				GetCustomSyncFlag() const { return 0; }
+	virtual void			ProcessCustomSyncFlag_CL(u8 flags) {};
 
 	//save/load server serialization
 	virtual void			save							(NET_Packet &output_packet) {inherited::save(output_packet);}
@@ -187,6 +196,7 @@ public:
 
 	virtual	void			on_before_sell					(CInventoryItem *item);
 	virtual bool			unlimited_ammo					() override { return false; }
+	virtual bool infinite_fire() override { return false; }
 
 			float			GetSatiety						()							{return 0.5f;}
 			void			ChangeSatiety					(float v)					{}

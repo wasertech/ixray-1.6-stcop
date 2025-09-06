@@ -6,18 +6,14 @@
 #include "../../Layers/xrRender/ParticleEffect.h"
 #include "../../Layers/xrRender/ParticleGroup.h"
 #include "../../xrEngine/pure.h"
+#include "../xrECore/Editor/ParticleEffectActions.h"
 
 // refs
 class CEditableObject;
 class CObjectAnimator;
 
-enum EEditMode{
-	emNone,
-    emEffect,
-    emGroup
-};
-
-class CParticleTool: public CToolCustom
+class CParticleTool:
+    public CToolCustom
 {
 	typedef CToolCustom inherited;
     void FillChooseParticleType(ChooseItemVec& items, void* param);
@@ -55,11 +51,11 @@ class CParticleTool: public CToolCustom
     void				RealCompileEffect	();
     void				CompileEffect		(bool bForced=false){m_Flags.set(flCompileEffect,TRUE); if (bForced) RealCompileEffect();}
     u32					remove_action_num;
-    void				RealRemoveAction	();
+    void				RealRemoveAction();
 
     void 		OnControlClick		(ButtonValue* sender, bool& bDataModified, bool& bSafe);
 public:
-    void				RemoveAction		(u32 idx, bool bForced=false){remove_action_num=idx;m_Flags.set(flRemoveAction,TRUE); if (bForced) RealRemoveAction();}
+    virtual void    	RemoveAction(u32 idx, bool bForced=false) {remove_action_num=idx;m_Flags.set(flRemoveAction,TRUE); if (bForced) RealRemoveAction();}
 public:
 	EEditMode			m_EditMode;
     UIPropertiesForm*       m_ObjectProps;
@@ -129,9 +125,9 @@ public:
     virtual void		UpdateProperties	(BOOL bForced=FALSE){m_Flags.set(flRefreshProps,TRUE); if (bForced) RealUpdateProperties();}
     virtual void		RefreshProperties	(){;}
 
-    void				PlayCurrent			(int idx=-1);
-    void				StopCurrent			(bool bFinishPlaying);
-    void				SelectEffect		(LPCSTR name);
+    virtual void		PlayCurrent			(int idx=-1) override;
+    virtual void		StopCurrent			(bool bFinishPlaying) override;
+    virtual void		SelectEffect		(LPCSTR name) override;
 
     void				Rename				(LPCSTR src_name, LPCSTR part_name, int part_idx);
     void				Rename				(LPCSTR src_name, LPCSTR dest_name);
@@ -143,6 +139,7 @@ public:
 	void 				Remove				(LPCSTR name);
 
     // PG routine
+    void                ImportPE            ();
     PS::CPEDef*			FindPE				(LPCSTR name);
     PS::CPEDef*			AppendPE			(PS::CPEDef* src, const char* path);
     void 				SetCurrentPE		(PS::CPEDef* P);
@@ -151,7 +148,7 @@ public:
     // PG routine
     PS::CPGDef*			FindPG				(LPCSTR name);
     PS::CPGDef*			AppendPG			(PS::CPGDef* src,const char* path);
-    void 				SetCurrentPG		(PS::CPGDef* P);
+    void 				SetCurrentPG		(PS::CPGDef* P) override;
     void				DrawReferenceList	();
 
     void				SelectPreviewObject	(int p);

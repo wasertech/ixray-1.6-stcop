@@ -34,10 +34,16 @@ void CUICustomMap::Initialize(shared_str name, LPCSTR sh_name)
 		levelIni					= new CInifile(map_cfg_fn);
 	}
 
-	if(levelIni->section_exist("level_map"))
+	if(levelIni->section_exist("level_map")) // Step 1: Try to read from level.ltx (CS/CoP)
 	{
 		Init_internal	(name, *levelIni, "level_map", sh_name);
-	}else
+	}
+	else if (pGameIni->section_exist(name) && !Device.IsEditorMode()) // Step 2: If level_map not exists in level.ltx, try to read from game.ltx instead (SoC)
+	{
+		Msg("Using SoC-style level map for level %s", name.c_str());
+		Init_internal(name, *pGameIni, name.c_str(), sh_name);
+	}
+	else // Step 3: If also failed, use default map
 	{
 		Msg("! default LevelMap used for level[%s]",name.c_str());
 		Init_internal	(name, *pGameIni, "def_map", sh_name);
@@ -379,6 +385,7 @@ float CUIGlobalMap::CalcOpenRect(const Fvector2& center_point, Frect& map_desire
 
 CUILevelMap::CUILevelMap(CUIMapWnd* p)
 {
+	legacySpotScaling		= false;
 	m_mapWnd			= p;
 	Show				(false);
 }
@@ -400,18 +407,34 @@ void CUILevelMap::Draw()
 				if(sp->m_bScale)
 				{
 					Fvector2 sz			= sp->m_originSize;
-					float k				= gmz;
+					if (!legacySpotScaling)
+					{
+						float k				= gmz;
 
-					if(gmz>sp->m_scale_bounds.y)
+						if(gmz>sp->m_scale_bounds.y)
 						k				= sp->m_scale_bounds.y;
-					else
-					if(gmz<sp->m_scale_bounds.x)
-						k = sp->m_scale_bounds.x;
+						else
+						if(gmz<sp->m_scale_bounds.x)
+							k = sp->m_scale_bounds.x;
 
-					sz.mul				(k);
-					sp->SetWndSize		(sz);
-				}else
-				if(sp->m_scale_bounds.x > 0.0f)
+						sz.mul				(k);
+						sp->SetWndSize		(sz);
+					}
+					else
+					{
+						if (gmz > sp->m_scale_bounds.x && gmz < sp->m_scale_bounds.y)
+						{
+							float k = (gmz - sp->m_scale_bounds.x) / (sp->m_scale_bounds.y - sp->m_scale_bounds.x);
+							sz.mul(k);
+							sp->SetWndSize(sz);
+						}
+						else if (gmz > sp->m_scale_bounds.y)
+						{
+							sp->SetWndSize(sz);
+						}
+					}
+				}
+				else if(sp->m_scale_bounds.x > 0.0f)
 					sp->SetVisible		(sp->m_scale_bounds.x<gmz);
 			}
 
@@ -429,6 +452,8 @@ void CUILevelMap::Init_internal	(const shared_str& name, CInifile& pLtx, const s
 	tmp.z					*= UI().get_current_kx();
 	m_GlobalRect.set		(tmp.x, tmp.y, tmp.z, tmp.w);
 
+	if (EngineExternal().ClearSkyMode())
+		legacySpotScaling = true;
 
 #ifdef DEBUG
 	float kw = m_GlobalRect.width	()	/	BoundRect().width	();
@@ -578,7 +603,9 @@ void CUILevelMap::OnFocusLost()
 }
 
 CUIMiniMap::CUIMiniMap()
-{}
+{
+	SetRounded(true);
+}
 
 CUIMiniMap::~CUIMiniMap()
 {}
@@ -599,6 +626,12 @@ void CUIMiniMap::UpdateSpots()
 
 void  CUIMiniMap::Draw()
 {
+	if (!IsRounded())
+	{
+		inherited::Draw();
+		return;
+	}
+
 	u32	segments_count			= 20;
 
 	UIRender->SetShader			(*m_UIStaticItem.GetShader());
@@ -663,6 +696,11 @@ void  CUIMiniMap::Draw()
 
 bool CUIMiniMap::GetPointerTo(const Fvector2& src, float item_radius, Fvector2& pos, float& heading)
 {
+	if (!IsRounded())
+	{
+		return inherited::GetPointerTo(src, item_radius, pos, heading);
+	}
+
 	Fvector2 clip_center = GetStaticItem()->GetHeadingPivot();
 	float map_radius	= WorkingArea().width()/2.0f;
 	Fvector2			direction;
@@ -681,6 +719,10 @@ bool CUIMiniMap::GetPointerTo(const Fvector2& src, float item_radius, Fvector2& 
 
 bool CUIMiniMap::NeedShowPointer(Frect r)
 {
+	if (!IsRounded())
+	{
+		return inherited::NeedShowPointer(r);
+	}
 	Fvector2 clip_center = GetStaticItem()->GetHeadingPivot();
 
 	Fvector2			spot_pos;
@@ -692,6 +734,10 @@ bool CUIMiniMap::NeedShowPointer(Frect r)
 
 bool CUIMiniMap::IsRectVisible(Frect r)
 {
+	if (!IsRounded())
+	{
+		return inherited::IsRectVisible(r);
+	}
 	Fvector2 clip_center	= GetStaticItem()->GetHeadingPivot();
 	float vis_radius		= WorkingArea().width() / 2.0f;
 	Fvector2				rect_center;

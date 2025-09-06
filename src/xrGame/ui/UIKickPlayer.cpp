@@ -57,7 +57,7 @@ void CUIKickPlayer::Init_internal(CUIXml& xml_doc)
 {
 	CUIXmlInit::InitWindow		(xml_doc, "kick_ban",				0, this);
 	CUIXmlInit::InitStatic		(xml_doc, "kick_ban:background",	0, bkgrnd);
-//	CUIXmlInit::InitFrameWindow	(xml_doc, "kick_ban:list_back",		0, lst_back);
+	CUIXmlInit::InitFrameWindow	(xml_doc, "kick_ban:list_back",		0, lst_back, false);
 	CUIXmlInit::InitListBox		(xml_doc, "kick_ban:list",			0, m_ui_players_list);
 	CUIXmlInit::Init3tButton	(xml_doc, "kick_ban:btn_ok",		0, btn_ok);
 	CUIXmlInit::Init3tButton	(xml_doc, "kick_ban:btn_cancel",	0, btn_cancel);
@@ -96,41 +96,42 @@ bool CUIKickPlayer::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 void CUIKickPlayer::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
 {
 	if (LIST_ITEM_SELECT == msg && pWnd == m_ui_players_list)
-	{		
-		CUIListBoxItem* itm		= smart_cast<CUIListBoxItem*>(m_ui_players_list->GetSelected());
-		m_selected_item_text	= itm->GetText();
+	{
+		CUIListBoxItem* itm = m_ui_players_list->GetSelected()->ui_cast_list_box_item();
+		m_selected_item_text = itm->GetText();
 	}
 	else if (BUTTON_CLICKED == msg)
 	{
 		if (pWnd == btn_ok)
-			OnBtnOk		();
-		else 
-		if (pWnd == btn_cancel)
-			OnBtnCancel	();
+		{
+			OnBtnOk();
+		}
+		else if (pWnd == btn_cancel)
+		{
+			OnBtnCancel();
+		}
 	}
 }
 
 void CUIKickPlayer::OnBtnOk()
 {
-	CUIListBoxItem* item = smart_cast<CUIListBoxItem*>(m_ui_players_list->GetSelected());
-	if (item)
+	CUIWindow* get_selected = m_ui_players_list->GetSelected();
+	if (CUIListBoxItem* item = get_selected != nullptr ? get_selected->ui_cast_list_box_item() : nullptr)
 	{
-		string512 command;	
+		string512 command;
 		switch (mode)
 		{
-			case MODE_KICK:
-                xr_sprintf(command, "cl_votestart kick %s", item->GetText());
-				break;
-			case MODE_BAN:
-				{
-					xr_sprintf(command, "cl_votestart ban %s %d", item->GetText(), m_spin_ban_sec->Value());
-				}break;
+		case MODE_KICK:
+			xr_sprintf(command, "cl_votestart kick %s", item->GetText());
+			break;
+		case MODE_BAN:
+		{
+			xr_sprintf(command, "cl_votestart ban %s %d", item->GetText(), m_spin_ban_sec->Value());
+		}break;
 		}
-		Console->Execute			(command);
-		HideDialog					();
+		Console->Execute(command);
+		HideDialog();
 	}
-	else
-		return;
 }
 
 void CUIKickPlayer::OnBtnCancel()

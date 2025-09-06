@@ -41,7 +41,9 @@ public:
 };
 //------------------------------------------------------------------------------
 
-class ECORE_API EImageThumbnail: public ECustomThumbnail{
+class ECORE_API EImageThumbnail:
+	public ECustomThumbnail
+{
 	friend class CImageManager;
 protected:
     U32Vec 			m_Pixels;
@@ -51,13 +53,15 @@ protected:
 public:
 					EImageThumbnail	(LPCSTR src_name, THMType type):ECustomThumbnail(src_name, type){};
 	virtual			~EImageThumbnail();
-	virtual void 	Update			(ImTextureID& Texture);
+	virtual void 	Update			(ID3DBaseTexture*& Texture);
 //	virtual void 	Draw			(TMxPanel* panel){Irect r; r.set(1,1,1+panel->Width,1+panel->Height); Draw(panel->Canvas->Handle,r);}
     u32*			Pixels			(){return &*m_Pixels.begin();}
     virtual	int		MemoryUsage		(){return 0;};
 };
 
-class ECORE_API ETextureThumbnail: public EImageThumbnail{
+class ECORE_API ETextureThumbnail: 
+	public EImageThumbnail
+{
 	friend class CImageManager;
 	typedef EImageThumbnail inherited;
 private:
@@ -80,7 +84,7 @@ public:
         	void    SetValid        () {m_bValid = true;}
 	virtual void	FillProp		(PropItemVec& values, PropValue::TOnChange on_type_change);
 	virtual void	FillInfo		(PropItemVec& values);
-	virtual void 	Update(ImTextureID& Texture);
+	virtual void 	Update			(ID3DBaseTexture*& Texture) override;
 //	virtual void 	Draw			(TMxPanel* panel){inherited::Draw(panel);}
 
     virtual int		MemoryUsage		();
@@ -134,7 +138,9 @@ public:
 };
 //------------------------------------------------------------------------------
 
-class ECORE_API ESoundThumbnail: public ECustomThumbnail{
+class ECORE_API ESoundThumbnail:
+	public ECustomThumbnail
+{
 	friend class CSoundManager;
 	typedef ECustomThumbnail inherited;
 private:
@@ -144,10 +150,12 @@ private:
     float			m_fMaxAIDist;
     float			m_fBaseVolume;
     u32				m_uGameType;
+	bool IsFullPath = false;
+
 	bool 			OnMaxAIDistAfterEdit(PropValue* sender, float& edit_val);
 	void 			OnMaxDistChange		(PropValue* sender);
 public:
-					ESoundThumbnail	(LPCSTR src_name, bool bLoad=true);
+					ESoundThumbnail	(LPCSTR src_name, bool bLoad=true, bool bFullPath = false);
 	virtual			~ESoundThumbnail();
 
     // thumbnail public routines

@@ -17,10 +17,15 @@ public:
 
 	virtual void		Draw					();
 
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUIStatic* ui_cast_static() { return this; }
+
 protected:
 	bool				m_bClockwise;
 	u32					m_sectorCount;
 	float				m_stage;
+	CUIStatic*			m_pTexture;
+	CUIStatic*			m_pBackground;
 	bool				m_bText;
 	bool				m_blend;
 

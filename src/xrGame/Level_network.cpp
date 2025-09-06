@@ -31,6 +31,7 @@ extern bool	g_b_ClearGameCaptions;
 
 void CLevel::remove_objects	()
 {
+	PROF_EVENT("remove_objects");
 	if (!IsGameTypeSingle()) Msg("CLevel::remove_objects - Start");
 	BOOL						b_stored = psDeviceFlags.test(rsDisableObjectsAsCrows);
 	
@@ -117,9 +118,10 @@ void CLevel::remove_objects	()
 extern CUISequencer * g_tutorial;
 extern CUISequencer * g_tutorial2;
 
-void CLevel::net_Stop		()
+void CLevel::net_Stop()
 {
-	Msg							("- Disconnect");
+	Msg("- Disconnect");
+	script_client_events.clear();
 
 	if(CurrentGameUI())
 	{
@@ -246,7 +248,7 @@ void CLevel::ClientSave()
 		if (!O || O->getDestroy())
 			continue;
 
-		CGameObject* GO = smart_cast<CGameObject*>(O);
+		CGameObject* GO = O->cast_game_object();
 		if (!GO || !GO->net_SaveRelevant())
 			continue;
 
@@ -453,16 +455,7 @@ void CLevel::OnConnectResult(NET_Packet*	P)
 			{
 				if (strstr(ResultStr, "Data verification failed. Cheater?"))
 					MainMenu()->SetErrorDialog(CMainMenu::ErrDifferentVersion);
-			}break;
-		case ecr_cdkey_validation_failed:		//GameSpy CDKey
-			{
-				if (!xr_strcmp(ResultStr, "Invalid CD Key"))
-					MainMenu()->SetErrorDialog(CMainMenu::ErrCDKeyInvalid);//, ResultStr);
-				if (!xr_strcmp(ResultStr, "CD Key in use"))
-					MainMenu()->SetErrorDialog(CMainMenu::ErrCDKeyInUse);//, ResultStr);
-				if (!xr_strcmp(ResultStr, "Your CD Key is disabled. Contact customer service."))
-					MainMenu()->SetErrorDialog(CMainMenu::ErrCDKeyDisabled);//, ResultStr);
-			}break;		
+			}break;	
 		case ecr_password_verification_failed:		//login+password
 			{
 				MainMenu()->SetErrorDialog(CMainMenu::ErrInvalidPassword);

@@ -21,7 +21,6 @@
 #include "../xrEngine/string_table.h"
 
 #include "game_cl_base_weapon_usage_statistic.h"
-#include "reward_event_generator.h"
 
 #include "game_cl_deathmatch_snd_messages.h"
 #include "game_base_menu_events.h"
@@ -138,11 +137,6 @@ void game_cl_Deathmatch::net_import_state	(NET_Packet& P)
 			{
 				PlaySndMessage(ID_YOU_WON);
 			}
-			if (NeedSndMessage && m_reward_generator)
-			{
-				m_reward_generator->OnRoundEnd();
-				m_reward_generator->CommitBestResults();
-			}
 		}break;
 	}
 }
@@ -197,7 +191,7 @@ void game_cl_Deathmatch::OnMapInfoAccept			()
 
 void game_cl_Deathmatch::OnSkinMenuBack			()
 {
-	m_game_ui->ShowServerInfo();
+	m_game_ui->m_pMapDesc->ShowDialog(true);
 };
 
 void game_cl_Deathmatch::OnSkinMenu_Ok			()
@@ -510,11 +504,8 @@ void game_cl_Deathmatch::shedule_Update			(u32 dt)
 				if (m_bFirstRun)
 				{
 					m_bFirstRun = FALSE;
-					if (!Level().IsDemoPlayStarted() && Level().CurrentEntity())
-					{
-						VERIFY( m_game_ui );
-						m_bFirstRun = m_game_ui->ShowServerInfo() ? FALSE : TRUE;
-					}
+					if (m_game_ui->m_pMapDesc && !Level().IsDemoPlayStarted())
+						m_game_ui->m_pMapDesc->ShowDialog(true);
 
 					GetActiveVoting();
 				};
@@ -563,7 +554,7 @@ void game_cl_Deathmatch::shedule_Update			(u32 dt)
 				{
 					if (!(pCurBuyMenu && pCurBuyMenu->IsShown()) && 
 						!(pCurSkinMenu && pCurSkinMenu->IsShown()) &&
-						!m_game_ui->IsServerInfoShown() &&
+						!(m_game_ui->m_pMapDesc && m_game_ui->m_pMapDesc->IsShown()) &&
 						(CurrentGameUI() && CurrentGameUI()->GameIndicatorsShown())
 						)
 					{
@@ -680,10 +671,10 @@ void game_cl_Deathmatch::shedule_Update			(u32 dt)
 	//-----------------------------------------
 
 	u32 cur_game_state = Phase();
-	//if(m_game_ui->m_pMapDesc && m_game_ui->m_pMapDesc->IsShown() && cur_game_state!=GAME_PHASE_INPROGRESS)
-	//{
-	//	m_game_ui->m_pMapDesc->HideDialog();
-	//}
+	if(m_game_ui->m_pMapDesc && m_game_ui->m_pMapDesc->IsShown() && cur_game_state!=GAME_PHASE_INPROGRESS)
+	{
+		m_game_ui->m_pMapDesc->HideDialog();
+	}
 
 	if(pCurSkinMenu && pCurSkinMenu->IsShown() && cur_game_state!=GAME_PHASE_INPROGRESS)
 	{
@@ -1055,13 +1046,6 @@ void game_cl_Deathmatch::OnSpawn(CObject* pObj)
 	{
 		if (xr_strlen(Actor_Spawn_Effect))
 			PlayParticleEffect(Actor_Spawn_Effect.c_str(), pObj->Position());
-		game_PlayerState *ps = GetPlayerByGameID(pActor->ID());
-		
-		if (ps && m_reward_generator)
-		{
-			m_reward_generator->OnPlayerSpawned(ps);
-			m_reward_generator->init_bone_groups(pActor);
-		}
 	};
 	if (smart_cast<CWeapon*>(pObj))
 	{
@@ -1149,7 +1133,6 @@ void				game_cl_Deathmatch::OnGameRoundStarted				()
 		if (pCurBuyMenu && pCurPresetItems)
 		{
 			LoadTeamDefaultPresetItems(GetTeamMenu(local_player->team), pCurBuyMenu, pCurPresetItems);
-			ReInitRewardGenerator(local_player);
 		}
 	}
 	if (pCurBuyMenu) pCurBuyMenu->ClearPreset(_preset_idx_last);
@@ -1207,14 +1190,13 @@ void game_cl_Deathmatch::OnGameMenuRespond_ChangeSkin(NET_Packet& P)
 	if (pCurSkinMenu && pCurSkinMenu->IsShown())
 		pCurSkinMenu->HideDialog();
 
-	//if (m_game_ui->m_pMapDesc && m_game_ui->m_pMapDesc->IsShown())
-	//	m_game_ui->m_pMapDesc->HideDialog();
+	if (m_game_ui->m_pMapDesc && m_game_ui->m_pMapDesc->IsShown())
+		m_game_ui->m_pMapDesc->HideDialog();
 	
 
 	SetCurrentSkinMenu				();
 	if (pCurSkinMenu)				pCurSkinMenu->SetCurSkin(local_player->skin);
 	SetCurrentBuyMenu				();
-	ReInitRewardGenerator			(local_player);
 	m_bSpectatorSelected			= FALSE;
 	
 	if (m_bMenuCalledFromReady)

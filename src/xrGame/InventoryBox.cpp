@@ -4,6 +4,7 @@
 #include "Level.h"
 #include "Actor.h"
 #include "game_object_space.h"
+#include "../xrScripts/script_callback_ex.h"
 
 #include "script_game_object.h"
 #include "ui/UIActorMenu.h"
@@ -31,21 +32,24 @@ void CInventoryBox::OnEvent(NET_Packet& P, u16 type)
 	case GE_OWNERSHIP_TAKE:
 		{
 			u16 id;
-            P.r_u16					(id);
-			CObject* itm			= Level().Objects.net_Find(id);  VERIFY(itm);
-			m_items.push_back		(id);
-			itm->H_SetParent		(this);
-			itm->setVisible			(FALSE);
-			itm->setEnabled			(FALSE);
+            P.r_u16(id);
+			CObject* itm = Level().Objects.net_Find(id);
+			VERIFY(itm);
+			m_items.push_back(id);
+			itm->H_SetParent(this);
+			itm->setVisible(FALSE);
+			itm->setEnabled(FALSE);
 
-			CInventoryItem *pIItem	= smart_cast<CInventoryItem*>(itm);
-			VERIFY					(pIItem);
-			if( CurrentGameUI() )
+			PIItem pIItem = itm->cast_inventory_item();
+			VERIFY(pIItem);
+			if (CurrentGameUI())
 			{
-				if(CurrentGameUI()->ActorMenu().GetMenuMode()==mmDeadBodySearch)
+				if (CurrentGameUI()->ActorMenu().GetMenuMode() == mmDeadBodySearch)
 				{
-					if(this==CurrentGameUI()->ActorMenu().GetInvBox())
+					if (this == CurrentGameUI()->ActorMenu().GetInvBox())
+					{
 						CurrentGameUI()->OnInventoryAction(pIItem, GE_OWNERSHIP_TAKE);
+					}
 				}
 			};
 		}break;
@@ -55,29 +59,33 @@ void CInventoryBox::OnEvent(NET_Packet& P, u16 type)
 		{
 			u16 id;
             P.r_u16(id);
-			CObject* itm = Level().Objects.net_Find(id);  VERIFY(itm);
+			CObject* itm = Level().Objects.net_Find(id);
+			VERIFY(itm);
 			xr_vector<u16>::iterator it;
-			it = std::find(m_items.begin(),m_items.end(),id); VERIFY(it!=m_items.end());
-			m_items.erase		(it);
+			it = std::find(m_items.begin(),m_items.end(),id);
+			VERIFY(it!=m_items.end());
+			m_items.erase(it);
 
-			bool just_before_destroy		= !P.r_eof() && P.r_u8();
-			bool dont_create_shell			= (type==GE_TRADE_SELL) || just_before_destroy;
+			bool just_before_destroy = !P.r_eof() && P.r_u8();
+			bool dont_create_shell = (type==GE_TRADE_SELL) || just_before_destroy;
 
-			itm->H_SetParent	(nullptr, dont_create_shell);
+			itm->H_SetParent(nullptr, dont_create_shell);
 
 			if (!IsGameTypeSingle() && CurrentGameUI())
 			{
 				if (CurrentGameUI()->ActorMenu().GetMenuMode() == mmDeadBodySearch)
 				{
 					if (this == CurrentGameUI()->ActorMenu().GetInvBox())
-						CurrentGameUI()->OnInventoryAction(smart_cast<CInventoryItem*>(itm), GE_OWNERSHIP_REJECT);
+					{
+						CurrentGameUI()->OnInventoryAction(itm->cast_inventory_item(), GE_OWNERSHIP_REJECT);
+					}
 				}
 			}
 
-			if( m_in_use )
+			if (m_in_use)
 			{
-				CGameObject* GO		= smart_cast<CGameObject*>(itm);
-				Actor()->callback(GameObject::eInvBoxItemTake)( this->lua_game_object(), GO->lua_game_object() );
+				CGameObject* GO = itm->cast_game_object();
+				Actor()->callback(GameObject::eInvBoxItemTake)(this->lua_game_object(), GO->lua_game_object());
 			}
 		}break;
 	};
@@ -92,23 +100,23 @@ void CInventoryBox::net_Destroy()
 {
 	inherited::net_Destroy	();
 }
+
 #include "../xrServerEntities/xrServer_Objects_ALife.h"
 BOOL CInventoryBox::net_Spawn(CSE_Abstract* DC)
 {
-	inherited::net_Spawn	(DC);
-	setVisible				(TRUE);
-	setEnabled				(TRUE);
-	set_tip_text			("inventory_box_use");
-	
-	CSE_ALifeInventoryBox*	pSE_box = smart_cast<CSE_ALifeInventoryBox*>(DC);
-	if ( /*IsGameTypeSingle() &&*/ pSE_box )
+	inherited::net_Spawn(DC);
+	setVisible(TRUE);
+	setEnabled(TRUE);
+	set_tip_text("inventory_box_use");
+
+	if (CSE_ALifeInventoryBox* pSE_box = smart_cast<CSE_ALifeInventoryBox*>(DC))
 	{
 		m_can_take = pSE_box->m_can_take;
-		m_closed   = pSE_box->m_closed;
-		set_tip_text( pSE_box->m_tip_text.c_str() );
+		m_closed = pSE_box->m_closed;
+		set_tip_text(pSE_box->m_tip_text.c_str());
 	}
 
-	return					TRUE;
+	return TRUE;
 }
 
 void CInventoryBox::net_Relcase(CObject* O)

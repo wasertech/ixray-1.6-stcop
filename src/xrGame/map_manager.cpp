@@ -11,6 +11,7 @@
 #include "GametaskManager.h"
 #include "xrServer.h"
 #include "game_object_space.h"
+#include "../xrScripts/script_callback_ex.h"
 
 struct FindLocationBySpotID
 {
@@ -141,11 +142,17 @@ CMapLocation* CMapManager::AddRelationLocation(CInventoryOwner* pInvOwner)
 	CEntityAlive* pEntAlive = smart_cast<CEntityAlive*>(pInvOwner);
 	if( !pEntAlive->g_Alive() ) sname = "deadbody_location";
 
-
-	R_ASSERT(!HasMapLocation(sname, pInvOwner->object_id()));
-	CMapLocation* l = new CRelationMapLocation(sname, pInvOwner->object_id(), pActor->object_id());
-	Locations().push_back( SLocationKey(sname, pInvOwner->object_id()) );
-	Locations().back().location = l;
+	CMapLocation* l;
+	if (!HasMapLocation(sname, pInvOwner->object_id()))
+	{
+		l = new CRelationMapLocation(sname, pInvOwner->object_id(), pActor->object_id());
+		Locations().push_back(SLocationKey(sname, pInvOwner->object_id()));
+		Locations().back().location = l;
+	}
+	else
+	{
+		l = GetMapLocation(sname, pInvOwner->object_id());
+	}
 	return l;
 }
 
@@ -183,7 +190,7 @@ void CMapManager::RemoveMapLocation(const shared_str& spot_type, u16 id)
 	Locations_it it = std::find_if(Locations().begin(),Locations().end(),key);
 	if( it!=Locations().end() )
 	{
-		Level().GameTaskManager().MapLocationRelcase((*it).location);
+		Level().GameTaskManager()->MapLocationRelcase((*it).location);
 
 		Destroy					((*it).location);
 		Locations().erase		(it);
@@ -196,7 +203,7 @@ void CMapManager::RemoveMapLocationByObjectID(u16 id) //call on destroy object
 	Locations_it it = std::find_if(Locations().begin(), Locations().end(), key);
 	while( it!= Locations().end() )
 	{
-		Level().GameTaskManager().MapLocationRelcase((*it).location);
+		Level().GameTaskManager()->MapLocationRelcase((*it).location);
 
 		Destroy					((*it).location);
 		Locations().erase		(it);
@@ -212,7 +219,7 @@ void CMapManager::RemoveMapLocation(CMapLocation* ml)
 	Locations_it it = std::find_if(Locations().begin(), Locations().end(), key);
 	if( it!=Locations().end() )
 	{
-		Level().GameTaskManager().MapLocationRelcase((*it).location);
+		Level().GameTaskManager()->MapLocationRelcase((*it).location);
 
 		Destroy					((*it).location);
 		Locations().erase		(it);
@@ -289,7 +296,7 @@ void CMapManager::Update()
 
 	while ((!Locations().empty()) && (!Locations().back().actual))
 	{
-		Level().GameTaskManager().MapLocationRelcase(Locations().back().location);
+		Level().GameTaskManager()->MapLocationRelcase(Locations().back().location);
 
 		Destroy(Locations().back().location);
 		Locations().pop_back();
@@ -404,7 +411,7 @@ void CMapManager::script_register(lua_State* L)
 				.def("SpotEnabled", &CMapLocation::SpotEnabled)
 				.def("EnableSpot", &CMapLocation::EnableSpot)
 				.def("DisableSpot", &CMapLocation::DisableSpot)
-				.def("GetLevelName", &CMapLocation::GetLevelName)
+				.def("GetLevelName", &CMapLocation::GetLPLevelName)
 				.def("GetPosition", &CMapLocation::GetPosition)
 				.def("ObjectID", &CMapLocation::ObjectID)
 				.def("GetLastPosition", &CMapLocation::GetLastPosition)

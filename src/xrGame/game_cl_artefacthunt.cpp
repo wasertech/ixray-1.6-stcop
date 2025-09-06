@@ -24,6 +24,7 @@
 #include "CustomOutfit.h"
 #include "clsid_game.h"
 #include "ui/UIActorMenu.h"
+#include "../../xrUI/Widgets/UIProgressShape.h"
 
 #define TEAM0_MENU		"artefacthunt_team0"
 #define	TEAM1_MENU		"artefacthunt_team1"
@@ -33,8 +34,6 @@
 
 #include "game_cl_artefacthunt_snd_msg.h"
 #include "../xrEngine/IGame_Persistent.h"
-
-#include "reward_event_generator.h"
 
 game_cl_ArtefactHunt::game_cl_ArtefactHunt()
 {
@@ -181,9 +180,6 @@ void game_cl_ArtefactHunt::TranslateGameMessage	(u32 msg, NET_Packet& P)
 			game_PlayerState* pPlayer = GetPlayerByGameID(PlayerID);
 			if (!pPlayer) break;
 
-			if (m_reward_generator)
-				m_reward_generator->OnPlayerTakeArtefact(pPlayer);
-
 			xr_sprintf(tmp, "%s%s", "%s%s %s", *g_pStringTable->translate("mp_has_tak_art"));
 
 			xr_sprintf(Text, tmp, 
@@ -212,9 +208,6 @@ void game_cl_ArtefactHunt::TranslateGameMessage	(u32 msg, NET_Packet& P)
 			game_PlayerState* pPlayer = GetPlayerByGameID(PlayerID);
 			if (!pPlayer) break;
 			
-			if (m_reward_generator)
-				m_reward_generator->OnPlayerDropArtefact(pPlayer);
-
             xr_sprintf(tmp, "%s%s", "%s%s %s", *g_pStringTable->translate("mp_has_drop_art"));
 
 			xr_sprintf(Text, tmp, 
@@ -235,9 +228,6 @@ void game_cl_ArtefactHunt::TranslateGameMessage	(u32 msg, NET_Packet& P)
 
 			game_PlayerState* pPlayer = GetPlayerByGameID(PlayerID);
 			if (!pPlayer) break;
-
-			if (m_reward_generator)
-				m_reward_generator->OnPlayerBringArtefact(pPlayer);
 
 			xr_sprintf(tmp, "%s%s", "%s%s %s", *g_pStringTable->translate("mp_scores"));
 
@@ -261,8 +251,6 @@ void game_cl_ArtefactHunt::TranslateGameMessage	(u32 msg, NET_Packet& P)
 			xr_sprintf(Text, "%s%s", 
 				Color_Main, *g_pStringTable->translate("mp_art_spowned"));
 			if(CurrentGameUI()) CurrentGameUI()->CommonMessageOut(Text);
-			if (m_reward_generator)
-				m_reward_generator->OnArtefactSpawned();
 
 			PlaySndMessage(ID_NEW_AF);
 		}break;
@@ -448,11 +436,23 @@ void game_cl_ArtefactHunt::shedule_Update			(u32 dt)
 					if (s32(CurTime) > dReinforcementTime) dTime = 0;
 					else dTime = iCeil(float(dReinforcementTime - CurTime) / 1000);
 							
+					if (m_game_ui->m_pReinforcementInidcator)
+					{
 					string128 _buff;
 					m_game_ui->m_pReinforcementInidcator->SetText(_itoa(dTime,_buff,10));
-				}else
+					}
+					else
+					{
+						m_game_ui->m_pReinforcementInidcator_old->SetPos(dTime, iReinforcementTime);
+					}
+				}
+				else
+				{
+					if (m_game_ui->m_pReinforcementInidcator)
 					m_game_ui->m_pReinforcementInidcator->SetText("0");
-
+					else
+						m_game_ui->m_pReinforcementInidcator_old->SetPos(0, 1);
+				}
 				s16 lt = local_player->team;
 				if (lt>=0)
 				{

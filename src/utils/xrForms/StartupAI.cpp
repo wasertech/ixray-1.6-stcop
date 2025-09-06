@@ -6,7 +6,6 @@
 #include "../xrAI/game_spawn_constructor.h"
 #include "../xrAI/xrCrossTable.h"
 #include "../xrAI/game_graph_builder.h"
-#include "../xrAI/spawn_patcher.h"
 
 #include "../xrAI/factory_api.h"
 #include "../../xrGame/quadtree.h"
@@ -32,79 +31,88 @@ extern void clear_temp_folder();
 extern void	xrCompiler(LPCSTR name, bool draft_mode, bool pure_covers, LPCSTR out_name);
 extern void	verify_level_graph(LPCSTR name, bool verbose);
 
-void execute(LPSTR cmd) {
+#include "CompilersUI.h"
+extern CompilersMode gCompilerMode;
+
+void StartupAI()
+{
 	// Load project
-	string4096 name;
-	name[0] = 0;
-	if (strstr(cmd, "-f"))
-		sscanf(strstr(cmd, "-f") + 2, "%s", name);
-	else if (strstr(cmd, "-s"))
-		sscanf(strstr(cmd, "-s") + 2, "%s", name);
-	else if (strstr(cmd, "-t"))
-		sscanf(strstr(cmd, "-t") + 2, "%s", name);
-	else if (strstr(cmd, "-verify"))
-		sscanf(strstr(cmd, "-verify") + xr_strlen("-verify"), "%s", name);
-
-	if (xr_strlen(name))
-		xr_strcat(name, "\\");
-
-	string_path			prjName;
-	prjName[0] = 0;
-	bool				can_use_name = false;
-	if (xr_strlen(name) < sizeof(string_path)) {
-		can_use_name = true;
-		FS.update_path(prjName, "$game_levels$", name);
-	}
-
 	FS.update_path(INI_FILE, "$game_config$", GAME_CONFIG);
 
-	if (strstr(cmd, "-f")) {
-		R_ASSERT3(can_use_name, "Too big level name", name);
+	for (const auto& [Name, Selected] : gCompilerMode.Files)
+	{
+		if (!Selected)
+			continue;
 
-		char* output = strstr(cmd, "-out");
-		string256		temp0;
-		if (output) {
-			output += xr_strlen("-out");
-			sscanf(output, "%s", temp0);
-			_TrimLeft(temp0);
-			output = temp0;
+		string4096 name;
+		strcpy(name, Name.data());
+
+		if (xr_strlen(name))
+			xr_strcat(name, "\\");
+
+		string_path prjName;
+		prjName[0] = 0;
+		bool can_use_name = false;
+
+		if (xr_strlen(name) < sizeof(string_path))
+		{
+			can_use_name = true;
+			FS.update_path(prjName, "$game_levels$", name);
 		}
-		else
-			output = (pstr)LEVEL_GRAPH_NAME;
 
-		xrCompiler(prjName, !!strstr(cmd, "-draft"), !!strstr(cmd, "-pure_covers"), output);
+		if (gCompilerMode.AI_BuildLevel)
+		{
+			R_ASSERT3(can_use_name, "Too big level name", name);
+
+			char* output = (pstr)LEVEL_GRAPH_NAME;
+
+			xrCompiler(prjName, gCompilerMode.AI_Draft, gCompilerMode.AI_PureCovers, output);
+		}
+
+		if (gCompilerMode.AI_Verify)
+		{
+			R_ASSERT3(can_use_name, "Too big level name", name);
+			verify_level_graph(prjName, gCompilerMode.AI_Verbose);
+		}
 	}
 
-	if (strstr(cmd, "-s")) {
+	if (gCompilerMode.AI_BuildSpawn)
+	{
+		xr_string Levels;
+
+		for (const auto& [Name, Selected] : gCompilerMode.Files)
+		{
+			if (!Selected)
+				continue;
+
+			if (!Levels.empty())
+				Levels += ",";
+
+			Levels += Name;
+		}
+
+		string512 name = {};
+		strcpy(name, Levels.data());
 		if (xr_strlen(name))
-			name[xr_strlen(name) - 1] = 0;
-
-		char* output = strstr(cmd, "-out");
-		string256 temp0, temp1;
-
-		if (output)
 		{
-			output += xr_strlen("-out");
-			sscanf(output, "%s", temp0);
-			_TrimLeft(temp0);
-			output = temp0;
+			name[xr_strlen(name)] = 0;
 		}
 
-		char* start = strstr(cmd, "-start");
-		if (start) 
+		xr_string output = gCompilerMode.AI_spawn_name;
+
+		if (output.empty())
 		{
-			start += xr_strlen("-start");
-			sscanf(start, "%s", temp1);
-			_TrimLeft(temp1);
-			start = temp1;
+			output = "new";
 		}
 
-		char* no_separator_check = strstr(cmd, "-no_separator_check");
+		char* start_level = gCompilerMode.AI_StartActor;
+		if (!xr_strlen(start_level))
+		{
+			start_level = nullptr;
+		}
+
 		clear_temp_folder();
-		CGameSpawnConstructor* BuilderSpawn = new CGameSpawnConstructor(name, output, start, !!no_separator_check);
-	} else if (strstr(cmd, "-verify")) {
-		R_ASSERT3(can_use_name, "Too big level name", name);
-		verify_level_graph(prjName, !strstr(cmd, "-noverbose"));
+		xr_unique_ptr<CGameSpawnConstructor> BuilderSpawn = xr_make_unique<CGameSpawnConstructor>(name, output.data(), start_level, gCompilerMode.AI_NoSeparatorCheck);
 	}
 }
 
@@ -123,41 +131,11 @@ void InitialFactory() {
 
 	R_ASSERT2(hFactory, "Factory DLL raised exception during loading or there is no factory DLL at all");
 
-#ifdef _M_X64
 	create_entity = (SEFactory_Create*)GetProcAddress(hFactory, "create_entity");	R_ASSERT(create_entity);
 	destroy_entity = (SEFactory_Destroy*)GetProcAddress(hFactory, "destroy_entity");	R_ASSERT(destroy_entity);
-#else
-	create_entity = (Factory_Create*)GetProcAddress(hFactory, "_create_entity@4");	R_ASSERT(create_entity);
-	destroy_entity = (Factory_Destroy*)GetProcAddress(hFactory, "_destroy_entity@4");	R_ASSERT(destroy_entity);
-#endif
 }
 
-void DestroyFactory() {
+void DestroyFactory()
+{
 	FreeLibrary(hFactory);
-}
-
-void StartupAI(LPSTR lpCmdLine) {
-	string4096 cmd;
-
-	xr_strcpy(cmd, lpCmdLine);
-	_strlwr(cmd);
-	if (strstr(cmd, "-?") || strstr(cmd, "-h")) {
-		Help(h_str); 
-		return; 
-	}
-
-	if (
-		   (strstr(cmd, "-f") == 0) 
-		&& (strstr(cmd, "-g") == 0) 
-		&& (strstr(cmd, "-m") == 0) 
-		&& (strstr(cmd, "-s") == 0) 
-		&& (strstr(cmd, "-t") == 0) 
-		&& (strstr(cmd, "-c") == 0) 
-		&& (strstr(cmd, "-verify") == 0)
-		&& (strstr(cmd, "-patch") == 0)
-	) {
-		Help(h_str); return; 
-	}
-
-	execute(cmd);
 }

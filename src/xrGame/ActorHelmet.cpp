@@ -2,7 +2,6 @@
 #include "ActorHelmet.h"
 #include "Actor.h"
 #include "Inventory.h"
-#include "Torch.h"
 #include "BoneProtections.h"
 #include "../Include/xrRender/Kinematics.h"
 //#include "CustomOutfit.h"
@@ -55,6 +54,14 @@ void CHelmet::Load(LPCSTR section)
 	m_BonesProtectionSect			= READ_IF_EXISTS(pSettings, r_string, section, "bones_koeff_protection",  "" );
 	m_fShowNearestEnemiesDistance	= READ_IF_EXISTS(pSettings, r_float, section, "nearest_enemies_show_dist",  0.0f );
 
+	bIsHudGasMaskAvialable = !!READ_IF_EXISTS(pSettings, r_bool, section, "hud_gas_mask_avaliable", true);		// FFx0001 ++
+	bIsHudRainDropsAvialable = !!READ_IF_EXISTS(pSettings, r_bool, section, "hud_rain_drops_avaliable", true);  // FFx0001 ++
+
+	if (pSettings->line_exist(section, "glass_present"))
+	{
+		GlassPresent = pSettings->r_bool(section, "glass_present");
+	}
+
 	// Added by Axel, to enable optional condition use on any item
 	m_flags.set(FUsingCondition, READ_IF_EXISTS(pSettings, r_bool, section, "use_condition", true));
 }
@@ -63,7 +70,7 @@ void CHelmet::ReloadBonesProtection()
 {
 	CObject* parent = H_Parent();
 	if(IsGameTypeSingle())
-		parent = smart_cast<CObject*>(Level().CurrentViewEntity());
+		parent = Level().CurrentViewEntity();
 
 	if(parent && parent->Visual() && m_BonesProtectionSect.size())
 		m_boneProtection->reload( m_BonesProtectionSect, smart_cast<IKinematics*>(parent->Visual()));
@@ -101,16 +108,6 @@ void CHelmet::OnH_A_Chield()
 void CHelmet::OnMoveToSlot(const SInvItemPlace& previous_place)
 {
 	inherited::OnMoveToSlot		(previous_place);
-	if (m_pInventory && (previous_place.type==eItemPlaceSlot))
-	{
-		CActor* pActor = smart_cast<CActor*> (H_Parent());
-		if (pActor)
-		{
-			CTorch* pTorch = smart_cast<CTorch*>(pActor->inventory().ItemFromSlot(TORCH_SLOT));
-			if(pTorch && pTorch->GetNightVisionStatus())
-				pTorch->SwitchNightVision(true, false);
-		}
-	}
 }
 
 void CHelmet::OnMoveToRuck(const SInvItemPlace& previous_place)
@@ -118,12 +115,10 @@ void CHelmet::OnMoveToRuck(const SInvItemPlace& previous_place)
 	inherited::OnMoveToRuck		(previous_place);
 	if (m_pInventory && (previous_place.type==eItemPlaceSlot))
 	{
-		CActor* pActor = smart_cast<CActor*> (H_Parent());
-		if (pActor)
+		CActor* pActor = H_Parent() ? H_Parent()->cast_actor() : nullptr;
+		if (pActor && pActor->GetNightVisionEffector())
 		{
-			CTorch* pTorch = smart_cast<CTorch*>(pActor->inventory().ItemFromSlot(TORCH_SLOT));
-			if(pTorch)
-				pTorch->SwitchNightVision(false);
+			pActor->GetNightVisionEffector()->SwitchNightVision(false);
 		}
 	}
 }
@@ -131,7 +126,12 @@ void CHelmet::OnMoveToRuck(const SInvItemPlace& previous_place)
 void CHelmet::Hit(float hit_power, ALife::EHitType hit_type)
 {
 	hit_power *= GetHitImmunity(hit_type);
-	ChangeCondition(-hit_power);
+
+	if (!psActorFlags.test(AF_INFINITEDURABILITY))
+	{
+		ChangeCondition(-hit_power);
+	}
+
 }
 
 float CHelmet::GetDefHitTypeProtection(ALife::EHitType hit_type)
@@ -201,7 +201,7 @@ void CHelmet::AddBonesProtection(LPCSTR bones_section)
 {
 	CObject* parent = H_Parent();
 	if(IsGameTypeSingle())
-		parent = smart_cast<CObject*>(Level().CurrentViewEntity());
+		parent = Level().CurrentViewEntity();
 
 	if ( parent && parent->Visual() && m_BonesProtectionSect.size() )
 		m_boneProtection->add(bones_section, smart_cast<IKinematics*>( parent->Visual() ) );

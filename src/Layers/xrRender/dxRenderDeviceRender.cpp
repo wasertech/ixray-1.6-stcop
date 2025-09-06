@@ -10,6 +10,7 @@
 #include "imgui.h"
 #endif
 
+bool bNeedUpdateGammaLUT = true;
 #ifdef USE_DX11
 #include "imgui_impl_dx11.h"
 #else
@@ -32,7 +33,7 @@ dxRenderDeviceRender::dxRenderDeviceRender()
 	ImUI.HardwareDrawDataCallback	= []() { ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData()); };
 	ImUI.HardwareDestroyCallback	= ImGui_ImplDX9_Shutdown;
 	ImUI.HardwareNewFrameCallback	= ImGui_ImplDX9_NewFrame;
-	ImUI.HardwareResetCallback		= ImGui_ImplDX9_InvalidateDeviceObjects;
+	ImUI.HardwareResetCallback		= []() { ImGui_ImplDX9_InvalidateDeviceObjects(); /*ImGui_ImplDX9_CreateDeviceObjects(); */};
 #endif
 }
 #else
@@ -70,11 +71,18 @@ void dxRenderDeviceRender::updateGamma()
 #ifndef _EDITOR
 	m_Gamma.Update();
 #endif
+	bNeedUpdateGammaLUT = true;
 }
 
 void dxRenderDeviceRender::OnDeviceDestroy( BOOL bKeepTextures)
 {
 #ifndef _EDITOR
+#ifdef USE_DX11
+#ifdef DEBUG_DRAW
+	DebugRenderImpl.Shutdown();
+#endif // #ifdef DEBUG_DRAW
+#endif // USE_DX11
+
 	m_WireShader.destroy();
 	m_SelectionShader.destroy();
 
@@ -109,8 +117,10 @@ void  dxRenderDeviceRender::Reset(SDL_Window* window, u32 &dwWidth, u32 &dwHeigh
 
 	dwWidth = Device.GetSwapchainWidth();
 	dwHeight = Device.GetSwapchainHeight();
-	fWidth_2 = float(dwWidth / 2);
-	fHeight_2 = float(dwHeight / 2);
+
+	fWidth_2 = Device.HalfTargetWidth;
+	fHeight_2 = Device.HalfTargetHeight;
+
 	Resources->reset_end();
 #endif
 }
@@ -186,6 +196,12 @@ void dxRenderDeviceRender::OnDeviceCreate(LPCSTR shName)
 		m_SelectionShader.create	("editor\\selection");
 
 		DUImpl.OnDeviceCreate			();
+#ifdef USE_DX11
+#ifdef DEBUG_DRAW
+		DebugRenderImpl.Init();
+#endif // DEBUG_DRAW
+#endif // USE_DX11
+
 	}
 //#endif
 #endif
@@ -198,48 +214,11 @@ void dxRenderDeviceRender::Create(SDL_Window* window, u32 &dwWidth, u32 &dwHeigh
 
 	dwWidth = Device.GetSwapchainWidth();
 	dwHeight = Device.GetSwapchainHeight();
-	fWidth_2 = float(dwWidth / 2);
-	fHeight_2 = float(dwHeight / 2);
+
+	fWidth_2 = Device.HalfTargetWidth;
+	fHeight_2 = Device.HalfTargetHeight;
+
 	Resources = new CResourceManager();
-
-#ifdef DEBUG_DRAW
-	CImGuiManager::Instance().Subscribe("dxDebugRenderer", CImGuiManager::ERenderPriority::eHight + 1,
-	[]()
-	{
-		if (!Engine.External.EditorStates[static_cast<std::uint8_t>(EditorUI::DebugDraw)] || DebugRenderImpl.m_lines.empty() ||
-			(g_pGamePersistent && g_pGamePersistent->m_pMainMenu && g_pGamePersistent->m_pMainMenu->IsActive()))
-			return;
-
-		constexpr auto DebugFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs;
-
-		ImGuiViewport* ViewPort = ImGui::GetMainViewport();
-
-		ImGui::SetNextWindowPos(ViewPort->WorkPos);
-		ImGui::SetNextWindowSize(ViewPort->WorkSize);
-		ImGui::SetNextWindowBgAlpha(0.0f);
-		ImGui::SetNextWindowViewport(ViewPort->ID);
-
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-		if (ImGui::Begin("DebugRender", nullptr, DebugFlags))
-		{
-			ImDrawList& CmdList = *ImGui::GetWindowDrawList();
-			for (const auto& Line : DebugRenderImpl.m_lines)
-			{
-				CmdList.AddLine(
-					ImVec2(Line.x1, Line.y1),
-					ImVec2(Line.x2, Line.y2),
-					Line.color
-				);
-			}
-			DebugRenderImpl.m_lines.resize(0);
-		}
-
-		ImGui::End();
-		ImGui::PopStyleVar();
-		ImGui::PopStyleVar();
-	});
-#endif
 #endif
 }
 
@@ -401,11 +380,17 @@ void dxRenderDeviceRender::Begin()
 #ifndef _EDITOR
 #ifndef USE_DX11
 	CHK_DX					(RDevice->BeginScene());
+#else
 #endif //USE_DX11
 	
 	RCache.OnFrameBegin		();
 	RCache.set_CullMode		(CULL_CW);
 	RCache.set_CullMode		(CULL_CCW);
+	RCache.set_Z			(TRUE);
+#endif
+
+#if defined(USE_DX11) && defined(DEBUG_DRAW)
+	GPUEvents_BeginRendering();
 #endif
 }
 
@@ -430,6 +415,8 @@ void dxRenderDeviceRender::Clear()
 		));
 #endif
 #endif
+
+
 }
 
 void DoAsyncScreenshot();
@@ -437,7 +424,22 @@ void DoAsyncScreenshot();
 void dxRenderDeviceRender::End()
 {
 #ifndef _EDITOR
+
 	VERIFY	(RDevice);
+
+#ifdef USE_DX11
+	if (bNeedUpdateGammaLUT)
+	{
+		GPU_EVENT(GAMMA_GENERATE_LUT);
+		RImplementation.Target->PhaseGammaGenerateLUT();
+		bNeedUpdateGammaLUT = false;
+	}
+
+	{
+		GPU_EVENT(GAMMA_APPLY);
+		RImplementation.Target->PhaseGammaApply();
+	}
+#endif
 
 	RCache.OnFrameEnd();
 	{
@@ -461,6 +463,9 @@ void dxRenderDeviceRender::End()
 		MyImGui.AfterRender();
 
 		DebugRenderImpl.m_lines.resize(0);
+#if defined(USE_DX11) && defined(DEBUG_DRAW)
+		GPUEvents_EndRendering();
+#endif
 	}
 #else
 
@@ -472,6 +477,7 @@ void dxRenderDeviceRender::End()
 #endif
 
 #endif
+
 	PROF_EVENT("Present");
 #ifdef USE_DX11
 	RSwapchain->Present(psDeviceFlags.test(rsVSync) ? 1 : 0, 0);
@@ -504,7 +510,11 @@ void dxRenderDeviceRender::ClearTarget()
 void dxRenderDeviceRender::SetupDefaultTarget()
 {
 #ifndef _EDITOR
+#ifdef USE_DX11
+	RCache.set_RT(RImplementation.Target->rt_BackbufferLUT->pRT);
+#else
 	RCache.set_RT(RTarget);
+#endif
 	RCache.set_ZB(nullptr);
 #endif
 }

@@ -2,8 +2,31 @@
 //-----------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------
-#define TSTRING_COUNT 	10
+#define TSTRING_COUNT 10
+
 const LPCSTR TEXTUREString[TSTRING_COUNT] = { "Custom...","$null","$base0", "$base1" ,"$base2" ,"$base3" ,"$base4","$base5" ,"$base6" ,"$base7" };
+
+xr_string FloatTimeToStrTime(float time)
+{
+	int hours = static_cast<int>(time / 3600);
+	int minutes = static_cast<int>((time - hours * 3600) / 60);
+	int seconds = static_cast<int>(time - hours * 3600 - minutes * 60);
+
+	char buffer[32];
+	sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
+	return xr_string(buffer);
+}
+
+float StrTimeToFloatTime(const char* time_str)
+{
+	int hours = 0, minutes = 0, seconds = 0;
+	if (sscanf(time_str, "%d:%d:%d", &hours, &minutes, &seconds) == 3)
+	{
+		return hours * 3600 + minutes * 60 + seconds;
+	}
+	return 0.f;
+}
+
 template<typename T>
 inline bool DrawNumeric(PropItem* item, bool& change, bool read_only)
 {
@@ -139,14 +162,22 @@ void UIPropertiesItem::DrawProp()
 	case PROP_NUMERIC:
 	{
 		bool change = false;
-		if (!DrawNumeric<u32>(PItem, change, PropertiesFrom->IsReadOnly()))
-			if (!DrawNumeric<float>(PItem, change, PropertiesFrom->IsReadOnly()))
-				if (!DrawNumeric<u8>(PItem, change, PropertiesFrom->IsReadOnly()))
-					if (!DrawNumeric<s8>(PItem, change, PropertiesFrom->IsReadOnly()))
-						if (!DrawNumeric<s16>(PItem, change, PropertiesFrom->IsReadOnly()))
-							if (!DrawNumeric<u16>(PItem, change, PropertiesFrom->IsReadOnly()))
-								if (!DrawNumeric<s32>(PItem, change, PropertiesFrom->IsReadOnly()))
-									R_ASSERT(false);
+		auto drawn = [&]<typename... T>(std::type_identity<T>...)
+		{
+			return (DrawNumeric<T>(PItem, change, PropertiesFrom->IsReadOnly()) || ...);
+		}
+		(
+			std::type_identity<u32>{},
+			std::type_identity<float>{},
+			std::type_identity<u8>{},
+			std::type_identity<s8>{},
+			std::type_identity<s16>{},
+			std::type_identity<u16>{},
+			std::type_identity<s32>{}
+		);
+
+		R_ASSERT(drawn);
+
 		if (change)
 		{
 			PropertiesFrom->Modified();
@@ -163,7 +194,7 @@ void UIPropertiesItem::DrawProp()
 		}
 		ImGui::SameLine();
 
-		if (ImGui::Button("X", ImVec2(-1, 0)))
+		if (ImGui::Button("X##clear_shortcut", ImVec2(-1, 0)))
 		{
 			xr_shortcut val;
 			if (V->ApplyValue(val))PropertiesFrom->Modified();
@@ -172,20 +203,34 @@ void UIPropertiesItem::DrawProp()
 	break;
 	case PROP_BOOLEAN:
 	{
-		BOOLValue* V = dynamic_cast<BOOLValue*>(PItem->GetFrontValue()); VERIFY(V);
-		BOOL new_val_as_BOOL = V->GetValue();
-		PItem->BeforeEdit<BOOLValue, BOOL>(new_val_as_BOOL);
-		bool new_val = new_val_as_BOOL;
-		if (ImGui::Checkbox("##value", &new_val))
+		auto TryDrawBool = [&]<typename RangeCast, typename TypeID>()->bool
 		{
-			new_val_as_BOOL = new_val;
-			if (PItem->AfterEdit<BOOLValue, BOOL>(new_val_as_BOOL))
-				if (PItem->ApplyValue<BOOLValue, BOOL>(new_val_as_BOOL))
+			if (RangeCast* V = dynamic_cast<RangeCast*>(PItem->GetFrontValue()))
+			{
+				TypeID new_val_as_BOOL = V->GetValue();
+				PItem->BeforeEdit<RangeCast, TypeID>(new_val_as_BOOL);
+				bool new_val = new_val_as_BOOL;
+				if (ImGui::Checkbox("##value", &new_val))
 				{
-					PropertiesFrom->Modified();
+					new_val_as_BOOL = new_val;
+					if (PItem->AfterEdit<RangeCast, TypeID>(new_val_as_BOOL))
+					{
+						if (PItem->ApplyValue<RangeCast, TypeID>(new_val_as_BOOL))
+						{
+							PropertiesFrom->Modified();
+						}
+					}
 				}
-		}
+				return true;
+			}
 
+			return false;
+		};
+		
+		if (!TryDrawBool.operator()<BOOLValue, BOOL>())
+		{
+			TryDrawBool.operator()<BoolValue, bool>();
+		}
 	}
 	break;
 	case PROP_FLAG:
@@ -289,12 +334,54 @@ void UIPropertiesItem::DrawProp()
 		}
 	}
 	break;
+	case PROP_CHOOSE_TEXTURE:
+	{
+		MultiChooseValue* Prop = (MultiChooseValue*)PItem->GetFrontValue();
+
+		for (ChooseValue* ChooseItem: Prop->Values)
+		{
+			xr_string text = ChooseItem->Owner()->Key();
+			xr_string TextValue = ChooseItem->Owner()->GetDrawText();
+			if (TextValue.empty())
+			{
+				text = NONE_CAPTION;
+			}
+			else
+			{
+				xr_path ExtractName = text;
+				text = ExtractName.xfilename() + ": " + TextValue;
+			}
+
+			if (ImGui::Button(text.c_str(), ImVec2(-1, 0)))
+			{
+				ChooseValue* V = dynamic_cast<ChooseValue*>(ChooseItem->Owner()->GetFrontValue()); VERIFY(V);
+				shared_str	edit_val = V->GetValue();
+				if (!edit_val.size())
+					edit_val = V->m_StartPath;
+
+				ChooseItem->Owner()->BeforeEdit<ChooseValue, shared_str>(edit_val);
+
+				ChooseItemVec Items;
+				if (!V->OnChooseFillEvent.empty())
+				{
+					V->m_Items = &Items;
+					V->OnChooseFillEvent(V);
+				}
+				UIChooseForm::SelectItem(V->m_ChooseID, V->subitem, edit_val.c_str(), 0, V->m_FillParam, 0, !Items.empty() ? &Items : 0, V->m_ChooseFlags);
+				PropertiesFrom->m_EditChooseValue = ChooseItem->Owner();
+			}
+		}
+		break;
+	}
 	case PROP_CHOOSE:
 	{
+		xr_string text = PItem->GetDrawText();
+		if (text.empty())
+		{
+			text = NONE_CAPTION;
+		}
 
-		xr_string text = PItem->GetDrawText().c_str();
-		if (!text[0])text = "<none>";
-		if (ImGui::Button(text.c_str(),ImVec2(-1,0)))
+		if (ImGui::Button(text.c_str(), ImVec2(-1, 0)))
 		{
 			PropItem* prop = PItem;
 
@@ -313,9 +400,7 @@ void UIPropertiesItem::DrawProp()
 			}
 			UIChooseForm::SelectItem(V->m_ChooseID, V->subitem, edit_val.c_str(), 0, V->m_FillParam, 0, !Items.empty() ? &Items : 0, V->m_ChooseFlags);
 			PropertiesFrom->m_EditChooseValue = prop;
-
 		}
-
 	}
 	break;
 	case PROP_TOKEN:
@@ -400,48 +485,56 @@ void UIPropertiesItem::DrawProp()
 	break;
 	case PROP_CLIST:
 	{
-		CListValue* V = dynamic_cast<CListValue*>(PItem->GetFrontValue()); R_ASSERT(V);
-		LPCSTR edit_value = V->value;
-		int index = 0;
-		int i = 0;
-		for (; i < V->item_count; i++)
+		CListValue* V = smart_cast<CListValue*>(PItem->GetFrontValue());
+		if (V)
 		{
-			if (V->items[i] == edit_value)
+			LPCSTR edit_value = V->value;
+			int index = 0;
+			int i = 0;
+			for (; i < V->item_count; i++)
 			{
-				index = i;
+				if (V->items[i] == edit_value)
+				{
+					index = i;
+				}
 			}
-		}
-		if (ImGui::Combo("##value", &index, [](void* data, int idx, const char** out_text)->bool {*out_text = reinterpret_cast<xr_string*>(data)[idx].c_str(); return true; }, reinterpret_cast<void*>(V->items), i))
-		{
-			if (PItem->AfterEdit<CListValue, xr_string>(V->items[index]))
-				if (PItem->ApplyValue<CListValue, LPCSTR>(V->items[index].c_str()))PropertiesFrom->Modified();
+			if (ImGui::Combo("##value", &index, [](void* data, int idx, const char** out_text)->bool {*out_text = reinterpret_cast<xr_string*>(data)[idx].c_str(); return true; }, reinterpret_cast<void*>(V->items), i))
+			{
+				if (PItem->AfterEdit<CListValue, xr_string>(V->items[index]))
+					if (PItem->ApplyValue<CListValue, LPCSTR>(V->items[index].c_str()))PropertiesFrom->Modified();
+			}
 		}
 	}
 	break;
 	case PROP_RLIST:
 	{
-		RListValue* V = dynamic_cast<RListValue*>(PItem->GetFrontValue()); R_ASSERT(V);
-		LPCSTR edit_value = V->value? V->value->c_str():0;
-		int index = 0;
-		int i = 0;
-		for (; i < V->item_count; i++)
+		RListValue* V = smart_cast<RListValue*>(PItem->GetFrontValue());
+
+		if (V)
 		{
-			if (V->items[i] == edit_value)
+			LPCSTR edit_value = V->value ? V->value->c_str() : 0;
+			int index = 0;
+			int i = 0;
+			for (; i < V->item_count; i++)
 			{
-				index = i;
+				if (V->items[i] == edit_value)
+				{
+					index = i;
+				}
 			}
-		}
-		if (ImGui::Combo("##value", &index, [](void* data, int idx, const char** out_text)->bool {*out_text = reinterpret_cast<shared_str*>(data)[idx].c_str(); return true; }, reinterpret_cast<void*>(V->items), i))
-		{
-			if (PItem->AfterEdit<RListValue, shared_str>(V->items[index]))
-				if (PItem->ApplyValue<RListValue, shared_str>(V->items[index]))PropertiesFrom->Modified();
+			if (ImGui::Combo("##value", &index, [](void* data, int idx, const char** out_text)->bool {*out_text = reinterpret_cast<shared_str*>(data)[idx].c_str(); return true; }, reinterpret_cast<void*>(V->items), i))
+			{
+				if (PItem->AfterEdit<RListValue, shared_str>(V->items[index]))
+					if (PItem->ApplyValue<RListValue, shared_str>(V->items[index]))PropertiesFrom->Modified();
+			}
 		}
 	}
 	break;
 	
 		case PROP_CTEXT:
 		{
-			CTextValue* V = dynamic_cast<CTextValue*>(PItem->GetFrontValue()); R_ASSERT(V);
+			CTextValue* V = smart_cast<CTextValue*>(PItem->GetFrontValue());
+			if (V)
 			{
 				string128 Str;
 				xr_string Source = PItem->GetDrawText();
@@ -470,9 +563,10 @@ void UIPropertiesItem::DrawProp()
 			break;
 		case PROP_RTEXT:
 		{
-			RTextValue* V = dynamic_cast<RTextValue*>(PItem->GetFrontValue()); R_ASSERT(V);
+			RTextValue* V = smart_cast<RTextValue*>(PItem->GetFrontValue());
+			if (V)
 			{
-				string128 Str;
+				string256 Str;
 				xr_string Source = PItem->GetDrawText();
 				strncpy_s(Str, Source.c_str(), sizeof(string128) - 4);
 				if (Source.size() > 128 && strrchr(Str, '\n'))
@@ -483,10 +577,58 @@ void UIPropertiesItem::DrawProp()
 				if (ImGui::Button(Platform::ANSI_TO_UTF8(Str).data(), ImVec2(-1, 0)))
 				{
 				}
+
+				if (PItem->Key() != nullptr)
+				{
+					xr_string KeyValue = PItem->Key();
+					if (KeyValue.ends_with("Custom data"))
+					{
+						const ImGuiPayload* payload = ImGui::GetDragDropPayload();
+
+						if (payload && ImGui::IsMouseDragging(ImGuiMouseButton_Left) && GUIManager->DnDType == EDragDropType::Logic)
+						{
+							ImDrawList* draw_list = ImGui::GetWindowDrawList();
+							ImVec2 p_min = ImGui::GetItemRectMin();
+							ImVec2 p_max = ImGui::GetItemRectMax();
+							draw_list->AddRectFilled(p_min, p_max, IM_COL32(50, 50, 70, 100));
+							draw_list->AddRect(p_min, p_max, IM_COL32(100, 180, 255, 255));
+						}
+
+						if (ImGui::BeginDragDropTarget())
+						{
+							if (auto ImData = ImGui::AcceptDragDropPayload("TEST#cd"))
+							{
+								struct DragDropData
+								{
+									xr_string FileName;
+								}
+								Data = *(DragDropData*)ImData->Data;
+
+								xr_string NewLogicString = "[logic]\r\ncfg = ";
+
+								size_t Index = Data.FileName.find("scripts\\");
+								NewLogicString += Data.FileName.substr(Index);
+
+								shared_str out = NewLogicString.c_str();
+								if (PItem->AfterEdit<RTextValue, shared_str>(out))
+								{
+									if (PItem->ApplyValue<RTextValue, shared_str>(out))
+									{
+										PropertiesFrom->Modified();
+									}
+								}
+							}
+							ImGui::EndDragDropTarget();
+						}
+					}
+				}
 			}
 			if (ImGui::OpenPopupOnItemClick2("EditText", 0))
 			{
-				if (PropertiesFrom->m_EditTextValueData)xr_delete(PropertiesFrom->m_EditTextValueData);
+				if (PropertiesFrom->m_EditTextValueData)
+				{
+					xr_delete(PropertiesFrom->m_EditTextValueData);
+				}
 				PropertiesFrom->m_EditTextValueData = xr_strdup(V->GetValue().c_str()? V->GetValue().c_str():"");
 				PropertiesFrom->m_EditTextValueDataSize = xr_strlen(PropertiesFrom->m_EditTextValueData) + 1;
 				PropertiesFrom->m_EditTextValue = PItem;
@@ -519,12 +661,37 @@ void UIPropertiesItem::DrawProp()
 				PropertiesFrom->m_EditTextValue = PItem;
 			}
 			PropertiesFrom->DrawEditText();
-		}
 			break;
-			/*case PROP_TIME:
-			break;*/
-		
-		
+		}
+		case PROP_TIME:
+		{
+			FloatValue* V = dynamic_cast<FloatValue*>(PItem->GetFrontValue()); R_ASSERT(V);
+			float EditValue = V->GetValue();
+			PItem->BeforeEdit<FloatValue, float>(EditValue);
+
+			xr_string TimeStr = FloatTimeToStrTime(EditValue);
+
+			string32 Buffer;
+			strncpy(Buffer, TimeStr.c_str(), sizeof(Buffer));
+			Buffer[sizeof(Buffer) - 1] = 0;
+
+			string128 PropName = {};
+			sprintf(PropName, "##time_value_%p", (void*)V);
+
+			if (ImGui::InputText(PropName, Buffer, sizeof(Buffer), ImGuiInputTextFlags_CharsNoBlank))
+			{
+				// Convert back to float when edited
+				float NewValue = StrTimeToFloatTime(Buffer);
+				if (PItem->AfterEdit<FloatValue, float>(NewValue))
+				{
+					if (PItem->ApplyValue<FloatValue, float>(NewValue))
+					{
+						PropertiesFrom->Modified();
+					}
+				}
+			}
+		}
+		break;
 		case PROP_GAMETYPE:
 		{
 			GameTypeValue* V = dynamic_cast<GameTypeValue*>(PItem->GetFrontValue()); R_ASSERT(V);

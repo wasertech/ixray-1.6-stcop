@@ -1,6 +1,5 @@
 #pragma once
 
-#define CLSID_OBJECT_ANINFAKE		MK_CLSID('F','_','A','N','M','I','T','M')
 #define CLSID_OBJECT_ACTOR			MK_CLSID('O','_','A','C','T','O','R',' ')
 #define CLSID_OBJECT_HLAMP			MK_CLSID('O','_','H','L','A','M','P',' ')
 #define CLSID_ENTITY				MK_CLSID('E','N','T','I','T','Y',' ',' ')
@@ -129,6 +128,7 @@
 #define CLSID_OBJECT_ITEM_STD		MK_CLSID('O','_','I','T','E','M',' ',' ')
 #define CLSID_OBJECT_BREAKABLE		MK_CLSID('O','_','B','R','K','B','L',' ')
 #define CLSID_OBJECT_CLIMABLE		MK_CLSID('O','_','C','L','M','B','L',' ')
+#define CLSID_OBJECT_HOLDER_ENT		MK_CLSID('O','_','H','L','D','R','_','E')
 
 //
 #define CLSID_PH_SKELETON_OBJECT	MK_CLSID('P','_','S','K','E','L','E','T')
@@ -169,6 +169,7 @@
 // Devices
 #define CLSID_DEVICE_TORCH			MK_CLSID('D','_','T','O','R','C','H',' ')
 #define CLSID_DEVICE_COMPASS		MK_CLSID('D','_','C','O','M','P','A','S')
+#define CLSID_DEVICE_DOSIMETER		MK_CLSID('D','_','D','O','S','I','M','E')
 #define CLSID_DEVICE_AF_MERGER		MK_CLSID('D','_','A','F','M','E','R','G')
 #define CLSID_DEVICE_FLARE			MK_CLSID('D','_','F','L','A','R','E',' ')
 
@@ -230,3 +231,5 @@
 #define CLSID_GAME_UI_FREEMP				MK_CLSID('U','I','_','F','M','P',' ',' ')
 
 #define CLSID_ONLINE_OFFLINE_GROUP		MK_CLSID('O','N','_','O','F','F','_','G')
+
+#define CLSID_EQUIPMENT_BACKPACK MK_CLSID('E', 'Q', '_', 'B', 'A', 'K', 'P', 'K')

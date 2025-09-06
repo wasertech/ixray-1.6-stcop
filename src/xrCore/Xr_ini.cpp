@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#pragma hdrstop
+
 #include <regex>
 
 #include "FS_internal.h"
@@ -94,6 +94,7 @@ BOOL	CInifile::Sect::line_exist( LPCSTR L, LPCSTR* val )
 
 CInifile::CInifile(IReader* F ,LPCSTR path ,allow_include_func_t allow_include_func)
 {
+	PROF_EVENT("CInifile::CInifile IReader");
 	m_file_name[0]	= 0;
 	m_flags.zero	();
 	m_flags.set		(eSaveAtEnd,		FALSE);
@@ -104,6 +105,7 @@ CInifile::CInifile(IReader* F ,LPCSTR path ,allow_include_func_t allow_include_f
 
 CInifile::CInifile(LPCSTR szFileName, BOOL ReadOnly, BOOL bLoad, BOOL SaveAtEnd, u32 sect_count, allow_include_func_t allow_include_func)
 {
+	PROF_EVENT("CInifile::CInifile FileName");
 	if(szFileName && strstr(szFileName,"system"))
 		Msg("-----loading %s",szFileName);
 
@@ -966,6 +968,109 @@ void	CInifile::remove_line	( LPCSTR S, LPCSTR L )
 	}
 }
 
+template<>
+XRCORE_API u8 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_u8(section, line);
+}
+
+template<>
+XRCORE_API u16 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_u16(section, line);
+}
+
+template<>
+XRCORE_API u32 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_u32(section, line);
+}
+
+template<>
+XRCORE_API s8 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_s8(section, line);
+}
+
+template<>
+XRCORE_API s16 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_s16(section, line);
+}
+
+template<>
+XRCORE_API s32 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_s32(section, line);
+}
+
+template<>
+XRCORE_API s64 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_s64(section, line);
+}
+
+template<>
+XRCORE_API float CInifile::read(pcstr section, pcstr line) const
+{
+    return r_float(section, line);
+}
+
+template<>
+XRCORE_API Fcolor CInifile::read(pcstr section, pcstr line) const
+{
+    return r_fcolor(section, line);
+}
+
+template<>
+XRCORE_API Ivector2 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_ivector2(section, line);
+}
+
+template<>
+XRCORE_API Ivector3 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_ivector3(section, line);
+}
+
+template<>
+XRCORE_API Ivector4 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_ivector4(section, line);
+}
+
+template<>
+XRCORE_API bool CInifile::try_read(Ivector4& outValue, pcstr section, pcstr line) const
+{
+	pcstr C = r_string(section, line);
+	return 4 == sscanf(C, "%d,%d,%d,%d", &outValue.x, &outValue.y, &outValue.z, &outValue.w);
+}
+
+template<>
+XRCORE_API Fvector2 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_fvector2(section, line);
+}
+
+template<>
+XRCORE_API Fvector3 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_fvector3(section, line);
+}
+
+template<>
+XRCORE_API Fvector4 CInifile::read(pcstr section, pcstr line) const
+{
+    return r_fvector4(section, line);
+}
+
+template<>
+XRCORE_API bool CInifile::read(pcstr section, pcstr line) const
+{
+    return r_bool(section, line);
+}
+
 void CInifile::Load(IReader* F, LPCSTR path, allow_include_func_t allow_include_func)
 {
 	AllowIncludeFunc = allow_include_func;
@@ -1371,3 +1476,10 @@ void CInifile::LTXLoad(IReader* F, LPCSTR path, xr_string_map<xr_string, Sect>& 
 
 	StashCurrentSection();
 };
+
+template<>
+XRCORE_API bool CInifile::try_read(Fvector2& outValue, pcstr section, pcstr line) const
+{
+	pcstr C = r_string(section, line);
+	return 2 == sscanf(C, "%f,%f", &outValue.x, &outValue.y);
+}

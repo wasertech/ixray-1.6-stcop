@@ -20,6 +20,7 @@
 
 #include "inventory_upgrade.h"
 #include "inventory_upgrade_property.h"
+#include "../../xrUI/UIHelper.h"
 
 
 UIInvUpgradeInfo::UIInvUpgradeInfo()
@@ -27,9 +28,11 @@ UIInvUpgradeInfo::UIInvUpgradeInfo()
 	m_upgrade    = nullptr;
 	m_background = nullptr;
 	m_name       = nullptr;
+	m_cost		 = nullptr;
 	m_desc       = nullptr;
 	m_prereq     = nullptr;
 	m_properties_wnd = nullptr;
+	m_legacy_mode = EngineExternal().ClearSkyMode();
 }
 
 UIInvUpgradeInfo::~UIInvUpgradeInfo()
@@ -48,30 +51,14 @@ void UIInvUpgradeInfo::init_from_xml( LPCSTR xml_name )
 
 	xml_init.InitWindow( ui_xml, "main_frame", 0, this );
 	
-	m_background = new CUIFrameWindow();
-	AttachChild( m_background );
-	m_background->SetAutoDelete( true );
-	xml_init.InitFrameWindow( ui_xml, "background_frame", 0, m_background );
+	m_background = UIHelper::CreateFrameWindow(ui_xml, "background_frame", this);
+	m_name = UIHelper::CreateTextWnd(ui_xml, "info_name", this);
 
-	m_name = new CUITextWnd();	 
-	AttachChild( m_name );		
-	m_name->SetAutoDelete( true );
-	xml_init.InitTextWnd( ui_xml, "info_name", 0, m_name );
+	if (ui_xml.NavigateToNode("info_cost"))
+	m_cost = UIHelper::CreateTextWnd(ui_xml, "info_cost", this);
 
-	m_cost = new CUITextWnd();	 
-	AttachChild( m_cost );		
-	m_cost->SetAutoDelete( true );
-	xml_init.InitTextWnd( ui_xml, "info_cost", 0, m_cost );
-
-	m_desc = new CUITextWnd();	 
-	AttachChild( m_desc );
-	m_desc->SetAutoDelete( true );
-	xml_init.InitTextWnd( ui_xml, "info_desc", 0, m_desc );
-
-	m_prereq = new CUITextWnd();	 
-	AttachChild( m_prereq );
-	m_prereq->SetAutoDelete( true );
-	xml_init.InitTextWnd( ui_xml, "info_prerequisites", 0, m_prereq );
+	m_desc = UIHelper::CreateTextWnd(ui_xml, "info_desc", this);
+	m_prereq = UIHelper::CreateTextWnd(ui_xml, "info_prerequisites", this);
 
 	m_properties_wnd = new UIInvUpgPropertiesWnd();	 
 	AttachChild( m_properties_wnd );
@@ -103,69 +90,127 @@ bool UIInvUpgradeInfo::init_upgrade( Upgrade_type* upgr, CInventoryItem* inv_ite
 
 	m_name->SetText( m_upgrade->name() );
 	m_desc->SetText( m_upgrade->description_text() );
-	if ( m_upgrade->is_known() )
-	{
-		m_prereq->Show( true );
-		m_properties_wnd->Show( true );
-		luabind::functor<LPCSTR> cost_func;
-		LPCSTR cost_func_str = "inventory_upgrades.get_upgrade_cost";
-		R_ASSERT2(ai().script_engine().functor(cost_func_str, cost_func), "Failed to get cost");
-		m_cost->SetText(cost_func(m_upgrade->section()));
-		m_cost->Show(true);
 
 
-		inventory::upgrade::UpgradeStateResult upg_res = m_upgrade->can_install( *inv_item, false );
-		inventory::upgrade::UpgradeStateResult upg_res_script = m_upgrade->get_preconditions();
-		string512 str_res = "";
-		m_prereq->SetTextColor(color_rgba(255,90,90,255));
-		if(upg_res==inventory::upgrade::result_e_installed)
-		{
-			m_prereq->SetTextColor(color_rgba(117,255,123,255));
-			xr_sprintf(str_res, sizeof(str_res), "%s", g_pStringTable->translate("st_upgr_installed").c_str());
-		}
-		else if(upg_res==inventory::upgrade::result_e_unknown)
-		{
-			xr_sprintf(str_res, sizeof(str_res), "%s:\\n - %s", g_pStringTable->translate("st_upgr_disable").c_str(), g_pStringTable->translate("st_upgr_unknown").c_str());
-			m_cost->Show(false);
-		}
-		else if(upg_res==inventory::upgrade::result_e_group)
-			xr_sprintf(str_res, sizeof(str_res), "%s:\\n - %s", g_pStringTable->translate("st_upgr_disable").c_str(), g_pStringTable->translate("st_upgr_group").c_str());
-		else if(upg_res_script==inventory::upgrade::result_e_precondition_money)
-			xr_sprintf(str_res, sizeof(str_res), "%s:\\n - %s", g_pStringTable->translate("st_upgr_disable").c_str(), g_pStringTable->translate("st_upgr_cant_do").c_str());
-		else
-		{
-			if(upg_res!=inventory::upgrade::result_ok)
-			{
-				xr_sprintf(str_res, sizeof(str_res), "%s:\\n%s", g_pStringTable->translate("st_upgr_disable").c_str(), m_upgrade->get_prerequisites());
-				if(upg_res==inventory::upgrade::result_e_parents)
-					xr_sprintf(str_res, sizeof(str_res), "%s\\n - %s", str_res, g_pStringTable->translate("st_upgr_parents").c_str());
+    if (m_upgrade->is_known())
+    {
+        m_prereq->Show(true);
+        m_properties_wnd->Show(true);
+        if (m_cost)
+        {
+            luabind::functor<LPCSTR> cost_func;
+            pcstr cost_func_str = "inventory_upgrades.get_upgrade_cost";
+            R_ASSERT2(ai().script_engine().functor(cost_func_str, cost_func), "Failed to get cost");
+            m_cost->SetText(cost_func(m_upgrade->section()));
+            m_cost->Show(true);
+        }
 
-				if(upg_res==inventory::upgrade::result_e_precondition_money)
-					xr_sprintf(str_res, sizeof(str_res), "%s:\\n - %s", g_pStringTable->translate("st_upgr_disable").c_str(), g_pStringTable->translate("st_upgr_cant_do").c_str());
-			}
-		}
-		m_prereq->SetText(str_res);
-	}
+        m_prereq->SetText(nullptr);
+        if (!m_legacy_mode)
+            m_prereq->SetTextColor(color_rgba(255, 90, 90, 255));
+
+        string512 str_res{};
+        auto set_result_string = [&](pcstr desc, bool add = false)
+        {
+            if (m_legacy_mode)
+            {
+                xr_strcpy(str_res, g_pStringTable->translate(desc).c_str());
+            }
+            else if (add)
+            {
+                xr_sprintf(str_res, "%s\\n - %s", str_res,
+					g_pStringTable->translate(desc).c_str());
+            }
+            else
+            {
+                xr_sprintf(str_res, "%s:\\n - %s",
+					g_pStringTable->translate("st_upgr_disable").c_str(),
+					g_pStringTable->translate(desc).c_str());
+            }
+        };
+
+        const auto upg_res = m_upgrade->can_install(*inv_item, false);
+        switch (upg_res)
+        {
+        case inventory::upgrade::result_e_installed:
+            if (!m_legacy_mode)
+                m_prereq->SetTextColor(color_rgba(117, 255, 123, 255));
+            m_prereq->SetTextST("st_upgr_installed");
+            break;
+
+        case inventory::upgrade::result_e_unknown:
+            set_result_string("st_upgr_unknown");
+            if (m_cost)
+                m_cost->Show(false);
+            break;
+
+        case inventory::upgrade::result_e_group:
+            set_result_string("st_upgr_group");
+            break;
+
+        case inventory::upgrade::result_e_cant_do:
+            set_result_string("st_upgr_cant_do");
+            break;
+
+        default:
+        {
+            switch (upg_res)
+            {
+            case inventory::upgrade::result_ok:
+            case inventory::upgrade::result_e_precondition_money:
+            case inventory::upgrade::result_e_precondition_quest:
+                if (m_legacy_mode)
+                {
+                    m_prereq->SetText(m_upgrade->get_prerequisites());
+                    break;
+                }
+
+                if (upg_res != inventory::upgrade::result_e_precondition_quest)
+                    break;
+                [[fallthrough]];
+
+            default:
+                xr_strconcat(str_res, g_pStringTable->translate("st_upgr_disable").c_str(), ":\\n", m_upgrade->get_prerequisites());
+
+                if (upg_res == inventory::upgrade::result_e_parents)
+                    set_result_string("st_upgr_parents", true);
+            }
+        }
+        } // switch (upg_res)
+        if (str_res[0])
+            m_prereq->SetText(str_res);            
+    }
 	else
 	{
+		m_desc->SetTextST("st_desc_unknown");
 		m_prereq->Show( false );
 		m_properties_wnd->Show( false );
-		m_cost->Show(false);
+		if (m_cost)
+			m_cost->Show(false);
 	}
 	m_name->AdjustHeightToText();
-	m_cost->AdjustHeightToText();
+	if (m_cost)
+		m_cost->AdjustHeightToText();
 	m_desc->AdjustHeightToText();
 	m_prereq->AdjustHeightToText();
 
 	Fvector2 new_pos;
-	new_pos.x = m_cost->GetWndPos().x;
-	new_pos.y = m_name->GetWndPos().y + m_name->GetWndSize().y + 5.0f;
-	m_cost->SetWndPos( new_pos );
+	if (m_cost)
+	{
+		new_pos.x = m_cost->GetWndPos().x;
+		new_pos.y = m_name->GetWndPos().y + m_name->GetWndSize().y + 5.0f;
+		m_cost->SetWndPos(new_pos);
 
-	new_pos.x = m_desc->GetWndPos().x;
-	new_pos.y = m_cost->GetWndPos().y + m_cost->GetWndSize().y + 5.0f;
-	m_desc->SetWndPos( new_pos );
-
+		new_pos.x = m_desc->GetWndPos().x;
+		new_pos.y = m_cost->GetWndPos().y + m_cost->GetWndSize().y + 5.0f;
+		m_desc->SetWndPos(new_pos);
+	}
+	else
+	{
+		new_pos.x = m_desc->GetWndPos().x;
+		new_pos.y = m_name->GetWndPos().y + m_name->GetWndSize().y + 5.0f;
+		m_desc->SetWndPos(new_pos);
+	}
 	new_pos.x = m_prereq->GetWndPos().x;
 	new_pos.y = m_desc->GetWndPos().y + m_desc->GetWndSize().y + 5.0f;
 	m_prereq->SetWndPos( new_pos );

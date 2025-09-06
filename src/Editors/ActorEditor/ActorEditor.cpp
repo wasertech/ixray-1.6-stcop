@@ -83,6 +83,12 @@ void DragFile(xr_string File)
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
+	if (!SDL_Init(SDL_INIT_AUDIO))
+	{
+		Msg("! SDL_Init Error: %s", SDL_GetError());
+		return 0;
+	}
+
 	splash::show(IDB_AE);
 
 	splash::update(2, "Initializing Debugger");
@@ -134,7 +140,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	bool NeedExit = false;
 
-	while (!NeedExit)
+	while (!NeedExit && !UI->NeedQuit())
 	{
 		SDL_Event Event;
 		while (SDL_PollEvent(&Event))
@@ -145,17 +151,29 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 				EDevice->MaximizedWindow();
 				break;
 			case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-				EPrefs->SaveConfig();
-				NeedExit = true;
-				break;
+			{
 
-			case SDL_EVENT_WINDOW_RESIZED:
-				if (UI && REDevice)
+				SDL_WindowID MainWndID = SDL_GetWindowID(g_AppInfo.Window);
+				if (Event.window.windowID == MainWndID)
 				{
-					UI->Resize(Event.window.data1, Event.window.data2, true);
 					EPrefs->SaveConfig();
+					NeedExit = true;
 				}
 				break;
+			}
+			case SDL_EVENT_WINDOW_RESIZED:
+			{
+				SDL_WindowID MainWndID = SDL_GetWindowID(g_AppInfo.Window);
+				if (UI && REDevice && Event.window.windowID == MainWndID)
+				{
+					if (UI && REDevice)
+					{
+						UI->Resize(Event.window.data1, Event.window.data2, true);
+						EPrefs->SaveConfig();
+					}
+				}
+				break;
+			}
 			case SDL_EVENT_WINDOW_SHOWN:
 			case SDL_EVENT_WINDOW_MOUSE_ENTER:
 				Device.b_is_Active = true;
@@ -171,11 +189,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 			case SDL_EVENT_KEY_DOWN:
 				if (UI)
 				{
-					UI->KeyDown(Event.key.keysym.scancode, UI->GetShiftState());
-					UI->ApplyShortCutInput(Event.key.keysym.scancode);
+					UI->KeyDown(Event.key.scancode, UI->GetShiftState());
+					UI->ApplyShortCutInput(Event.key.scancode);
 				}break;
 			case SDL_EVENT_KEY_UP:
-				if (UI)UI->KeyUp(Event.key.keysym.scancode, UI->GetShiftState());
+				if (UI)UI->KeyUp(Event.key.scancode, UI->GetShiftState());
 				break;
 
 			case SDL_EVENT_MOUSE_MOTION:
@@ -187,7 +205,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 			case SDL_EVENT_DROP_FILE:
 			{
-				xr_string File = strlwr(Event.drop.data);
+				xr_string File = strlwr((char*)Event.drop.data);
 				DragFile(File);
 				break;
 			}

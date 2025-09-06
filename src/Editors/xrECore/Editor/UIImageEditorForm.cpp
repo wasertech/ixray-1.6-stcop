@@ -7,7 +7,9 @@ UIImageEditorForm::UIImageEditorForm()
 {
 	m_ItemProps = new UIPropertiesForm();
 	m_ItemList = new UIItemListForm();
-	m_ItemList->SetOnItemFocusedEvent(TOnILItemFocused(this,&UIImageEditorForm::OnItemsFocused));
+	m_ItemList->m_Flags.set(UIItemListForm::fMultiSelect, true);
+
+	m_ItemList->SetOnItemsFocusedEvent(TOnILItemsFocused(this,&UIImageEditorForm::OnItemsFocused));
 	m_ItemList->SetOnItemRemoveEvent(TOnItemRemove(&ImageLib, &CImageManager::RemoveTexture));
 	m_Texture = nullptr;
 	m_bFilterImage = true;
@@ -21,7 +23,9 @@ UIImageEditorForm::UIImageEditorForm()
 
 UIImageEditorForm::~UIImageEditorForm()
 {
-	if (m_Texture)m_Texture->Release();
+	if (m_Texture)
+		IM_TEXTURE_RELEASE(m_Texture);
+
 	xr_delete(m_ItemList);
 	xr_delete(m_ItemProps);
 }
@@ -39,7 +43,7 @@ void UIImageEditorForm::Draw()
 
 	if (m_TextureRemove)
 	{
-		m_TextureRemove->Release();
+		IM_TEXTURE_RELEASE(m_TextureRemove);
 		m_TextureRemove = nullptr;
 	}
 
@@ -126,15 +130,21 @@ void UIImageEditorForm::Update()
 	{
 		if (!Form->IsClosed())
 		{
+			bool NeedShow = true;
 			Form->BeginDraw();
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(600, 400));
-			if (ImGui::Begin("Image Editor", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar))
+			if (ImGui::Begin("Image Editor", &NeedShow, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar))
 			{
 				Form->Draw();
 			}
 			ImGui::PopStyleVar(1);
 			ImGui::End();
 			Form->EndDraw();
+
+			if (!NeedShow)
+			{
+				Form->HideLib();
+			}
 		}
 		else
 		{
@@ -160,23 +170,27 @@ void UIImageEditorForm::Show(bool bImport)
 	Form->InitItemList();
 }
 
-void UIImageEditorForm::FindInEditor(xr_string fn, bool bImport) {
-	if(Form && (Form->bImportMode || bImport)) {
+void UIImageEditorForm::FindInEditor(xr_string fn, bool bImport)
+{
+	if (Form && (Form->bImportMode || bImport))
+	{
 		Form->HideLib();
-		Form = NULL;
-		//	xr_delete(Form);
+		Form = nullptr;
 	}
-	if(!Form) {
-		if(bImport) {
-			if(!Form) {
-				Form = new UIImageEditorForm();
-			}
+
+	if (!Form)
+	{
+		if (bImport)
+		{
+			Form = new UIImageEditorForm();
 			Form->texture_map.insert(fn);
 		}
 
 		Show(bImport);
 	}
-	if(Form) {
+
+	if (Form)
+	{
 		Form->m_ItemList->SelectItem(fn.data());
 	}
 }
@@ -272,10 +286,10 @@ void UIImageEditorForm::UpdateProperties()
 	ListItemsVec vec;
 	m_ItemList->GetSelected(nullptr, vec, false);
 
-	if (vec.size() == 1)
+	//if (vec.size() == 1)
 	{
 		m_ItemProps->ClearProperties();
-		OnItemsFocused(vec[0]);
+		OnItemsFocused(vec);
 	}
 }
 
@@ -375,7 +389,7 @@ void UIImageEditorForm::UpdateSelected()
 	UpdateLib();
 }
 
-void UIImageEditorForm::OnItemsFocused(ListItem* item)
+void UIImageEditorForm::OnItemsFocused(ListItemsVec& item)
 {
 	PropItemVec props;
 
@@ -384,11 +398,11 @@ void UIImageEditorForm::OnItemsFocused(ListItem* item)
 	m_TextureRemove = m_Texture;
 	m_Texture = nullptr;
 
-	if (ListItem* prop = item)
+	m_ItemProps->ClearProperties();
+	for (ListItem* prop : item)
 	{
 		ETextureThumbnail* thm = FindUsedTHM(prop->Key());
 		m_THM_Current.push_back(thm);
-		m_ItemProps->ClearProperties();
 
 		// fill prop
 		thm->FillProp(props, PropValue::TOnChange(this, &UIImageEditorForm::OnTypeChange));
@@ -399,7 +413,7 @@ void UIImageEditorForm::OnItemsFocused(ListItem* item)
 			B->OnBtnClickEvent.bind(this, &UIImageEditorForm::OnCubeMapBtnClick);
 		}
 
-		thm->Update(m_Texture);
+		thm->Update((ID3DBaseTexture*&)m_Texture);
 	}
 
 	m_ItemProps->AssignItems(props);

@@ -8,7 +8,7 @@ CUIListBoxItem::CUIListBoxItem(float height)
 :m_text(nullptr),tag(u32(-1))
 {
 	SetHeight		(height);
-	m_text			= AddTextField("---", 10.0f);
+	m_text			= AddTextField("", 10.0f);
 }
 
 void CUIListBoxItem::SetTAG(u32 value)
@@ -52,14 +52,20 @@ CGameFont* CUIListBoxItem::GetFont()
 
 bool CUIListBoxItem::OnMouseDown(int mouse_btn)
 {
-	if (mouse_btn==MOUSE_1)
+	if (mouse_btn == MOUSE_1)
 	{
-		smart_cast<CUIScrollView*>(GetParent()->GetParent())->SetSelected(this);
+		GetParent()->GetParent()->ui_cast_scroll_view()->SetSelected(this);
 		GetMessageTarget()->SendMessage(this, LIST_ITEM_SELECT, &tag);
 		GetMessageTarget()->SendMessage(this, LIST_ITEM_CLICKED, &tag);
 		return true;
-	}else
-		return false;
+	}
+	else if (mouse_btn == MOUSE_2)
+	{
+		GetMessageTarget()->SendMessage(this, WINDOW_RBUTTON_DOWN, &tag);
+		return true;
+	}
+
+	return false;
 }
 
 void CUIListBoxItem::SetTextColor(u32 color)

@@ -6,7 +6,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-#include "UIWindow.h"
+#include "../../xrUI/Widgets/UIWindow.h"
 #include "FactionState.h"
 
 class CUIXml;
@@ -55,5 +55,6 @@ public:
 	void	update_info			( u8 sn );
 	float	get_faction_power	();
 	IC	u8	get_cur_sn			()	{	return m_prev_sn; }
+	virtual CUIWindow* ui_cast_window() { return this; }
 
 }; // class CUIRankFaction

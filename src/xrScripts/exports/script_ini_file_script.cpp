@@ -17,6 +17,15 @@ CScriptIniFile *get_system_ini()
 	return	((CScriptIniFile*)pSettings);
 }
 
+CScriptIniFile* reload_system_ini()
+{
+	pSettings->Destroy(const_cast<CInifile*>(pSettings));
+	string_path fname;
+	FS.update_path(fname, "$game_config$", "system.ltx");
+	pSettings = new CInifile(fname);
+	return	((CScriptIniFile*)pSettings);
+}
+
 #ifdef XRGAME_EXPORTS
 CScriptIniFile *get_game_ini()
 {
@@ -76,6 +85,17 @@ void section_for_each(CScriptIniFile* self, luabind::functor<bool> functor)
 	}
 }
 
+CScriptIniFile* create_ini(LPCSTR path, LPCSTR ini_file)
+{
+	return new CScriptIniFile(false, ini_file, path, false);
+}
+
+
+CScriptIniFile* read_ini(LPCSTR path, LPCSTR ini_file)
+{
+	return new CScriptIniFile(true, ini_file, path, true);
+}
+
 #pragma optimize("s",on)
 void CScriptIniFile::script_register(lua_State *L)
 {
@@ -124,6 +144,9 @@ void CScriptIniFile::script_register(lua_State *L)
 			.def("r_line", &::r_line, out_value<4>() + out_value<5>()),
 
 		def("system_ini",			&get_system_ini),
+		def("reload_system_ini",	&reload_system_ini),
+		def("create_ini",			&create_ini),
+		def("read_ini",				&read_ini),
 #ifdef XRGAME_EXPORTS
 		def("game_ini",				&get_game_ini),
 #endif // XRGAME_EXPORTS

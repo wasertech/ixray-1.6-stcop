@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "../xrRender/ResourceManager.h"
 
@@ -148,6 +148,7 @@ void CTexture::Preload	()
 
 void CTexture::Load		()
 {
+	PROF_EVENT("CTexture::Load");
 	flags.bLoaded					= true;
 	desc_cache						= 0;
 	if (pSurface)					return;

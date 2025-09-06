@@ -13,12 +13,14 @@
 #include "Feel_Sound.h"
 
 #include "FPSCounter.h"
+#include "../xrGame/AnimNotify/AnimNotifyGame.h"
 
 ENGINE_API	IGame_Level*	g_pGameLevel	= nullptr;
 extern	BOOL g_bLoaded;
 
 IGame_Level::IGame_Level	()
 {
+	PROF_EVENT("IGame_Level::IGame_Level");
 	m_pCameras					= new CCameraManager(true);
 	g_pGameLevel				= this;
 	pLevel						= nullptr;
@@ -84,13 +86,14 @@ void  _sound_event		(ref_sound_data_ptr S, float range)
 {
 	if ( g_pGameLevel && S && S->feedback )	g_pGameLevel->SoundEvent_Register	(S,range);
 }
-static void 	build_callback	(Fvector* V, int Vcnt, CDB::TRI* T, int Tcnt, void* params)
+static void 	build_callback	(Fvector* V, size_t Vcnt, CDB::TRI* T, size_t Tcnt, void* params)
 {
 	g_pGameLevel->Load_GameSpecific_CFORM( T, Tcnt );
 }
 
 BOOL IGame_Level::Load			(u32 dwNum) 
 {
+	PROF_EVENT("IGame_Level::Load");
 	// Initialize level data
 	pApp->Level_Set				( dwNum );
 	string_path					temp;
@@ -99,7 +102,7 @@ BOOL IGame_Level::Load			(u32 dwNum)
 	pLevel						= new CInifile	( temp );
 	
 	// Open
-//	g_pGamePersistent->LoadTitle	("st_opening_stream");
+	g_pGamePersistent->SetLoadStageTitle	("st_opening_stream");
 	g_pGamePersistent->LoadTitle	();
 	IReader* LL_Stream			= FS.r_open	("$level$","level");
 	IReader	&fs					= *LL_Stream;
@@ -110,6 +113,7 @@ BOOL IGame_Level::Load			(u32 dwNum)
 	R_ASSERT2					(XRCL_PRODUCTION_VERSION==H.XRLC_version,"Incompatible level version.");
 
 	// CForms
+	g_pGamePersistent->SetLoadStageTitle("st_loading_cform");
 	g_pGamePersistent->LoadTitle	();
 	ObjectSpace.Load			( build_callback );
 	//Sound->set_geometry_occ		( &Static );
@@ -176,6 +180,10 @@ void	IGame_Level::OnFrame		( )
 	PROF_EVENT("IGame_Level::OnFrame");
 	// Update all objects
 	VERIFY						(bReady);
+	if(IAnimNotifyHandler::IsValid())
+	{
+		IAnimNotifyHandler::Get().Update();
+	}
 	Objects.Update				(false);
 	g_hud->OnFrame				();
 

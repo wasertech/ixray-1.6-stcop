@@ -24,6 +24,11 @@ class CUITextWnd;
 
 #define TRADE_ICONS_SCALE		(4.f/5.f)
 
+constexpr const char* BUY_MENU_TEXTURE = "ui\\ui_mp_buy_menu";
+constexpr const char* CHAR_ICONS = "ui\\ui_icons_npc";
+constexpr const char* MAP_ICONS = "ui\\ui_icons_map";
+constexpr const char* MP_CHAR_ICONS = "ui\\ui_models_multiplayer";
+
 namespace InventoryUtilities
 {
 
@@ -36,14 +41,15 @@ bool FreeRoom_inBelt	(TIItemContainer& item_list, PIItem item, int width, int he
 
 // get shader for BuyWeaponWnd
 const ui_shader&	GetBuyMenuShader();
+const ui_shader&	GetIconsShader(const char* name, const char* defaultName, xr_hash_map<xr_string, ui_shader*>& shaders);
 //получить shader на иконки инвенторя
-const ui_shader& GetEquipmentIconsShader();
+const ui_shader& GetEquipmentIconsShader(const char* name = nullptr);
 // shader на иконки персонажей в мультиплеере
 const ui_shader&	GetMPCharIconsShader();
 //get shader for outfit icons in upgrade menu
-const ui_shader& GetOutfitUpgradeIconsShader();
+const ui_shader& GetOutfitUpgradeIconsShader(const char* name);
 //get shader for weapon icons in upgrade menu
-const ui_shader& GetWeaponUpgradeIconsShader();
+const ui_shader& GetWeaponUpgradeIconsShader(const char* name);
 //удаляем все шейдеры
 void DestroyShaders();
 void CreateShaders();

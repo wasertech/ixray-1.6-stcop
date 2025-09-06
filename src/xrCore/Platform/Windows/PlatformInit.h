@@ -36,14 +36,16 @@
 #include <windows.h>
 #include <lmcons.h>
 #include <dbghelp.h>
+#include <new.h>	// for _set_new_mode
+#include <signal.h>	// for signals
 
 #ifdef IXR_ARM64
 #	include <arm64_neon.h>
 #	include <sse2neon/sse2neon.h>
 #else
 #	include <xmmintrin.h>
-#	include <atlstr.h>
-#	include <atlimage.h>
+//#	include <atlstr.h>
+//#	include <atlimage.h>
 #endif
 
 #ifndef __BORLANDC__
@@ -61,9 +63,13 @@
 #include <cderr.h>
 #pragma warning(pop)
 
+#include <stacktrace>
+#define USE_CXX_STACKTRACE 1
+
 #define ALIGN(a) __declspec(align(a))
 #define MODULE_NAME "xrCore.dll"
 
 using xr_special_char = wchar_t;
+#define xr_interface __interface
 
 #define xr_strerror(errno, buffer, bufferSize) strerror_s(buffer, sizeof(buffer), errno)

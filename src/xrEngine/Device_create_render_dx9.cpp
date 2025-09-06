@@ -57,7 +57,7 @@ static u32 selectRefresh(u32 dwWidth, u32 dwHeight, D3DFORMAT fmt)
 
 void UpdateBuffersD3D9()
 {
-	HWND hwnd = (HWND)SDL_GetProperty(SDL_GetWindowProperties(g_AppInfo.Window), "SDL.window.win32.hwnd", nullptr);
+	HWND hwnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(g_AppInfo.Window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
 	R_CHK(((IDirect3DDevice9*)HWRenderDevice)->CreateTexture(
 		psCurrentVidMode[0], psCurrentVidMode[1], 1, D3DUSAGE_RENDERTARGET, D3DFMT_X8R8G8B8,
 		D3DPOOL_DEFAULT, (IDirect3DTexture9**)&RenderTexture, nullptr
@@ -67,6 +67,9 @@ void UpdateBuffersD3D9()
 	R_CHK(((IDirect3DTexture9*)RenderTexture)->GetSurfaceLevel(0, (IDirect3DSurface9**)&RenderRTV));
 	R_CHK(((IDirect3DDevice9*)HWRenderDevice)->GetRenderTarget(0, (IDirect3DSurface9**)&SwapChainRTV));
 	R_CHK(((IDirect3DDevice9*)HWRenderDevice)->GetDepthStencilSurface((IDirect3DSurface9**)&RenderDSV));
+
+	Device.HalfTargetWidth = Device.TargetWidth;
+	Device.HalfTargetHeight = Device.TargetHeight;
 }
 
 D3DPRESENT_PARAMETERS GetPresentParameter(int Width = psCurrentVidMode[0], int Height = psCurrentVidMode[1])
@@ -82,7 +85,7 @@ D3DPRESENT_PARAMETERS GetPresentParameter(int Width = psCurrentVidMode[0], int H
 	P.MultiSampleQuality = 0;
 
 	// Windoze
-	HWND hwnd = (HWND)SDL_GetProperty(SDL_GetWindowProperties(g_AppInfo.Window), "SDL.window.win32.hwnd", nullptr);
+	HWND hwnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(g_AppInfo.Window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
 	P.SwapEffect = !psDeviceFlags.is(rsFullscreen) ? D3DSWAPEFFECT_COPY : D3DSWAPEFFECT_DISCARD;
 	P.hDeviceWindow = hwnd;
 	P.Windowed = !psDeviceFlags.is(rsFullscreen);
@@ -139,7 +142,7 @@ void ResizeBuffersD3D9(u16 Width, u16 Height)
 			Sleep(100);
 		}
 	} else {
-		HWND hwnd = (HWND)SDL_GetProperty(SDL_GetWindowProperties(g_AppInfo.Window), "SDL.window.win32.hwnd", nullptr);
+		HWND hwnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(g_AppInfo.Window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
 		HRESULT hr = D3D->CreateDevice(
 			D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd,
 			D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED, &P,
@@ -161,7 +164,7 @@ bool CreateD3D9()
 
 	auto P = GetPresentParameter();
 	if (HWRenderDevice == nullptr) {
-		HWND hwnd = (HWND)SDL_GetProperty(SDL_GetWindowProperties(g_AppInfo.Window), "SDL.window.win32.hwnd", nullptr);
+		HWND hwnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(g_AppInfo.Window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
 		HRESULT hr = D3D->CreateDevice(
 			D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd,
 			D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED, &P,

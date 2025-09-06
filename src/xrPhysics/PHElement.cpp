@@ -12,7 +12,7 @@
 //#include "../Include/xrRender/Kinematics.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "../Include/xrRender/KinematicsAnimated.h"
-#include "../3rd party/ode/ode/src/util.h"
+#include "../3rd-party/ode/ode/src/util.h"
 
 #ifdef DEBUG
 #	include "debug_output.h"
@@ -23,7 +23,7 @@
 #pragma warning(disable:4995)
 #pragma warning(disable:4267)
 
-#include "../3rd party/ode/ode/src/collision_kernel.h"
+#include "../3rd-party/ode/ode/src/collision_kernel.h"
 
 
 #pragma warning(default:4267)
@@ -1152,11 +1152,12 @@ void	CPHElement::setTorque(const Fvector& torque)
 	VERIFY(dBodyStateValide(m_body));
 }
 
-void	CPHElement::applyForce(const Fvector& dir, float val)															//aux
+void CPHElement::applyForce(const Fvector& dir, float val)															//aux
 {
-	applyForce				(dir.x*val,dir.y*val,dir.z*val);
+	applyForce(dir.x * val, dir.y * val, dir.z * val);
 }
-void	CPHElement::applyForce(float x,float y,float z)																//called anywhere ph state influent
+
+void CPHElement::applyForce(float x,float y,float z)																//called anywhere ph state influent
 {
 	VERIFY(_valid(x)&&_valid(y)&&_valid(z));
 	if(!isActive())return;//hack??

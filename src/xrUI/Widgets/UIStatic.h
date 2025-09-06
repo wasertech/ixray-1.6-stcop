@@ -44,6 +44,29 @@ public:
 	virtual void			Update					();
 	virtual void			OnFocusLost				();
 
+	virtual pcstr GetText() { return TextItemControl()->GetText(); }
+	virtual void SetText(pcstr txt) { TextItemControl()->SetText(txt); }
+	virtual void SetTextST(pcstr txt) { TextItemControl()->SetTextST(txt); }
+	virtual void SetTextColor(u32 clr) { TextItemControl()->SetTextColor(clr); }
+	virtual	void		SetFont					(CGameFont* F)				{CUIWindow::SetFont(F); TextItemControl()->SetFont(F);}
+	virtual	CGameFont*	GetFont					()							{return TextItemControl()->GetFont();}
+
+	void SetTextColor_script(int a, int r, int g, int b)
+	{
+		TextItemControl()->SetTextColor(color_argb(a, r, g, b));
+	}
+
+	u32 GetTextAlign_script()
+	{
+		return static_cast<u32>(TextItemControl()->GetTextAlignment());
+	}
+
+	void SetTextAlign_script(u32 align)
+	{
+		TextItemControl()->SetTextAlignment((CGameFont::EAligment)align);
+		TextItemControl()->GetFont()->SetAligment((CGameFont::EAligment)align);
+	}
+
 	virtual void			CreateShader			(LPCSTR tex, LPCSTR sh = "hud\\default");
 	ui_shader&				GetShader				()							{return m_UIStaticItem.GetShader();};
 
@@ -52,9 +75,10 @@ public:
 	virtual void			SetTextureRect			(const Frect& r)			{m_UIStaticItem.SetTextureRect(r);}
 	virtual const Frect&	GetTextureRect			() const					{return m_UIStaticItem.GetTextureRect();}
 	
-	virtual void			InitTexture				(LPCSTR tex_name);
-	virtual void			InitTextureEx			(LPCSTR tex_name, LPCSTR sh_name="hud\\default");
+	virtual bool			InitTexture				(LPCSTR tex_name, bool fatal = true);
+	virtual bool			InitTextureEx			(LPCSTR tex_name, LPCSTR sh_name="hud\\default", bool fatal = true);
 	CUIStaticItem*			GetStaticItem			()							{return &m_UIStaticItem;}
+	void ResetOriginalRect() { m_UIStaticItem.ResetOriginalRect(); }
 			void			SetTextureRect_script	(Frect* pr)					{m_UIStaticItem.SetTextureRect(*pr);}
 	const	Frect*			GetTextureRect_script	()							{return &m_UIStaticItem.GetTextureRect();}
 
@@ -65,6 +89,8 @@ public:
 			void			TextureOn				()							{ m_bTextureEnable = true; }
 			void			TextureOff				()							{ m_bTextureEnable = false; }
 			void			SetTextOffset			(float x, float y)			{ TextItemControl()->m_TextOffset.x = x; TextItemControl()->m_TextOffset.y = y; }
+			void			HighlightText			(bool bHighlight)			{ m_bEnableTextHighlighting = bHighlight; }
+	virtual bool			IsHighlightText			();
 
 			void			SetTextX				(float x)					{TextItemControl()->m_TextOffset.x = x;}
 			float			GetTextX				()							{return TextItemControl()->m_TextOffset.x;}
@@ -73,11 +99,14 @@ public:
 
 
 	// own
+	virtual void			SetHighlightColor		(const u32 uColor)			{ m_HighlightColor = uColor; }
+			void			EnableTextHighlighting	(bool value)				{ m_bEnableTextHighlighting = value; }
 			void			SetXformLightAnim		(LPCSTR lanim, bool bCyclic);
 			void			ResetXformAnimation		();
 
 	virtual void			DrawTexture				();
 	virtual void			DrawText				();
+	virtual void			DrawHighlightedText		();
 
 			void 			AdjustHeightToText		();
 			void 			AdjustWidthToText		();
@@ -88,7 +117,8 @@ public:
 
 			void			SetStretchTexture		(bool stretch_texture)	{m_bStretchTexture = stretch_texture;}
 			bool			GetStretchTexture		()						{return m_bStretchTexture;}
-			
+			void			SetEllipsis				(int pos, int indent)	{ TextItemControl()->SetEllipsis(pos != 0); }
+
 			void			SetHeading				(float f)				{m_fHeading = f;};
 			float			GetHeading				()						{return m_fHeading;}
 			bool			Heading					()						{return m_bHeading;}
@@ -100,9 +130,16 @@ public:
 	virtual void			ColorAnimationSetTextureColor	(u32 color, bool only_alpha);
 	virtual void			ColorAnimationSetTextColor		(u32 color, bool only_alpha);
 
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUIStatic* ui_cast_static() { return this; }
+	virtual ITextureOwner* ui_cast_texture_owner() { return this; }
+	virtual CUILightAnimColorConroller* ui_cast_light_anim_color_controller() { return this; }
 
 protected:
 	CUILines*		m_pTextControl;
+	bool			m_bEnableTextHighlighting;
+	// Цвет подсветки
+	u32				m_HighlightColor;
 
 	bool			m_bStretchTexture;
 	bool			m_bTextureEnable;
@@ -127,10 +164,14 @@ class UI_API CUITextWnd :
 {
 	typedef CUIWindow	inherited;
 	CUILines			m_lines;
+	bool			m_bEnableTextHighlighting;
+	// Цвет подсветки
+	u32				m_HighlightColor;
 public:
 						CUITextWnd				();
 	virtual				~CUITextWnd				(){};
 	virtual void		Draw					();
+	virtual void		DrawHighlightedText		();
 	virtual void		Update					();
 
 			void 		AdjustHeightToText		();
@@ -149,8 +190,16 @@ public:
 			void		SetEllipsis				(bool mode)					{TextItemControl().SetEllipsis(mode);}
 			void		SetCutWordsMode			(bool mode)					{TextItemControl().SetCutWordsMode(mode);}
 			void		SetTextOffset			(float x, float y)			{TextItemControl().m_TextOffset.x = x; TextItemControl().m_TextOffset.y = y;}
+			void		HighlightText			(bool bHighlight)			{ m_bEnableTextHighlighting = bHighlight; }
+	virtual bool		IsHighlightText			();
+
+	virtual void		SetHighlightColor		(const u32 uColor)			{ m_HighlightColor = uColor; }
+			void		EnableTextHighlighting	(bool value)				{ m_bEnableTextHighlighting = value; }
 
 	virtual void		ColorAnimationSetTextColor(u32 color, bool only_alpha);
 
 	CUILines&			TextItemControl			()							{return m_lines;}
+
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUILightAnimColorConroller* ui_cast_light_anim_color_controller() { return this; }
 };

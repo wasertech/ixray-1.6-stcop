@@ -20,6 +20,8 @@ protected:
 	virtual void		OnMotionMark				(u32 state, const motion_marks&);
 	virtual void		OnStateSwitch				(u32 S);
 
+	virtual void		UpdateCL					();
+
 	void				state_Attacking				(float dt);
 
 	virtual void		KnifeStrike					(const Fvector& pos, const Fvector& dir);
@@ -44,13 +46,16 @@ protected:
 
 	float				fHitImpulse_cur;
 
+	u32					dwUpdateSounds_Frame;
+
 protected:
 	virtual void		LoadFireParams					(LPCSTR section);
 public:
 						CWeaponKnife(); 
 	virtual				~CWeaponKnife(); 
 
-	void				Load							(LPCSTR section);
+	virtual void		Load							(LPCSTR section) override;
+	virtual void		LoadSounds						(LPCSTR section) override;
 
 	virtual bool		IsZoomEnabled					()	const	{return false;}
 
@@ -64,6 +69,8 @@ public:
 	IC		float		GetHit1Dist						()	const	{ return m_Hit1Distance; }
 	IC		float		GetHit2Dist						()	const	{ return m_Hit2Distance; }
 	bool				m_bShowKnifeStats;
+
+	virtual CWeaponKnife* cast_weapon_knife() { return this; }
 
 #ifdef DEBUG
 	virtual void		OnRender						();

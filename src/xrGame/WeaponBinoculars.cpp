@@ -20,17 +20,14 @@ CWeaponBinoculars::~CWeaponBinoculars()
 	xr_delete				(m_binoc_vision);
 }
 
-void CWeaponBinoculars::Load	(LPCSTR section)
+void CWeaponBinoculars::Load(LPCSTR section)
 {
 	inherited::Load(section);
 
 	// Sounds
-	m_sounds.LoadSound(section, "snd_zoomin",  "sndZoomIn",		false, SOUND_TYPE_ITEM_USING);
-	m_sounds.LoadSound(section, "snd_zoomout", "sndZoomOut",	false, SOUND_TYPE_ITEM_USING);
-	m_bVision = !!pSettings->r_bool(section,"vision_present");
+	m_bVision = !!pSettings->r_bool(section, "vision_present");
 	m_flags.set(FUsingCondition, READ_IF_EXISTS(pSettings, r_bool, section, "use_condition", false));
 }
-
 
 bool CWeaponBinoculars::Action(u16 cmd, u32 flags) 
 {
@@ -41,6 +38,14 @@ bool CWeaponBinoculars::Action(u16 cmd, u32 flags)
 	}
 
 	return inherited::Action(cmd, flags);
+}
+
+void CWeaponBinoculars::LoadSounds(LPCSTR section)
+{
+	inherited::LoadSounds(section);
+
+	m_sounds.LoadSound(section, "snd_zoomin", "sndZoomIn", false, SOUND_TYPE_ITEM_USING);
+	m_sounds.LoadSound(section, "snd_zoomout", "sndZoomOut", false, SOUND_TYPE_ITEM_USING);
 }
 
 void GetZoomData(const float scope_factor, float& delta, float& min_zoom_factor)
@@ -112,7 +117,7 @@ void	CWeaponBinoculars::UpdateCL()
 
 	if (AllowBore())
 	{
-		CActor* pActor = smart_cast<CActor*>(H_Parent());
+		CActor* pActor = H_Parent() ? H_Parent()->cast_actor() : NULL;
 		if (pActor && !pActor->AnyMove() && this == pActor->inventory().ActiveItem())
 		{
 			if (hud_adj_mode == 0 && GetState() == eIdle && (Device.dwTimeGlobal - m_dw_curr_substate_time > 20000))
@@ -122,21 +127,28 @@ void	CWeaponBinoculars::UpdateCL()
 			}
 		}
 	}
+
 	//manage visible entities here...
-	if(H_Parent() && IsZoomed() && !IsRotatingToZoom() && m_binoc_vision)
+	if (H_Parent() && IsZoomed() && !IsRotatingToZoom() && m_binoc_vision)
+	{
 		m_binoc_vision->Update();
+	}
 }
 
 bool CWeaponBinoculars::render_item_ui_query()
 {
-	bool b_is_active_item = m_pInventory && m_pInventory->ActiveItem()==this;
-	return b_is_active_item && H_Parent() && IsZoomed() && !IsRotatingToZoom() && m_binoc_vision;
+	bool b_is_active_item = m_pInventory && m_pInventory->ActiveItem() == this;
+	return b_is_active_item && H_Parent() && IsZoomed() && !IsRotatingToZoom();
 }
 
 void CWeaponBinoculars::render_item_ui()
 {
-	m_binoc_vision->Draw();
-	inherited::render_item_ui	();
+	if (m_binoc_vision != nullptr)
+	{
+		m_binoc_vision->Draw();
+	}
+
+	inherited::render_item_ui();
 }
 
 void CWeaponBinoculars::ZoomInc()

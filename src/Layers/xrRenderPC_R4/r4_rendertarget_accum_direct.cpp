@@ -61,7 +61,7 @@ void CRenderTarget::accum_direct_cascade	( u32 sub_phase, Fmatrix& xform, Fmatri
 	RCache.set_CullMode			(CULL_NONE	);
 	if (SE_SUN_NEAR==sub_phase)
 	{
-		PIX_EVENT(SE_SUN_NEAR_sub_phase);
+		GPU_EVENT(SE_SUN_NEAR_sub_phase);
 		// Fill vertex buffer
 		FVF::TL* pv					= (FVF::TL*)	RCache.Vertex.Lock	(4,g_combine->vb_stride,Offset);
 		pv->set						(EPS,			float(_h+EPS),	d_Z,	d_W, C, p0.x, p1.y);	pv++;
@@ -93,7 +93,7 @@ void CRenderTarget::accum_direct_cascade	( u32 sub_phase, Fmatrix& xform, Fmatri
 
 	// Perform lighting
 	{
-		PIX_EVENT(Perform_lighting);
+		GPU_EVENT(Perform_lighting);
 		phase_accumulator					()	;
 		RCache.set_CullMode					(CULL_CCW); //******************************************************************
 		RCache.set_ColorWriteEnable			()	;
@@ -108,23 +108,22 @@ void CRenderTarget::accum_direct_cascade	( u32 sub_phase, Fmatrix& xform, Fmatri
 		};
 
 		// compute xforms
-		FPU::m64r			();
 		Fmatrix				xf_invview;		xf_invview.invert	(Device.mView)	;
 
 		// shadow xform
-		Fmatrix				m_shadow;
+		Fmatrix m_shadow;
 		{
-			Fmatrix			xf_project;		xf_project.mul		(m_TexelAdjust,fuckingsun->X.D.combine);
-			m_shadow.mul	(xf_project,	xf_invview);
+			Fmatrix xf_project;
+			xf_project.mul(m_TexelAdjust, fuckingsun->X.D.combine);
+			m_shadow.mul(xf_project, xf_invview);
 
 			// tsm-bias
-			if ( (SE_SUN_FAR == sub_phase) && (RImplementation.o.HW_smap) )
+			if (SE_SUN_FAR == sub_phase && RImplementation.o.HW_smap)
 			{
-				Fvector		bias;	bias.mul		(L_dir,ps_r2_sun_bias);
-				Fmatrix		bias_t;	bias_t.translate(bias);
-				m_shadow.mulB_44	(bias_t);
+				Fvector bias;	bias.mul(L_dir, ps_r2_sun_bias);
+				Fmatrix bias_t;	bias_t.translate(bias);
+				m_shadow.mulB_44(bias_t);
 			}
-			FPU::m24r		();
 		}
 
 		// clouds xform
@@ -289,7 +288,7 @@ void CRenderTarget::accum_direct_cascade	( u32 sub_phase, Fmatrix& xform, Fmatri
 
 void CRenderTarget::accum_direct_volumetric	(u32 sub_phase, const u32, const u32 i_offset, const Fmatrix &mShadow)
 {
-	PIX_EVENT(accum_direct_volumetric);
+	GPU_EVENT(accum_direct_volumetric);
 
 	if (!need_to_render_sunshafts())
 		return;

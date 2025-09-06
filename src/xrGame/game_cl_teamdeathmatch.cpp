@@ -20,7 +20,6 @@
 #define MESSAGE_MENUS	"tdm_messages_menu"
 
 #include "game_cl_teamdeathmatch_snd_messages.h"
-#include "reward_event_generator.h"
 
 const shared_str game_cl_TeamDeathmatch::GetTeamMenu(s16 team) 
 {
@@ -109,15 +108,6 @@ void				game_cl_TeamDeathmatch::net_import_state		(NET_Packet& P)
 					PlaySndMessage(ID_TEAMS_EQUAL);
 		}
 	};
-	if ((old_phase != new_phase) &&
-		(
-			(new_phase == GAME_PHASE_TEAM1_SCORES) ||
-			(new_phase == GAME_PHASE_TEAM2_SCORES)
-		))
-	{
-		if (m_reward_generator)
-			m_reward_generator->OnRoundEnd();
-	}
 }
 void game_cl_TeamDeathmatch::TranslateGameMessage	(u32 msg, NET_Packet& P)
 {
@@ -229,8 +219,7 @@ void game_cl_TeamDeathmatch::OnTeamMenuBack			()
 {
 	if (local_player->testFlag(GAME_PLAYER_FLAG_SPECTATOR))
 	{
-		m_game_ui->ShowServerInfo();
-//.		m_game_ui->StartStopMenu(m_game_ui->m_pMapDesc, true);
+		m_game_ui->StartStopMenu(m_game_ui->m_pMapDesc, true);
 	}
 };
 
@@ -444,7 +433,7 @@ void game_cl_TeamDeathmatch::shedule_Update			(u32 dt)
 				{
 					if (!(pCurBuyMenu && pCurBuyMenu->IsShown()) && 
 						!(pCurSkinMenu && pCurSkinMenu->IsShown()) &&
-						!m_game_ui->IsServerInfoShown() &&
+						!(m_game_ui->m_pMapDesc && m_game_ui->m_pMapDesc->IsShown()) &&
 						(CurrentGameUI() && CurrentGameUI()->GameIndicatorsShown())
 						)
 					{
@@ -730,10 +719,6 @@ void				game_cl_TeamDeathmatch::OnTeamChanged			()
 {
 	xr_delete				(pCurBuyMenu);
 	SetCurrentBuyMenu		();
-	if (pCurBuyMenu)
-	{
-		ReInitRewardGenerator(local_player);
-	}
 	inherited::OnTeamChanged();
 };
 
@@ -762,8 +747,6 @@ void				game_cl_TeamDeathmatch::OnGameMenuRespond_ChangeTeam	(NET_Packet& P)
 	if (OldTeam != local_player->team)
 	{
 		OnTeamChanged();
-		if (m_reward_generator)
-			m_reward_generator->OnPlayerChangeTeam(local_player->team);
 	}
 
 	SetCurrentSkinMenu();

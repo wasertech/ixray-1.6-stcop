@@ -37,9 +37,18 @@
 #include "ui/UIInventoryUtilities.h"
 #include "alife_object_registry.h"
 #include "xrServer_Objects_ALife_Monsters.h"
-#include "HUDAnimItem.h"
 #include "ActorCondition.h"
 #include "player_hud.h"
+#include "../xrEngine/XR_IOConsole.h"
+#include "Inventory.h"
+#include "ShootingObject.h"
+#include "Weapon.h"
+#include "raypick.h"
+#include "ai_object_location.h"
+
+#include "ActorHelmet.h"
+#include "PickupManager.h"
+#include "UIActorMenu.h"
 
 using namespace luabind;
 
@@ -135,43 +144,54 @@ float get_compass_direction()
 }
 
 #ifdef DEBUG
-void check_object(CScriptGameObject *object)
+void check_object(CScriptGameObject* object)
 {
 	try {
-		Msg	("check_object %s",object->Name());
+		Msg("check_object %s", object->Name());
 	}
-	catch(...) {
+	catch (...) {
 		object = object;
 	}
 }
 
 
-CScriptGameObject *tpfGetActor()
+CScriptGameObject* tpfGetActor()
 {
 	static bool first_time = true;
 	if (first_time)
-		ai().script_engine().script_log(eLuaMessageTypeError,"Do not use level.actor function!");
+		ai().script_engine().script_log(eLuaMessageTypeError, "Do not use level.actor function!");
 	first_time = false;
-	
-	CActor *l_tpActor = smart_cast<CActor*>(Level().CurrentEntity());
-	if (l_tpActor)
-		return	(smart_cast<CGameObject*>(l_tpActor)->lua_game_object());
+
+	CObject* current_entity = Level().CurrentEntity();
+	if (CActor* l_tpActor = current_entity != nullptr ? current_entity->cast_actor() : nullptr)
+	{
+		return (smart_cast<CGameObject*>(l_tpActor)->lua_game_object());
+	}
 	else
-		return	(0);
+	{
+		return 0;
+	}
 }
 
-CScriptGameObject *get_object_by_name(LPCSTR caObjectName)
+CScriptGameObject* get_object_by_name(LPCSTR caObjectName)
 {
 	static bool first_time = true;
 	if (first_time)
-		ai().script_engine().script_log(eLuaMessageTypeError,"Do not use level.object function!");
+	{
+		ai().script_engine().script_log(eLuaMessageTypeError, "Do not use level.object function!");
+	}
+
 	first_time = false;
-	
-	CGameObject		*l_tpGameObject	= smart_cast<CGameObject*>(Level().Objects.FindObjectByName(caObjectName));
-	if (l_tpGameObject)
-		return		(l_tpGameObject->lua_game_object());
+
+	CObject* finded_object = Level().Objects.FindObjectByName(caObjectName);
+	if (CGameObject* l_tpGameObject = finded_object != nullptr ? finded_object->cast_game_object() : nullptr)
+	{
+		return l_tpGameObject->lua_game_object();
+	}
 	else
-		return		(0);
+	{
+		return 0;
+	}
 }
 #endif
 
@@ -416,6 +436,11 @@ u16 map_has_object_spot(u16 id, LPCSTR spot_type)
 	return Level().MapManager().HasMapLocation(spot_type, id);
 }
 
+CMapManager* get_map_manager()
+{
+	return &Level().MapManager();
+}
+
 bool patrol_path_exists(LPCSTR patrol_path)
 {
 	return		(!!ai().patrol_paths().path(patrol_path,true));
@@ -436,7 +461,7 @@ CClientSpawnManager	&get_client_spawn_manager()
 {
 	return		(Level().client_spawn_manager());
 }
-/*
+
 void start_stop_menu(CUIDialogWnd* pDialog, bool bDoHideIndicators)
 {
 	if(pDialog->IsShown())
@@ -444,7 +469,7 @@ void start_stop_menu(CUIDialogWnd* pDialog, bool bDoHideIndicators)
 	else
 		pDialog->ShowDialog(bDoHideIndicators);
 }
-*/
+
 
 void add_dialog_to_render(CUIDialogWnd* pDialog)
 {
@@ -454,6 +479,11 @@ void add_dialog_to_render(CUIDialogWnd* pDialog)
 void remove_dialog_to_render(CUIDialogWnd* pDialog)
 {
 	CurrentGameUI()->RemoveDialogToRender(pDialog);
+}
+
+CUIDialogWnd* main_input_receiver()
+{
+	return CurrentGameUI()->TopInputReceiver();
 }
 
 void hide_indicators()
@@ -643,6 +673,17 @@ float add_cam_effector(LPCSTR fn, int id, bool cyclic, LPCSTR cb_func)
 	return						e->GetAnimatorLength();
 }
 
+float add_cam_effector_without_fov(LPCSTR fn, int id, bool cyclic, LPCSTR cb_func)
+{
+	CAnimatorCamEffectorScriptCB* e = new CAnimatorCamEffectorScriptCB(cb_func);
+	e->m_bAbsolutePositioning = true;
+	e->SetType((ECamEffectorType)id);
+	e->SetCyclic(cyclic);
+	e->Start(fn);
+	Actor()->Cameras().AddCamEffector(e);
+	return						e->GetAnimatorLength();
+}
+
 float add_cam_effector2(LPCSTR fn, int id, bool cyclic, LPCSTR cb_func, float cam_fov)
 {
 	CAnimatorCamEffectorScriptCB* e		= new CAnimatorCamEffectorScriptCB(cb_func);
@@ -827,6 +868,13 @@ void stop_tutorial()
 		g_tutorial->Stop();	
 }
 
+LPCSTR tutorial_name()
+{
+	if (g_tutorial)
+		return g_tutorial->m_name;
+	return "invalid";
+}
+
 LPCSTR translate_string(LPCSTR str)
 {
 	return *g_pStringTable->translate(str);
@@ -863,6 +911,12 @@ void g_send(NET_Packet& P, bool bReliable = 0, bool bSequential = 1, bool bHighP
 {
 	Level().Send(P, net_flags(bReliable, bSequential, bHighPriority, bSendImmediately));
 }
+
+void g_send2(NET_Packet& P, bool bReliable = 0)
+{
+	Level().Send(P, net_flags(bReliable, 1, 0, 0));
+}
+
 
 void u_event_gen(NET_Packet& P, u32 _event, u32 _dest)
 {
@@ -914,9 +968,11 @@ u32 g_get_target_element()
 
 u8 get_active_cam()
 {
-	CActor* actor = smart_cast<CActor*>(Level().CurrentViewEntity());
-	if (actor)
+	CObject* current_entity = Level().CurrentViewEntity();
+	if (CActor* actor = current_entity != nullptr ? current_entity->cast_actor() : nullptr)
+	{
 		return (u8)actor->active_cam();
+	}
 
 	return 255;
 }
@@ -948,25 +1004,31 @@ xrTime get_start_time()
 
 CScriptGameObject* get_view_entity_script()
 {
-	CGameObject* pGameObject = smart_cast<CGameObject*>(Level().CurrentViewEntity());
-	if (!pGameObject)
-		return (0);
+	CObject* current_entity = Level().CurrentViewEntity();
+	if (CGameObject* pGameObject = current_entity != nullptr ? current_entity->cast_game_object() : nullptr)
+	{
+		return pGameObject->lua_game_object();
+	}
 
-	return pGameObject->lua_game_object();
+	return 0;
 }
 
 void set_view_entity_script(CScriptGameObject* go)
 {
-	CObject* o = smart_cast<CObject*>(&go->object());
-	if (o)
+	if (CObject* o = &go->object() != nullptr ? go->object().dcast_CObject() : nullptr)
+	{
 		Level().SetViewEntity(o);
+	}
 }
 
 void set_active_cam(u8 mode)
 {
-	CActor* actor = smart_cast<CActor*>(Level().CurrentViewEntity());
-	if (actor && mode <= ACTOR_DEFS::EActorCameras::eacMaxCam)
+	CObject* current_entity = Level().CurrentViewEntity();
+	CActor* actor = current_entity != nullptr ? current_entity->cast_actor() : nullptr;
+	if (actor != nullptr && mode <= ACTOR_DEFS::EActorCameras::eacMaxCam)
+	{
 		actor->cam_Set((ACTOR_DEFS::EActorCameras)mode);
+	}
 }
 
 namespace level_nearest
@@ -986,11 +1048,344 @@ namespace level_nearest
 	CScriptGameObject* Get(int Idx)
 	{
 		if (Idx > (int)ObjectList.size())
-			return nullptr;
+		{
+			return 0;
+		}
 
-		CGameObject* pObj = smart_cast<CGameObject*>(ObjectList[Idx]);
+		CGameObject* pObj = ObjectList[Idx]->cast_game_object();
 		return pObj->lua_game_object();
 	}
+}
+
+void patrol_path_add(LPCSTR patrol_path, CPatrolPath* path)
+{
+	ai().patrol_paths_raw().add_path(shared_str(patrol_path), path);
+}
+
+void patrol_path_remove(LPCSTR patrol_path)
+{
+	ai().patrol_paths_raw().remove_path(shared_str(patrol_path));
+}
+
+void ReloadLanguage(const char* lang)
+{
+	g_pStringTable->ReloadLanguage(lang);
+}
+
+void RefreshNamesNPC()
+{
+	for (auto& [id, pointer] : ai().alife().objects().objects())
+	{
+		auto trader = pointer->cast_trader_abstract();
+		if (trader == nullptr)
+		{
+			continue;
+		}
+
+		trader->m_character_name = TranslateName(trader->m_character_name_raw.c_str());
+		if (g_pGameLevel == nullptr)
+		{
+			continue;
+		}
+
+		const auto obj = g_pGameLevel->Objects.net_Find(id);
+		if (obj != nullptr)
+		{
+			CInventoryOwner* owner = obj->cast_inventory_owner();
+			if (owner)
+			{
+				owner->RefreshNamesNPC();
+			}
+		}
+	}
+}
+
+bool IsUIShown()
+{
+	return CurrentGameUI()->GameIndicatorsShown();
+}
+
+bool IndicatorsShown()
+{
+	if (!IsUIShown())
+	{
+		return false;
+	}
+
+	CActor* actor = Level().CurrentControlEntity() != nullptr ? Level().CurrentControlEntity()->cast_actor() : nullptr;
+	if (actor == nullptr)
+	{
+		return false;
+	}
+
+	PIItem active_item = actor->inventory().ActiveItem();
+
+	if (active_item == nullptr)
+	{
+		return false;
+	}
+
+	CWeapon* wpn = active_item->cast_weapon();
+	if (wpn == nullptr)
+	{
+		return true;
+	}
+	
+	if (wpn->IsUIForceHiding())
+	{
+		return false;
+	}
+	else if (wpn->IsUIForceUnhiding())
+	{
+		return true;
+	}
+	else if (wpn->IsGrenadeMode())
+	{
+		return true;
+	}
+
+	if (wpn->IsZoomed() && (wpn->get_ScopeStatus() == 1 || (wpn->get_ScopeStatus() == 2 && wpn->IsScopeAttached())))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool InventoryShown()
+{
+	return CurrentGameUI()->ActorMenu().IsShown();
+}
+
+bool ElectronicsBreak()
+{
+	if (CActor* actor = Level().CurrentControlEntity() != nullptr ? Level().CurrentControlEntity()->cast_actor() : nullptr)
+	{
+		return actor->ElectronicsProblemsInc();
+	}
+
+	return false;
+}
+
+bool IsPickupMode()
+{
+	if (CActor* actor = Level().CurrentControlEntity() != nullptr ? Level().CurrentControlEntity()->cast_actor() : nullptr)
+	{
+		return actor->GetPickupManager()->GetPickupMode();
+	}
+
+	return false;
+}
+
+bool IsActorBurned()
+{
+	return false;
+}
+
+bool IsElectronicsRestore()
+{
+	if (CActor* actor = Level().CurrentControlEntity() != nullptr ? Level().CurrentControlEntity()->cast_actor() : nullptr)
+	{
+		return actor->ElectronicsProblemsDec();
+	}
+
+	return false;
+}
+
+bool ElectronicsReset()
+{
+	if (CActor* actor = Level().CurrentControlEntity() != nullptr ? Level().CurrentControlEntity()->cast_actor() : nullptr)
+	{
+		actor->ResetElectronicsProblems();
+		return true;
+	}
+
+	return false;
+}
+
+bool IsElectronicsApply()
+{
+	if (CActor* actor = Level().CurrentControlEntity() != nullptr ? Level().CurrentControlEntity()->cast_actor() : nullptr)
+	{
+		return actor->ElectronicsProblemsImmediateApply();
+	}
+
+	return false;
+}
+
+int GetParameterUpgradedInt()
+{
+	return 0;
+}
+
+int ValidSavedGameInt(int number, const char* name)
+{
+	return 1;
+}
+
+bool IsTacticalHud()
+{
+	if (CActor* actor = Level().CurrentControlEntity() != nullptr ? Level().CurrentControlEntity()->cast_actor() : nullptr)
+	{
+		if (CHelmet* helmet = actor->GetHelmet())
+		{
+			return helmet->m_fShowNearestEnemiesDistance > 0.0f;
+		}
+	}
+
+	return false;
+}
+
+CScriptGameObject* get_object_by_client(u32 clientID)
+{
+	xrClientData* xrCData = Level().Server->ID_to_client(clientID);
+	if (!xrCData || !xrCData->owner)
+	{
+		return 0;
+	}
+
+	CObject* net_finded = Level().Objects.net_Find(xrCData->owner->ID);
+
+	CGameObject* pGameObject = net_finded != nullptr ? net_finded->cast_game_object() : nullptr;
+	if (!pGameObject)
+	{
+		return 0;
+	}
+
+	return pGameObject->lua_game_object();
+}
+
+int get_local_player_id()
+{
+	return Game().local_player->GameID;
+}
+
+int get_g_actor_id()
+{
+	if (!Actor())
+		return -1;
+
+	return Actor()->ID();
+}
+
+void send_script_event_to_client(u32 cleintId, NET_Packet& P)
+{
+	R_ASSERT2(OnServer(), "Avaliable only on server");
+	Level().Server->SendTo(ClientID(cleintId), P, net_flags(TRUE, TRUE));
+}
+
+void send_script_event_broadcast(NET_Packet& P)
+{
+	R_ASSERT2(OnServer(), "Avaliable only on server");
+	Level().Server->SendBroadcast(BroadcastCID, P, net_flags(TRUE, TRUE));
+}
+
+ScriptEvent* get_front_server_event()
+{
+	return Level().Server->GetFrontServerScriptEvent();
+}
+void pop_front_server_event()
+{
+	Level().Server->PopFrontServerScriptEvent();
+}
+
+ScriptEvent* get_last_server_event()
+{
+	return Level().Server->GetLastServerScriptEvent();
+}
+
+void pop_last_server_event()
+{
+	Level().Server->PopLastServerScriptEvent();
+}
+
+u32 get_size_server_events()
+{
+	return Level().Server->GetSizeServerScriptEvent();
+}
+
+void send_script_event_to_server(NET_Packet& P)
+{
+	Level().Send(P, net_flags(TRUE, TRUE));
+}
+
+NET_Packet* get_last_client_event()
+{
+	return Level().GetLastClientScriptEvent();
+}
+
+void pop_last_client_event()
+{
+	Level().PopLastClientScriptEvent();
+}
+
+u32 get_size_client_events()
+{
+	return Level().GetSizeClientScriptEvent();
+}
+
+u32 get_build_id()
+{
+	return Core.BuildId;
+}
+
+extern ENGINE_API float psHUD_FOV;
+
+Fvector2 World2Ui(Fvector pos, bool hud)
+{
+	Fmatrix world = {}, res = {};
+	world.identity();
+	world.c = pos;
+
+	if (hud)
+	{
+		Fmatrix fp ={};
+		Fmatrix ft = {};
+		Fmatrix fv = {};
+		fv.build_camera_dir(Device.vCameraPosition, Device.vCameraDirection, Device.vCameraTop);
+		fp.build_projection(
+			deg2rad(psHUD_FOV * Device.fFOV),
+			Device.fASPECT, RDEVICE.fViewportNear,
+			g_pGamePersistent->Environment().CurrentEnv->far_plane);
+
+		ft.mul(fp, fv);
+		res.mul(ft, world);
+	}
+	else
+	{
+		res.mul(Device.mFullTransform, world);
+	}
+
+	Fvector4 vRes = {};
+	vRes.w = res._44;
+	vRes.x = res._41 / vRes.w;
+	vRes.y = res._42 / vRes.w;
+	vRes.z = res._43 / vRes.w;
+
+	if (vRes.z < 0 || vRes.w < 0) return { -9999,0 };
+	if (abs(vRes.x) > 1.f || abs(vRes.y) > 1.f) return { -9999,0 };
+
+	float x = (1.f + vRes.x) / 2.f * Device.TargetWidth;
+	float y = (1.f - vRes.y) / 2.f * Device.TargetHeight;
+
+	float widthFk = Device.TargetWidth / UI_BASE_WIDTH;
+	float heightFk = Device.TargetHeight / UI_BASE_HEIGHT;
+
+	x /= widthFk;
+	y /= heightFk;
+
+	return { x, y };
+}
+
+void jump_level(const Fvector& m_position, u32 m_level_vertex_id, GameGraph::_GRAPH_ID m_game_vertex_id, const Fvector& m_angles)
+{
+	NET_Packet p;
+	p.w_begin(M_CHANGE_LEVEL);
+	p.w(&m_game_vertex_id, sizeof(m_game_vertex_id));
+	p.w(&m_level_vertex_id, sizeof(m_level_vertex_id));
+	p.w_vec3(m_position);
+	p.w_vec3(m_angles);
+	Level().Send(p, net_flags(TRUE));
 }
 
 #pragma optimize("s",on)
@@ -1061,9 +1456,12 @@ void CLevel::script_register(lua_State *L)
 		def("map_remove_object_spot",			map_remove_object_spot),
 		def("map_has_object_spot",				map_has_object_spot),
 		def("map_change_spot_hint",				map_change_spot_hint),
+		def("map_manager",						get_map_manager),
 
+		def("start_stop_menu", start_stop_menu),
 		def("add_dialog_to_render",				add_dialog_to_render),
 		def("remove_dialog_to_render",			remove_dialog_to_render),
+		def("main_input_receiver",				main_input_receiver), // for compatibility
 		def("hide_indicators",					hide_indicators),
 		def("hide_indicators_safe",				hide_indicators_safe),
 
@@ -1090,6 +1488,7 @@ void CLevel::script_register(lua_State *L)
 		def("set_snd_volume",					&set_snd_volume),
 		def("add_cam_effector",					&add_cam_effector),
 		def("add_cam_effector2",				&add_cam_effector2),
+		def("add_cam_effector2",				&add_cam_effector_without_fov),
 		def("remove_cam_effector",				&remove_cam_effector),
 		def("add_pp_effector",					&add_pp_effector),
 		def("set_pp_effector_factor",			&set_pp_effector_factor),
@@ -1116,10 +1515,13 @@ void CLevel::script_register(lua_State *L)
 		def("release_action", &release_action_script),
 		def("lock_actor", &LockActorWithCameraRotation_script),
 		def("unlock_actor", &UnLockActor_script),
-		
+
+		def("patrol_path_add", &patrol_path_add),
+		def("patrol_path_remove", &patrol_path_remove),
 		def("u_event_gen", &u_event_gen), //Send events via packet
 		def("u_event_send", &u_event_send),
 		def("send", &g_send), //allow the ability to send netpacket to level
+		def("send", &g_send2), //allow the ability to send netpacket to level
 		def("get_target_obj", &g_get_target_obj), //intentionally named to what is in xray extensions
 		def("get_target_dist", &g_get_target_dist),
 		def("press_action", &LevelPressAction),
@@ -1132,7 +1534,25 @@ void CLevel::script_register(lua_State *L)
 		def("get_active_cam", &get_active_cam),
 		def("set_active_cam", &set_active_cam),
 		def("get_start_time", &get_start_time),
-		def("valid_vertex", &valid_vertex)
+		def("valid_vertex", &valid_vertex),
+		def("is_ui_shown", &IsUIShown),
+		def("is_actor_burned", &IsActorBurned),
+		def("indicators_shown", &IndicatorsShown),
+		def("inventory_shown", &InventoryShown),
+		def("pickup_mode", &IsPickupMode),
+		// TODO Guns: Drombeys to all: not impl
+		def("electronics_break", &ElectronicsBreak),
+		def("electronics_restore", &IsElectronicsRestore),
+		def("electronics_reset", &ElectronicsReset),
+		def("electronics_apply", &IsElectronicsApply),
+		def("get_parameter_upgraded_int", &GetParameterUpgradedInt),
+		def("valid_saved_game_int", &ValidSavedGameInt),
+		def("is_tactical_hud", &IsTacticalHud),
+
+		// new for fmp
+		def("get_object_by_client", &get_object_by_client),
+		def("get_local_player_id", &get_local_player_id),
+		def("get_g_actor_id", &get_g_actor_id)
 	],
 	
 	module(L,"nearest")
@@ -1140,11 +1560,6 @@ void CLevel::script_register(lua_State *L)
 		def("set",						&level_nearest::Set),
 		def("size",						&level_nearest::Size),
 		def("get",						&level_nearest::Get)
-	];
-	
-	module(L, "animslot")
-	[
-		def("play", &CHUDAnimItem::PlayHudAnim)
 	];
 
 	module(L, "player_hud")
@@ -1158,6 +1573,39 @@ void CLevel::script_register(lua_State *L)
 		def("add_points_str", &add_actor_points_str),
 		def("get_points", &get_actor_points)
 	];
+	module(L)
+	[
+	   class_<CRayPick>("ray_pick")
+	   .def(								constructor<>())
+	   .def(								constructor<Fvector&, Fvector&, float, collide::rq_target, CScriptGameObject*>())
+	   .def("set_position",					&CRayPick::set_position)
+	   .def("set_direction",				&CRayPick::set_direction)
+	   .def("set_range",					&CRayPick::set_range)
+	   .def("set_flags",					&CRayPick::set_flags)
+	   .def("set_ignore_object",			&CRayPick::set_ignore_object)
+	   .def("query",						&CRayPick::query)
+	   .def("get_result",					&CRayPick::get_result)
+	   .def("get_object",					&CRayPick::get_object)
+	   .def("get_distance",					&CRayPick::get_distance)
+	   .def("get_element",					&CRayPick::get_element)	
+	   .def("get_material",					&CRayPick::get_material),
+    class_<script_rq_result>("rq_result")
+      .def_readonly("object",			&script_rq_result::O)
+      .def_readonly("range",			&script_rq_result::range)
+      .def_readonly("element",		&script_rq_result::element)
+      .def(								constructor<>()), 	
+    class_<enum_exporter<collide::rq_target> >("rq_target")
+      .enum_("targets")
+    [
+      value("rqtNone",						int(collide::rqtNone)),
+      value("rqtObject",						int(collide::rqtObject)),
+      value("rqtStatic",						int(collide::rqtStatic)),
+      value("rqtShape",						int(collide::rqtShape)),
+      value("rqtObstacle",					int(collide::rqtObstacle)),
+      value("rqtBoth",						int(collide::rqtBoth)),
+      value("rqtDyn",							int(collide::rqtDyn))
+    ]
+	];  
 
 	module(L)
 	[
@@ -1168,7 +1616,8 @@ void CLevel::script_register(lua_State *L)
 		def("IsImportantSave",					&IsImportantSave),
 		def("IsDedicated",						&is_dedicated),
 		def("OnClient",							&OnClient),
-		def("OnServer",							&OnServer)
+		def("OnServer",							&OnServer),
+		def("EngineBuildId", &get_build_id)
 	];
 
 	module(L,"relation_registry")
@@ -1181,6 +1630,26 @@ void CLevel::script_register(lua_State *L)
 		def("set_community_relation",			&g_set_community_relation),
 		def("get_general_goodwill_between",		&g_get_general_goodwill_between)
 	];
+	
+	module(L, "script_events")
+	[
+		def("send_to_server", &send_script_event_to_server),
+		def("send_to_client", &send_script_event_to_client),
+		def("send_broadcast", &send_script_event_broadcast),
+
+		def("get_last_client_event", &get_last_client_event),
+		def("pop_last_client_event", &pop_last_client_event),
+		def("get_size_client_events", &get_size_client_events),
+
+		def("get_last_server_event", &get_last_server_event),
+		def("pop_last_server_event", &pop_last_server_event),
+		def("get_front_server_event", &get_front_server_event),
+		def("pop_front_server_event", &pop_front_server_event),
+		def("get_size_server_events", &get_size_server_events)
+	];
+
+	luabind::object script_events = luabind::get_globals(L)["script_events"];
+	script_events["M_SCRIPT_EVENT"] = M_SCRIPT_EVENT;
 
 	module(L,"game")
 	[
@@ -1227,9 +1696,13 @@ void CLevel::script_register(lua_State *L)
 //			def("get_surge_time",	Game::get_surge_time),
 //			def("get_object_by_name",Game::get_object_by_name),
 		
-		def("start_tutorial",		&start_tutorial),
-		def("stop_tutorial",		&stop_tutorial),
-		def("has_active_tutorial",	&has_active_tutotial),
-		def("translate_string",		&translate_string)
+			def("start_tutorial",		&start_tutorial),
+			def("stop_tutorial",		&stop_tutorial),
+			def("has_active_tutorial",	&has_active_tutotial),
+			def("active_tutorial_name", &tutorial_name),
+			def("translate_string",		&translate_string),
+			def("reload_language", &ReloadLanguage),
+			def("world2ui", &World2Ui),
+			def("jump_level", &jump_level)
 	];
 }

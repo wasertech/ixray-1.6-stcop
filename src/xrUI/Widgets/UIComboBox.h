@@ -4,6 +4,7 @@
 #include "UIListBox.h"
 #include "UIInteractiveBackground.h"
 #include "UIOptionsItem.h"
+#include "UI_IB_Static.h"
 
 class CUIListBoxItem;
 
@@ -39,6 +40,8 @@ public:
 			void		InitComboBox			(Fvector2 pos, float width);
 			void		SetItemIDX				(int idx);
 			void		SetItemToken			(int tok);
+			u32			GetSelectedIDX			();
+			void		SetSelectedIDX			(u32 idx);
 
 	virtual void		SendMessage				(CUIWindow *pWnd, s16 msg, void* pData = 0);
 	virtual void		OnFocusLost				();
@@ -46,6 +49,9 @@ public:
 			int			CurrentID				()	{return m_itoken_id;}
 			void		disable_id				(int id);
 			void		enable_id				(int id);
+
+	virtual CUIWindow* ui_cast_window() { return this; }
+
 protected:
 	virtual bool		OnMouseAction					(float x, float y, EUIMessages mouse_action);
 	virtual void		OnBtnClicked			();
@@ -66,6 +72,7 @@ protected:
 
 
 	CUI_IB_FrameLineWnd	m_frameLine;
+	CUI_IB_Static		m_arrow;
 	CUITextWnd			m_text;
 	CUIFrameWindow		m_list_frame;
 

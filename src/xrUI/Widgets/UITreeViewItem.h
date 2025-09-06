@@ -7,14 +7,14 @@
 //=============================================================================
 #pragma once
 
-#include "UIListBox.h"
-#include "UIListBoxItem.h"
-#include "UIStatic.h"
+#include "UIListItem.h"
+
+class CUIListWnd;
 
 class UI_API CUITreeViewItem:
-	public CUIListBox
+	public CUIListItem
 {
-	typedef CUIListBox inherited;
+	typedef CUIListItem inherited;
 	// Являемся ли мы началом подыерархии
 	bool			isRoot;
 	// Если мы рут, то этот флаг показывает открыта наша подыерархия или нет
@@ -33,6 +33,10 @@ public:
 	// Владелец
 	CUITreeViewItem * GetOwner() const					{ return pOwner; }
 	void			SetOwner(CUITreeViewItem *owner)	{ pOwner = owner; }
+
+	virtual CUIListItem* ui_cast_list_item() { return this; }
+	virtual CUITreeViewItem* ui_cast_tree_view_item() { return this; }
+
 protected:
 	// Функция вызываемая при изменении свойства рута
 	// для изменения визуального представления себя
@@ -120,5 +124,5 @@ using GroupTree_it = GroupTree::iterator;
 
 //////////////////////////////////////////////////////////////////////////
 
-UI_API void CreateTreeBranch(shared_str nestingTree, shared_str leafName, CUIListBox *pListToAdd, int leafProperty,
+UI_API void CreateTreeBranch(shared_str nestingTree, shared_str leafName, CUIListWnd*pListToAdd, int leafProperty,
 					  CGameFont *pRootFont, u32 rootColor, CGameFont *pLeafFont, u32 leafColor, bool markRead);

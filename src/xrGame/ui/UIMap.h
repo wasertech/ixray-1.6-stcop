@@ -12,7 +12,11 @@ protected:
 
 	Frect			m_BoundRect_;// real map size (meters)
 	Flags16			m_flags;
-	enum EFlags{	eLocked	=(1<<0),};
+	enum EFlags
+	{	
+		eLocked	=(1<<0),
+        eRounded = (1 << 1)
+	};
 	float			m_pointer_dist;
 	Frect			m_workingArea;
 public:
@@ -49,8 +53,14 @@ public:
 	virtual	bool	NeedShowPointer					(Frect r);
 			bool	Locked							()				{return !!m_flags.test(eLocked);}
 			void	SetLocked						(bool b)		{m_flags.set(eLocked,b);}
+    bool IsRounded() { return m_flags.test(eRounded); }
+    void SetRounded(bool b) { m_flags.set(eRounded, b); }
 			void	SetPointerDistance				(float d)		{m_pointer_dist=d;};
 			float	GetPointerDistance				()				{return m_pointer_dist;};
+
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUIStatic* ui_cast_static() { return this; }
+
 protected:
 	virtual void	Init_internal					(const shared_str& name, CInifile& pLtx, const shared_str& sect_name, LPCSTR sh_name);
 	virtual void	UpdateSpots						() {};
@@ -96,6 +106,7 @@ class CUILevelMap: public CUICustomMap
 	typedef  CUICustomMap inherited;
 
 	CUIMapWnd*					m_mapWnd;
+	bool						legacySpotScaling;
 	Frect						m_GlobalRect;			// virtual map size (meters)
 								CUILevelMap			(const CUILevelMap &obj) {}
 

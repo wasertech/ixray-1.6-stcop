@@ -13,7 +13,7 @@ endif()
 add_compile_definitions(_WINDOWS)
 
 # Enable gcc/clang style for MSVC
-add_compile_options(/permissive- /fp:fast /wd4073 /wd4390 /wd4273 /sdl /wd4566 /wd4297 /wd4275)
+add_compile_options(/permissive- /fp:fast /wd4073 /wd4390 /wd4273 /sdl /wd4566 /wd4297 /wd4275 /wd4530)
 string(REGEX REPLACE "/EH[a-z]+" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 add_compile_options("$<$<CONFIG:DEBUG>:/Od>" "$<$<CONFIG:DEBUG>:/MD>" "/Ob1")
 add_compile_options("$<$<CONFIG:RELEASE>:/Ot>"  "$<$<CONFIG:RELEASE>:/Ob2>" "$<$<CONFIG:RELWITHDEBINFO>:/wd4577>")
@@ -73,3 +73,9 @@ function(target_validate_pch target target_path)
 	set_source_files_properties(${CORE_SOURCE_ALL_C_FILES} PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 	source_group("pch" FILES ${CORE_SOURCE_PCH_FILES})
 endfunction()
+
+# Discord
+option(IXRAY_DISCORD_RPC "Enable Discord activity" ON)
+
+# Configure dependencies
+set(RENDERDOC_API "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd-Party/renderdoc")

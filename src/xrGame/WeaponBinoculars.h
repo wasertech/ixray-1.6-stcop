@@ -17,7 +17,8 @@ public:
 					CWeaponBinoculars	(); 
 	virtual			~CWeaponBinoculars	();
 
-	void			Load				(LPCSTR section);
+	virtual void	Load				(LPCSTR section) override;
+	virtual void	LoadSounds			(LPCSTR section) override;
 
 	virtual void	OnZoomIn			();
 	virtual void	OnZoomOut			();
@@ -36,6 +37,11 @@ public:
 	virtual bool	use_crosshair		()	const {return false;}
 	virtual bool	GetBriefInfo		(II_BriefInfo& info);
 	virtual void	net_Relcase			(CObject *object);
+
+	virtual bool WpnCanShoot() const { return false; }
+	virtual bool UseScopeTexture() { return true; }
+	virtual CWeaponBinoculars* cast_weapon_binoculars() { return this; }
+
 protected:
 	CBinocularsVision*					m_binoc_vision;
 

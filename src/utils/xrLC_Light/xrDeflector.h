@@ -1,33 +1,52 @@
 #pragma once
-#include "xrFaceDefs.h"
+#include "xrFace.h"
 #include "base_color.h"
 #include "lm_layer.h"
 #include "uv_tri.h"
-#include "../../xrCDB/xrCDB.h"
+#include "../../xrCore/Collision/xrCDB.h"
 #include "xrDeflectorDefs.h"
+#include "embree_raytracing/EmbreeRayTrace.h"
+
+// se7kills: Packed Task pool
+#include "xrDeflectorLight_Packed.h"
 
 class  base_lighting;
- 
 class CDeflector;
- 
+extern EmbreeData EmbreeMain;
 class execute_statistics;
+
+
+
+
 class XRLC_LIGHT_API CDeflector
 {
 
 public:
- 	xr_vector<UVtri>			UVpolys;
-	Fvector						normal;
-	lm_layer					layer;
-	Fsphere						Sphere;
-	
-	BOOL						bMerged;
+ 	bool ApplyLmap = false;
+	bool ApplyEdge = false;
+	bool ApplyResolution = false;
+ 	bool bMerged = false;
+
+	u32  ColorsRecvested = 0;
+	u32  ColorsApply = 0;
+ 
+	Fvector				normal;
+ 	xr_vector<UVtri>	UVpolys;
+
+	lm_layer			layer;
+	Fsphere				Sphere;
+
+	// se7kills Освещение на GPU
+	xrCriticalSection csApply;
+	xr_concurrent_unordered_map<size_t, base_color_c>								def_color_map;
+	xr_concurrent_unordered_map<size_t, u8>											def_FacesCount;
+	 
+
 public:
 
-						CDeflector					();
+	CDeflector					();
+  	~CDeflector					();
  
- 						~CDeflector					();
-static	CDeflector*		read_create					();	
-
 	void	OA_SetNormal		(Fvector &_N )	{ normal.set(_N); normal.normalize(); VERIFY(_valid(normal)); }
 	BOOL	OA_Place			(Face *owner);
 	void	OA_Place			(vecFace& lst);
@@ -41,7 +60,7 @@ static	CDeflector*		read_create					();
 	void	L_Direct_Edge		(CDB::COLLIDER* DB, base_lighting* LightsSelected, Fvector2& p1, Fvector2& p2, Fvector& v1, Fvector& v2, Fvector& N, float texel_size, Face* skip);
 	void	L_Calculate			(CDB::COLLIDER* DB, base_lighting* LightsSelected, HASH& H  );
 	u32		weight				() { return layer.Area(); }	
-	u16	GetBaseMaterial		() ;
+	u16		GetBaseMaterial		() ;
 
 	void	Bounds				(u32 ID, Fbox2& dest)
 	{
@@ -51,6 +70,7 @@ static	CDeflector*		read_create					();
 		dest.modify		(TC.uv[1]);
 		dest.modify		(TC.uv[2]);
 	}
+	
 	void	Bounds_Summary		(Fbox2& bounds)
 	{
 		bounds.invalidate();
@@ -61,10 +81,55 @@ static	CDeflector*		read_create					();
 			bounds.merge(B);
 		}
 	}
+
 	void	RemapUV				(xr_vector<UVtri>& dest, u32 base_u, u32 base_v, u32 size_u, u32 size_v, u32 lm_u, u32 lm_v, BOOL bRotate);
 	void	RemapUV				(u32 base_u, u32 base_v, u32 size_u, u32 size_v, u32 lm_u, u32 lm_v, BOOL bRotate);
  	
 	bool	similar				( const CDeflector &D, float eps =EPS ) const;
+
+	// se7kills Подсчитать Размер
+	size_t		size_deflector()
+	{
+		size_t STri = UVpolys.capacity() * sizeof(UVtri);
+		size_t SLMLayer = layer.memory_lmap();
+
+		return sizeof(*this) + STri + SLMLayer;
+	}
+
+	size_t size_of_lm()
+	{
+		size_t SLMLayer = layer.memory_lmap();
+		return SLMLayer;
+	}
+
+	size_t size_of_tris()
+	{
+		size_t STri = UVpolys.capacity() * sizeof(UVtri);
+		return STri;
+	}
+
+
+	size_t size_of_colors() const
+	{
+ 		return 0;
+	}
+
+
+	// Stage 1
+	void LightGPU( HASH& H);
+	void L_DirectGPU( HASH& H);
+
+	// cuda recvest color reciver
+	void ApplyColors();
+	void ClearResults();
+	void ApplyColor(size_t INDEX, base_color_c& C);
+
+	// Stage 2
+	void EdgesLighting(HASH& H);
+ 
+	// Stage 3
+	void LowerResolutionGPU(HASH& H);
+	void ApplyExpadBordersGPU();
 };
 
 
@@ -82,9 +147,6 @@ extern XRLC_LIGHT_API void		DumpDeflctor	( u32 id );
 extern XRLC_LIGHT_API void		DumpDeflctor	( const CDeflector &d );
 extern XRLC_LIGHT_API void		DeflectorsStats ();
 extern XRLC_LIGHT_API void		DumpDeflctor	( u32 id );
-
-
-extern XRLC_LIGHT_API u32 c_LMAP_size;			// pixels
 
 #define rms_zero	((4+g_params().m_lm_rms_zero)/2)
 #define rms_shrink	((8+g_params().m_lm_rms)/2)

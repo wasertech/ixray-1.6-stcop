@@ -3,9 +3,6 @@
 
 #include "../../xrUI/Widgets/UIDialogWnd.h"
 
-const u32			SKIN_TEX_HEIGHT			= 232;
-const u32			SKIN_TEX_WIDTH			= 111;
-
 class CUIStatic;
 class CUIStatix;
 class CUI3tButton;
@@ -35,6 +32,9 @@ public:
 	int				GetActiveIndex();
 	s16				GetTeam()				{return m_team;};
 	virtual void	Update			();
+
+	virtual CUIWindow* ui_cast_window() { return this; }
+
 protected:
 			void	OnBtnOK();
 			void	OnBtnCancel();
@@ -48,8 +48,8 @@ protected:
 	CUIStatic*		m_pFrames;
 #define p_image_count	6
 	CUIStatix*		m_pImage[p_image_count];
-//	CUI3tButton*	m_pButtons[2];
-//	CUIAnimatedStatic* m_pAnims[2];
+	CUI3tButton*	m_pButtons[2];
+	CUIAnimatedStatic* m_pAnims[2];
 	CUI3tButton*	m_pBtnAutoSelect;
 	CUI3tButton*	m_pBtnSpectator;
 	CUI3tButton*	m_pBtnBack;
@@ -60,6 +60,7 @@ protected:
 	xr_vector<xr_string> m_skins;
 	xr_vector<int>	m_skinsEnabled;
 	int				m_firstSkin;
+	int				m_SkinCount;
 	s16				m_team;
 };
 

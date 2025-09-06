@@ -28,9 +28,6 @@
 #include "game_cl_artefacthunt_snd_msg.h"
 #include "game_cl_deathmatch_snd_messages.h"
 
-#include "reward_event_generator.h"
-
-
 //#define TEAM0_MENU			"artefacthunt_team0"
 #define	GREENTEAM_MENU			"capturetheartefact_team1"
 #define	BLUETEAM_MENU			"capturetheartefact_team2"
@@ -136,8 +133,9 @@ void game_cl_CaptureTheArtefact::shedule_Update(u32 dt)
 					{
 						if (!m_bReadMapDesc && Level().CurrentEntity())
 						{
-							m_bReadMapDesc = m_game_ui->ShowServerInfo() ? TRUE : FALSE;
-							GetActiveVoting				();
+							m_game_ui->ShowMapDesc	();
+							GetActiveVoting			();
+							m_bReadMapDesc			= TRUE;
 						}
 
 						UpdateMoneyIndicator();
@@ -209,11 +207,6 @@ void game_cl_CaptureTheArtefact::shedule_Update(u32 dt)
 						m_captions_manager.SetWinnerTeam(etBlueTeam);
 					}
 					m_winnerTeamShowed = TRUE;
-					if (m_reward_generator)
-					{
-						m_reward_generator->OnRoundEnd();
-						m_reward_generator->CommitBestResults();
-					}
 				}
 			}break;
 		default:
@@ -295,8 +288,6 @@ void game_cl_CaptureTheArtefact::TranslateGameMessage(u32 msg, NET_Packet& P)
 					g_pStringTable->translate("mp_captured_artefact").c_str());
 				
 				PlayCapturedTheArtefact(ps);
-				if (m_reward_generator)
-					m_reward_generator->OnPlayerTakeArtefact(ps);
 
 				if (artefactOwnerTeam == static_cast<u8>(etGreenTeam))
 				{
@@ -311,8 +302,6 @@ void game_cl_CaptureTheArtefact::TranslateGameMessage(u32 msg, NET_Packet& P)
 					Color_Main, *g_pStringTable->translate("mp_you_captured_artefact"));
 				
 				PlayCapturedTheArtefact(ps);
-				if (m_reward_generator)
-					m_reward_generator->OnPlayerTakeArtefact(ps);
 
 				if (artefactOwnerTeam == static_cast<u8>(etGreenTeam))
 				{
@@ -360,9 +349,8 @@ void game_cl_CaptureTheArtefact::TranslateGameMessage(u32 msg, NET_Packet& P)
 						Color_Main,
 						g_pStringTable->translate("mp_has_dropped_artefact").c_str()); //need translate
 				
-				if (m_reward_generator)
-					m_reward_generator->OnPlayerDropArtefact(ps);
-			} else
+			} 
+			else
 			{
 				xr_sprintf(Text, "%s%s",
 						Color_Main,
@@ -381,9 +369,6 @@ void game_cl_CaptureTheArtefact::TranslateGameMessage(u32 msg, NET_Packet& P)
 
 			if (!local_player) //can be nullptr, because not actor or spectator spawned yet...
 				return;
-
-			if (m_reward_generator)
-				m_reward_generator->OnPlayerBringArtefact(ps);
 
 			if (delivererTeam == local_player->team)
 			{
@@ -686,7 +671,6 @@ void game_cl_CaptureTheArtefact::OnGameMenuRespond_ChangeSkin(NET_Packet& P)
 	m_bSkinSelected					= TRUE;
 	m_bSpectatorSelected			= FALSE;
 	Msg("* player [%s][%d] changed skin to %d", local_player->getName(), local_player->GameID, local_player->skin);
-	ReInitRewardGenerator			(local_player);
 	//SpawnMe();
 }
 
@@ -718,8 +702,6 @@ void game_cl_CaptureTheArtefact::OnGameMenuRespond_ChangeTeam(NET_Packet& P)
 	m_game_ui->UpdateBuyMenu(teamSection, BASECOST_SECTION);
 	m_game_ui->UpdateSkinMenu(teamSection);*/
 	OnTeamChanged();
-	if (m_reward_generator)
-		m_reward_generator->OnPlayerChangeTeam(local_player->team);
 	if (CanCallSkinMenu())
 	{
 		m_game_ui->ShowSkinMenu(local_player->skin);
@@ -848,12 +830,6 @@ void game_cl_CaptureTheArtefact::OnSpawn(CObject* pObj)
 		if (!ps)
 			return;
 		
-		if (m_reward_generator)
-		{
-			m_reward_generator->init_bone_groups(pActor);
-			m_reward_generator->OnPlayerSpawned(ps);
-		}
-
 		//VERIFY(ps);
 		if ((ps->team == local_player->team) && (ps != local_player))
 		{
@@ -1152,7 +1128,6 @@ void game_cl_CaptureTheArtefact::OnTeamChanged()
 	m_game_ui->SetRank			(static_cast<ETeam>(local_player->team),
 									local_player->rank);
 	m_game_ui->ReInitPlayerDefItems	();
-	ReInitRewardGenerator			(local_player);
 	UpdateMapLocations				();
 }
 
@@ -1166,8 +1141,6 @@ void game_cl_CaptureTheArtefact::OnGameRoundStarted	()
 		Msg("--- CTA: Round started !!!");
 #endif // #ifdef DEBUG
 	}
-	if (m_reward_generator)
-		m_reward_generator->OnRoundStart();
 }
 
 void game_cl_CaptureTheArtefact::OnTeamScoresChanged()
@@ -1411,7 +1384,7 @@ void game_cl_CaptureTheArtefact::OnTeamMenuBack()
 {
 	if (local_player->testFlag(GAME_PLAYER_FLAG_SPECTATOR))
 	{
-		m_game_ui->ShowServerInfo();
+		m_game_ui->ShowMapDesc();
 	}
 }
 void game_cl_CaptureTheArtefact::OnTeamMenu_Cancel()

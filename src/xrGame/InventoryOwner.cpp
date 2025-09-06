@@ -27,6 +27,9 @@
 #include "CustomOutfit.h"
 #include "Bolt.h"
 #include "actor_mp_server.h"
+#include "ActorHelmet.h"
+#include "ActorBackpack.h"
+#include "../xrScripts/script_callback_ex.h"
 
 CInventoryOwner::CInventoryOwner			()
 {
@@ -43,6 +46,7 @@ CInventoryOwner::CInventoryOwner			()
 
 	m_known_info_registry		= new CInfoPortionWrapper();
 	m_tmp_active_slot_num		= NO_ACTIVE_SLOT;
+	m_isFocusingOnNpc			= true;
 	m_need_osoznanie_mode		= FALSE;
 
 	m_deadbody_can_take				= true;
@@ -70,17 +74,13 @@ CInventoryOwner::~CInventoryOwner			()
 
 void CInventoryOwner::Load					(LPCSTR section)
 {
-	if(pSettings->line_exist(section, "inv_max_weight"))
-		m_inventory->SetMaxWeight( pSettings->r_float(section,"inv_max_weight") );
+	if (pSettings->line_exist(section, "inv_max_weight"))
+	{
+		m_inventory->SetMaxWeight(pSettings->r_float(section, "inv_max_weight"));
+	}
 
-	if(pSettings->line_exist(section, "need_osoznanie_mode"))
-	{
-		m_need_osoznanie_mode=pSettings->r_bool(section,"need_osoznanie_mode");
-	}
-	else
-	{
-		m_need_osoznanie_mode=FALSE;
-	}
+	m_isFocusingOnNpc = READ_IF_EXISTS(pSettings, r_bool, section, "focus_on_npc", true);
+	m_need_osoznanie_mode = READ_IF_EXISTS(pSettings, r_bool, section, "need_osoznanie_mode", FALSE);
 }
 
 void CInventoryOwner::reload				(LPCSTR section)
@@ -117,8 +117,12 @@ BOOL CInventoryOwner::net_Spawn		(CSE_Abstract* DC)
 
 	//получить указатель на объект, InventoryOwner
 	//m_inventory->setSlotsBlocked(false);
-	CGameObject			*pThis = smart_cast<CGameObject*>(this);
-	if(!pThis) return FALSE;
+	CGameObject* pThis = cast_game_object();
+	if (!pThis)
+	{
+		return FALSE;
+	}
+
 	CSE_Abstract* E	= (CSE_Abstract*)(DC);
 
 	if ( IsGameTypeSingleCompatible() || !smart_cast<CSE_ALifeCreatureActor*>(E))
@@ -137,12 +141,13 @@ BOOL CInventoryOwner::net_Spawn		(CSE_Abstract* DC)
 		//-------------------------------------
 
 
-		CAI_PhraseDialogManager* dialog_manager = smart_cast<CAI_PhraseDialogManager*>(this);
+		CAI_PhraseDialogManager* dialog_manager = cast_ai_phrase_dialog_manager();
 		if( dialog_manager && !dialog_manager->GetStartDialog().size() )
 		{
 			dialog_manager->SetStartDialog(CharacterInfo().StartDialog());
 			dialog_manager->SetDefaultStartDialog(CharacterInfo().StartDialog());
 		}
+		m_game_name_str		= pTrader->m_character_name_raw;
 		m_game_name			= pTrader->m_character_name;
 		
 		m_deadbody_can_take = pTrader->m_deadbody_can_take;
@@ -155,7 +160,8 @@ BOOL CInventoryOwner::net_Spawn		(CSE_Abstract* DC)
 		CharacterInfo().m_SpecificCharacter.data()->m_sGameName = (E->name_replace()[0]) ? E->name_replace() : *pThis->cName();
 		m_game_name												= (E->name_replace()[0]) ? E->name_replace() : *pThis->cName();
 	}
-	
+
+	CharacterInfo().m_SpecificCharacter.updateMechanic(READ_IF_EXISTS(pSettings, r_bool, cast_game_object()->cNameSect(), "mechanic", SpecificCharacter().upgrade_mechanic()));
 
 	if(!pThis->Local())  return TRUE;
 
@@ -182,7 +188,7 @@ void	CInventoryOwner::save	(NET_Packet &output_packet)
 		output_packet.w_u8((u8)inventory().GetActiveSlot());
 
 	CharacterInfo().save(output_packet);
-	save_data	(m_game_name, output_packet);
+	save_data	(m_game_name_str, output_packet);
 	save_data	(m_money,	output_packet);
 }
 void	CInventoryOwner::load	(IReader &input_packet)
@@ -196,8 +202,10 @@ void	CInventoryOwner::load	(IReader &input_packet)
 	m_tmp_active_slot_num		 = active_slot;
 
 	CharacterInfo().load(input_packet);
-	load_data		(m_game_name, input_packet);
+	load_data		(m_game_name_str, input_packet);
 	load_data		(m_money,	input_packet);
+	if (g_actor != nullptr && this->object_id() != Actor()->object_id())
+		m_game_name = TranslateName(m_game_name_str.c_str());
 }
 
 
@@ -235,8 +243,12 @@ void CInventoryOwner::UpdateInventoryOwner(u32 deltaT)
 	}
 }
 
+void CInventoryOwner::RefreshNamesNPC()
+{
+	m_game_name = TranslateName(m_game_name_str.c_str());
+}
 
-//достать PDA из специального слота инвентар€
+//достать PDA из специального слота инвентаря
 CPda* CInventoryOwner::GetPDA() const
 {
 	return (CPda*)(m_inventory->ItemFromSlot(PDA_SLOT));
@@ -249,17 +261,17 @@ CTrade* CInventoryOwner::GetTrade()
 }
 
 
-//состо€ние диалога
+//состояние диалога
 
 //нам предлагают поговорить,
-//провер€ем наше отношение 
+//проверяем наше отношение 
 //и если не враг начинаем разговор
 bool CInventoryOwner::OfferTalk(CInventoryOwner* talk_partner)
 {
 	if(!IsTalkEnabled()) return false;
 
 	//проверить отношение к собеседнику
-	CEntityAlive* pPartnerEntityAlive = smart_cast<CEntityAlive*>(talk_partner);
+	CEntityAlive* pPartnerEntityAlive = talk_partner->cast_entity_alive();
 	R_ASSERT(pPartnerEntityAlive);
 	
 //	ALife::ERelationType relation = RELATION_REGISTRY().GetRelationType(this, talk_partner);
@@ -287,9 +299,11 @@ void CInventoryOwner::StopTalk()
 	m_pTalkPartner			= nullptr;
 	m_bTalking				= false;
 
-	CUIGameSP* ui_sp = smart_cast<CUIGameSP*>(CurrentGameUI());
-	if(ui_sp && ui_sp->TalkMenu->IsShown())
-		ui_sp->TalkMenu->Stop();
+	if (CurrentGameUI() == nullptr)
+		return;
+
+	if(CurrentGameUI()->TalkMenu->IsShown())
+		CurrentGameUI()->TalkMenu->Stop();
 }
 
 bool CInventoryOwner::IsTalking()
@@ -306,11 +320,10 @@ void CInventoryOwner::StopTrading()
 {
 	m_bTrading = false;
 
-	CUIGameSP* ui_sp = smart_cast<CUIGameSP*>( CurrentGameUI() );
-	if ( ui_sp )
-	{
-		ui_sp->HideActorMenu();
-	}
+	if (CurrentGameUI())
+		return;
+	 
+	CurrentGameUI()->HideActorMenu(); 
 }
 
 bool CInventoryOwner::IsTrading()
@@ -324,13 +337,14 @@ void CInventoryOwner::renderable_Render		()
 	if (inventory().ActiveItem())
 		inventory().ActiveItem()->renderable_Render();
 
-	if (auto* CurrEntity = smart_cast<CEntityAlive*>(this); CurrEntity == Actor()) {
-		auto rWeapon = inventory().ItemFromSlot(INV_SLOT_3);
+	if (CEntityAlive* CurrEntity = cast_entity_alive(); CurrEntity == Actor())
+	{
+		PIItem rWeapon = inventory().ItemFromSlot(INV_SLOT_3);
 		bool rValid = rWeapon ? rWeapon->BaseSlot() == INV_SLOT_3 : false;
 		if (rWeapon && rValid && rWeapon != inventory().ActiveItem())
 			rWeapon->renderable_Render();
 
-		auto lWeapon = inventory().ItemFromSlot(INV_SLOT_2);
+		PIItem lWeapon = inventory().ItemFromSlot(INV_SLOT_2);
 		bool lValid = lWeapon ? lWeapon->BaseSlot() == INV_SLOT_3 : false;
 		if (lWeapon && lValid && lWeapon != inventory().ActiveItem())
 			lWeapon->renderable_Render();
@@ -341,9 +355,10 @@ void CInventoryOwner::renderable_Render		()
 
 void CInventoryOwner::OnItemTake			(CInventoryItem *inventory_item)
 {
-	CGameObject	*object = smart_cast<CGameObject*>(this);
+	CGameObject	*object = cast_game_object();
 	VERIFY		(object);
-	object->callback(GameObject::eOnItemTake)(inventory_item->object().lua_game_object());
+	object->callback(GameObject::eOnItemTake)(inventory_item->object().lua_game_object(), inventory_item->m_last_dropped_owner_id);
+	inventory_item->m_last_dropped_owner_id = 65535;
 
 	attach		(inventory_item);
 
@@ -359,30 +374,40 @@ void CInventoryOwner::OnItemTake			(CInventoryItem *inventory_item)
 	}
 }
 
-//возвращает текуший разброс стрельбы с учетом движени€ (в радианах)
+//возвращает текуший разброс стрельбы с учетом движения (в радианах)
 float CInventoryOwner::GetWeaponAccuracy	() const
 {
 	return 0.f;
 }
 
 //максимальный переносимы вес
-float  CInventoryOwner::MaxCarryWeight () const
+float CInventoryOwner::MaxCarryWeight() const
 {
-	float ret =  inventory().GetMaxWeight();
+	float ret = inventory().GetMaxWeight();
 
-	const CCustomOutfit* outfit	= GetOutfit();
-	if(outfit)
+	const CCustomOutfit* outfit = GetOutfit();
+	if (outfit)
+	{
 		ret += outfit->m_additional_weight2;
+	}
+
+	const CBackpack* backpack = GetBackpack();
+	if (backpack)
+	{
+		ret += backpack->m_additional_weight2;
+	}
 
 	return ret;
 }
 
 void CInventoryOwner::spawn_supplies()
 {
-	if (smart_cast<CBaseMonster*>(this))
+	if (cast_base_monster())
+	{
 		return;
+	}
 
-	CGameObject* game_object = smart_cast<CGameObject*>(this);
+	CGameObject* game_object = cast_game_object();
 	VERIFY(game_object);
 
 	if (use_bolts())
@@ -402,7 +427,7 @@ void CInventoryOwner::spawn_supplies()
 	}
 }
 
-//игровое им€ 
+//игровое имя 
 LPCSTR	CInventoryOwner::Name () const
 {
 //	return CharacterInfo().Name();
@@ -428,10 +453,11 @@ void CInventoryOwner::LostPdaContact	(CInventoryOwner* pInvOwner)
 }
 
 //////////////////////////////////////////////////////////////////////////
-//дл€ работы с relation system
+//для работы с relation system
 u16 CInventoryOwner::object_id	()  const
 {
-	return smart_cast<const CGameObject*>(this)->ID();
+	CInventoryOwner* This = const_cast<CInventoryOwner*>(this);
+	return This->cast_game_object()->ID();
 }
 
 
@@ -440,7 +466,7 @@ u16 CInventoryOwner::object_id	()  const
 
 void CInventoryOwner::SetCommunity	(CHARACTER_COMMUNITY_INDEX new_community)
 {
-	CEntityAlive* EA					= smart_cast<CEntityAlive*>(this); VERIFY(EA);
+	CEntityAlive* EA					= cast_entity_alive(); VERIFY(EA);
 
 	CharacterInfo().SetCommunity( new_community );
 	if( EA->g_Alive() )
@@ -464,7 +490,7 @@ void CInventoryOwner::SetCommunity	(CHARACTER_COMMUNITY_INDEX new_community)
 
 void CInventoryOwner::SetRank			(CHARACTER_RANK_VALUE rank)
 {
-	CEntityAlive* EA					= smart_cast<CEntityAlive*>(this); VERIFY(EA);
+	CEntityAlive* EA					= cast_entity_alive(); VERIFY(EA);
 	CSE_Abstract* e_entity				= ai().alife().objects().object(EA->ID(), false);
 	if(!e_entity) return;
 	CSE_ALifeTraderAbstract* trader		= smart_cast<CSE_ALifeTraderAbstract*>(e_entity);
@@ -481,7 +507,7 @@ void CInventoryOwner::ChangeRank			(CHARACTER_RANK_VALUE delta)
 
 void CInventoryOwner::SetReputation		(CHARACTER_REPUTATION_VALUE reputation)
 {
-	CEntityAlive* EA					= smart_cast<CEntityAlive*>(this); VERIFY(EA);
+	CEntityAlive* EA					= cast_entity_alive(); VERIFY(EA);
 	CSE_Abstract* e_entity				= ai().alife().objects().object(EA->ID(), false);
 	if(!e_entity) return;
 
@@ -497,10 +523,31 @@ void CInventoryOwner::ChangeReputation	(CHARACTER_REPUTATION_VALUE delta)
 	SetReputation(Reputation() + delta);
 }
 
+void CInventoryOwner::SetIcon(const shared_str& iconName, bool is_outfit_icon)
+{
+	if (!is_outfit_icon)
+	{
+		CharacterInfo().m_SpecificCharacter.data()->m_prev_icon_name = iconName;
+	}
+
+	const shared_str& prev = CharacterInfo().m_SpecificCharacter.data()->m_prev_icon_name;
+	const shared_str& saved = CharacterInfo().m_SpecificCharacter.data()->m_saved_icon_name;
+	const shared_str& cur = CharacterInfo().m_SpecificCharacter.data()->m_icon_name;
+
+	if (CCustomOutfit* outfit = GetOutfit())
+	{
+		if (cur == outfit->GetPortrait())
+		{
+			return;
+		}
+	}
+	
+	CharacterInfo().m_SpecificCharacter.data()->m_icon_name = iconName.size() > 0 ? iconName : prev.size() > 0 ? prev : saved;
+}
 
 void CInventoryOwner::OnItemDrop(CInventoryItem *inventory_item, bool just_before_destroy)
 {
-	CGameObject	*object = smart_cast<CGameObject*>(this);
+	CGameObject	*object = cast_game_object();
 	VERIFY		(object);
 	object->callback(GameObject::eOnItemDrop)(inventory_item->object().lua_game_object());
 
@@ -513,14 +560,14 @@ void CInventoryOwner::OnItemDropUpdate ()
 
 void CInventoryOwner::OnItemBelt(CInventoryItem* inventory_item, const SInvItemPlace& previous_place)
 {
-	CGameObject* object = smart_cast<CGameObject*>(this);
+	CGameObject* object = cast_game_object();
 	VERIFY(object);
 	object->callback(GameObject::eItemToBelt)(inventory_item->object().lua_game_object());
 }
 
 void CInventoryOwner::OnItemRuck(CInventoryItem* inventory_item, const SInvItemPlace& previous_place)
 {
-	CGameObject* object = smart_cast<CGameObject*>(this);
+	CGameObject* object = cast_game_object();
 	VERIFY(object);
 	object->callback(GameObject::eItemToRuck)(inventory_item->object().lua_game_object());
 
@@ -529,7 +576,7 @@ void CInventoryOwner::OnItemRuck(CInventoryItem* inventory_item, const SInvItemP
 
 void CInventoryOwner::OnItemSlot(CInventoryItem* inventory_item, const SInvItemPlace& previous_place)
 {
-	CGameObject* object = smart_cast<CGameObject*>(this);
+	CGameObject* object = cast_game_object();
 	VERIFY(object);
 	object->callback(GameObject::eItemToSlot)(inventory_item->object().lua_game_object());
 
@@ -538,8 +585,22 @@ void CInventoryOwner::OnItemSlot(CInventoryItem* inventory_item, const SInvItemP
 
 CCustomOutfit* CInventoryOwner::GetOutfit() const
 {
-    return smart_cast<CCustomOutfit*>(inventory().ItemFromSlot(OUTFIT_SLOT));
+	PIItem item_from_slot = inventory().ItemFromSlot(OUTFIT_SLOT);
+    return item_from_slot ? item_from_slot->cast_outfit() : nullptr;
 }
+
+CHelmet* CInventoryOwner::GetHelmet() const
+{
+	PIItem item_from_slot = inventory().ItemFromSlot(HELMET_SLOT);
+	return item_from_slot ? item_from_slot->cast_helmet() : nullptr;
+}
+
+CBackpack* CInventoryOwner::GetBackpack() const
+{
+	PIItem item_from_slot = inventory().ItemFromSlot(BACKPACK_SLOT);
+	return item_from_slot ? item_from_slot->cast_backpack() : nullptr;
+}
+
 
 void CInventoryOwner::on_weapon_shot_start		(CWeapon *weapon)
 {
@@ -586,29 +647,27 @@ void CInventoryOwner::buy_supplies				(CInifile &ini_file, LPCSTR section)
 
 void CInventoryOwner::sell_useless_items		()
 {
-	CGameObject					*object = smart_cast<CGameObject*>(this);
+	CGameObject* object = cast_game_object();
 
-	TIItemContainer::iterator	I = inventory().m_all.begin();
-	TIItemContainer::iterator	E = inventory().m_all.end();
-	for ( ; I != E; ++I) {
-		if ( smart_cast<CBolt*>( *I ) )
+	for (PIItem item : inventory().m_all)
+	{
+		if (item->cast_bolt())
 		{
 			continue;
 		}
-		CInventoryItem* item = smart_cast<CInventoryItem*>( *I );
+
 		if (item->CurrSlot() && item->CurrPlace()==eItemPlaceSlot && item->cast_weapon())
 			continue;
 
-		CPda* pda = smart_cast<CPda*>( *I );
-		if ( pda )
+		if (CPda* pda = item->cast_pda())
 		{
 			if (pda->GetOriginalOwnerID() == object->ID())
 			{
 				continue;
 			}
 		}
-		(*I)->SetDropManual(FALSE);
-		(*I)->object().DestroyObject();
+		item->SetDropManual(FALSE);
+		item->object().DestroyObject();
 	}
 }
 
@@ -632,7 +691,7 @@ void CInventoryOwner::set_money		(u32 amount, bool bSendEvent)
 
 	if(bSendEvent)
 	{
-		CGameObject				*object = smart_cast<CGameObject*>(this);
+		CGameObject* object = cast_game_object();
 		NET_Packet				packet;
 		object->u_EventGen		(packet,GE_MONEY,object->ID());
 		packet.w_u32			(m_money);
@@ -660,7 +719,7 @@ bool CInventoryOwner::use_throw_randomness		()
 
 bool CInventoryOwner::is_alive()
 {
-	CEntityAlive* pEntityAlive = smart_cast<CEntityAlive*>(this);
+	CEntityAlive* pEntityAlive = cast_entity_alive();
 	R_ASSERT( pEntityAlive );
 	return (!!pEntityAlive->g_Alive());
 }
@@ -694,3 +753,4 @@ void CInventoryOwner::deadbody_closed( bool status )
 	P.w_u8( (m_deadbody_closed)? 1 : 0 );
 	CGameObject::u_EventSend( P );
 }
+

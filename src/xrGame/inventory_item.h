@@ -13,6 +13,7 @@
 #include "attachable_item.h"
 #include "xrServer_Objects_ALife.h"
 #include "xrServer_Objects_ALife_Items.h"
+#include "../xrScripts/script_export_space.h"
 
 enum EHandDependence{
 	hdNone	= 0,
@@ -30,6 +31,24 @@ class CWeapon;
 class CPhysicsShellHolder;
 class NET_Packet;
 class CEatableItem;
+class CArtefact;
+class CCustomOutfit;
+class CHelmet;
+class CCustomDetector;
+class CWeaponMagazined;
+class CWeaponMagazinedWGrenade;
+class CWeaponBinoculars;
+class CWeaponKnife;
+class CWeaponBM16;
+class CWeaponRPG7;
+class CWeaponRG6;
+class CTorch;
+class CBolt;
+class CPda;
+class CGrenade;
+class CSilencer;
+class CScope;
+class CGrenadeLauncher;
 struct SPHNetState;
 struct net_update_IItem;
 
@@ -78,6 +97,7 @@ protected:
 								FInInterpolate		=(1<<10),
 								FIsQuestItem		=(1<<11),
 								FIsHelperItem		=(1<<12),
+								FCanStack			=(1<<13),
 	};
 
 	Flags16						m_flags;
@@ -99,6 +119,7 @@ public:
 	
 	virtual bool				Useful				() const;									// !!! Переопределить. (см. в Inventory.cpp)
 	virtual bool				IsUsingCondition	() const { return m_flags.test(FUsingCondition); }
+	virtual bool				CanStack			() const { return (m_flags.test(FCanStack) > 0); };
 	virtual bool				Attach				(PIItem pIItem, bool b_send_event) {return false;}
 	virtual bool				Detach				(PIItem pIItem) {return false;}
 	//при детаче спаунится новая вещь при заданно названии секции
@@ -147,10 +168,12 @@ public:
 	shared_str					m_name;
 	shared_str					m_nameShort;
 	shared_str					m_nameComplex;
+	bool						m_highlight_equipped;
 	shared_str					m_custom_text;
 	Fvector2					m_custom_text_offset;
 	CGameFont*					m_custom_text_font;
 	u32							m_custom_text_clr_inv;
+	u32							m_last_dropped_owner_id = 65535;
 //	u32							m_custom_text_clr_hud; // used for pick_up_item on CUICellItem class
 	bool						m_custom_mark;
 	shared_str					m_custom_mark_texture;
@@ -160,7 +183,13 @@ public:
 	LPCSTR						m_custom_mark_lanim;
 
 	SInvItemPlace				m_ItemCurrPlace;
+	RStringVec					m_HiglightRelatedItemSections; // FFx0001 ++
 
+	struct SParseItem
+	{
+		RStringVec m_items = {};
+		FloatVec m_chances = {};
+	} m_parse_params;
 
 	virtual void				OnMoveToSlot		(const SInvItemPlace& prev) {};
 	virtual void				OnMoveToBelt		(const SInvItemPlace& prev) {};
@@ -276,14 +305,34 @@ private:
 public:
 	virtual CInventoryItem		*cast_inventory_item		()	{return this;}
 	virtual CAttachableItem		*cast_attachable_item		()	{return this;}
-	virtual CPhysicsShellHolder	*cast_physics_shell_holder	()	{return 0;}
-	virtual CEatableItem		*cast_eatable_item			()	{return 0;}
-	virtual CWeapon				*cast_weapon				()	{return 0;}
-	virtual CFoodItem			*cast_food_item				()	{return 0;}
-	virtual CMissile			*cast_missile				()	{return 0;}
-	virtual CHudItem			*cast_hud_item				()	{return 0;}
-	virtual CWeaponAmmo			*cast_weapon_ammo			()	{return 0;}
-	virtual CGameObject			*cast_game_object			()  {return 0;}
+	virtual CPhysicsShellHolder	*cast_physics_shell_holder	()	{return nullptr;}
+	virtual CEatableItem		*cast_eatable_item			()	{return nullptr;}
+	virtual CWeapon				*cast_weapon				()	{return nullptr;}
+	virtual CFoodItem			*cast_food_item				()	{return nullptr;}
+	virtual CMissile			*cast_missile				()	{return nullptr;}
+	virtual CHudItem			*cast_hud_item				()	{return nullptr;}
+	virtual CWeaponAmmo			*cast_weapon_ammo			()	{return nullptr;}
+	virtual CGameObject			*cast_game_object			()  {return nullptr;}
+	virtual CArtefact			*cast_artefact				()  {return nullptr;}
+	virtual CCustomOutfit		*cast_outfit				()	{return nullptr;}
+	virtual CHelmet				*cast_helmet				()	{return nullptr;}
+	virtual CCustomDetector		*cast_custom_detector		()	{return nullptr;}
+	virtual CWeaponBinoculars	*cast_weapon_binoculars		()  {return nullptr;}
+	virtual CWeaponKnife		*cast_weapon_knife			()  {return nullptr;}
+	virtual CWeaponMagazined	*cast_weapon_magazined		()  {return nullptr;}
+	virtual CWeaponMagazinedWGrenade* cast_weapon_magazined_w_grenade() {return nullptr;}
+	virtual CWeaponBM16			*cast_weapon_bm16			()  {return nullptr;}
+	virtual CTorch				*cast_torch					()  {return nullptr;}
+	virtual CWeaponRPG7* cast_weapon_rpg7() { return nullptr; }
+	virtual CWeaponRG6* cast_weapon_rg6() { return nullptr; }
+	virtual CBolt* cast_bolt() { return nullptr; }
+	virtual CPda* cast_pda() { return nullptr; }
+	virtual CGrenade* cast_grenade() { return nullptr; }
+	virtual CSilencer* cast_addon_silencer() {return nullptr;}
+	virtual CScope* cast_addon_scope() {return nullptr;}
+	virtual CGrenadeLauncher* cast_addon_grenade_launcher() {return nullptr;}
+	virtual CPhysicItem* cast_physics_item() { return nullptr; }
+	virtual CBackpack* cast_backpack() { return nullptr; }
 
 	////////// upgrades //////////////////////////////////////////////////
 public:
@@ -298,6 +347,7 @@ public:
 	bool	has_upgrade_group			( const shared_str& upgrade_group_id );
 	void	add_upgrade					( const shared_str& upgrade_id, bool loading );
 	bool	get_upgrades_str			( string2048& res ) const;
+	Upgrades_type get_upgrades() { return m_upgrades; }	//Alundaio
 
 	bool	equal_upgrades				( Upgrades_type const& other_upgrades ) const;
 
@@ -332,6 +382,7 @@ protected:
 public:
 	IC bool	is_helper_item				()				 { return !!m_flags.test(FIsHelperItem); }
 	IC void	set_is_helper				(bool is_helper) { m_flags.set(FIsHelperItem,is_helper); }
+	DECLARE_SCRIPT_REGISTER_FUNCTION
 }; // class CInventoryItem
 
 #include "inventory_item_inline.h"

@@ -11,6 +11,8 @@
 #include "../Include/xrRender/Kinematics.h"
 #include "player_hud.h"
 #include "ActorHelmet.h"
+#include "UIGameCustom.h"
+#include "UIActorMenu.h"
 
 
 CCustomOutfit::CCustomOutfit()
@@ -106,20 +108,36 @@ void CCustomOutfit::Load(LPCSTR section)
 
 	m_full_icon_name		= pSettings->r_string( section, "full_icon_name" );
 	m_artefact_count 		= READ_IF_EXISTS( pSettings, r_u32, section, "artefact_count", 0 );
-	clamp( m_artefact_count, (u32)0, (u32)5 );
+	//clamp( m_artefact_count, (u32)0, (u32)100 );
 
 	m_BonesProtectionSect	= READ_IF_EXISTS(pSettings, r_string, section, "bones_koeff_protection",  "" );
 	bIsHelmetAvaliable		= !!READ_IF_EXISTS(pSettings, r_bool, section, "helmet_avaliable", true);
 
+	bIsHudGasMaskAvialable = !!READ_IF_EXISTS(pSettings, r_bool, section, "hud_gas_mask_avaliable", true);		// FFx0001 ++
+	bIsHudRainDropsAvialable = !!READ_IF_EXISTS(pSettings, r_bool, section, "hud_rain_drops_avaliable", true);  // FFx0001 ++
+
 	// Added by Axel, to enable optional condition use on any item
 	m_flags.set(FUsingCondition, READ_IF_EXISTS(pSettings, r_bool, section, "use_condition", true));
+
+	IsExo = READ_IF_EXISTS(pSettings, r_bool, section, "is_exo", false);
+	IsExoProto = READ_IF_EXISTS(pSettings, r_bool, section, "is_exo_proto", false);
+
+	if (pSettings->line_exist(section, "glass_present"))
+	{
+		GlassPresent = pSettings->r_bool(section, "glass_present");
+	}
+
+	if (pSettings->line_exist(section, "character_portrait"))
+	{
+		m_character_portrait = pSettings->r_string(section, "character_portrait");
+	}
 }
 
 void CCustomOutfit::ReloadBonesProtection()
 {
 	CObject* parent = H_Parent();
 	if(IsGameTypeSingle())
-		parent = smart_cast<CObject*>(Level().CurrentViewEntity());
+		parent = Level().CurrentViewEntity();
 
 	if(parent && parent->Visual() && m_BonesProtectionSect.size())
 		m_boneProtection->reload( m_BonesProtectionSect, smart_cast<IKinematics*>(parent->Visual()));
@@ -128,7 +146,10 @@ void CCustomOutfit::ReloadBonesProtection()
 void CCustomOutfit::Hit(float hit_power, ALife::EHitType hit_type)
 {
 	hit_power *= GetHitImmunity(hit_type);
-	ChangeCondition(-hit_power);
+	if (!psActorFlags.test(AF_INFINITEDURABILITY))
+	{
+		ChangeCondition(-hit_power);
+	}
 }
 
 float CCustomOutfit::GetDefHitTypeProtection(ALife::EHitType hit_type)
@@ -207,21 +228,14 @@ BOOL	CCustomOutfit::BonePassBullet					(int boneID)
 	return m_boneProtection->getBonePassBullet(s16(boneID));
 }
 
-#include "Torch.h"
-void	CCustomOutfit::OnMoveToSlot		(const SInvItemPlace& prev)
+void CCustomOutfit::OnMoveToSlot(const SInvItemPlace& prev)
 {
-	if ( m_pInventory )
+	if (m_pInventory)
 	{
-		CActor* pActor = smart_cast<CActor*>( H_Parent() );
-		if ( pActor )
+		CActor* pActor = H_Parent() ? H_Parent()->cast_actor() : nullptr;
+		if (pActor)
 		{
 			ApplySkinModel(pActor, true, false);
-			if (prev.type==eItemPlaceSlot && !bIsHelmetAvaliable)
-			{
-				CTorch* pTorch = smart_cast<CTorch*>(pActor->inventory().ItemFromSlot(TORCH_SLOT));
-				if(pTorch && pTorch->GetNightVisionStatus())
-					pTorch->SwitchNightVision(true, false);
-			}
 			PIItem pHelmet = pActor->inventory().ItemFromSlot(HELMET_SLOT);
 			if(pHelmet && !bIsHelmetAvaliable)
 				pActor->inventory().Ruck(pHelmet, false);
@@ -262,12 +276,36 @@ void CCustomOutfit::ApplySkinModel(CActor* pActor, bool bDress, bool bHUDOnly)
 		}
 
 
-		if (pActor == Level().CurrentViewEntity())	
-			g_player_hud->load(pSettings->r_string(cNameSect(),"player_hud_section"));
-	}else
+		if (pActor == Level().CurrentViewEntity())
+		{
+			if (m_character_portrait.size() > 0)
+			{
+				pActor->SetIcon(m_character_portrait, true);
+				if (auto current_ui = CurrentGameUI())
+				{
+					if (current_ui->ActorMenu().IsShown())
+					{
+						current_ui->ActorMenu().ReloadActorInfo();
+					}
+				}
+			}
+
+			g_player_hud->NextHUDSect = pSettings->r_string(cNameSect(), "player_hud_section");
+			g_player_hud->m_need_reload = false;
+		}
+	}
+	else
 	{
 		if (!bHUDOnly && m_ActorVisual.size())
 		{
+			pActor->SetIcon("", true);
+			if (auto current_ui = CurrentGameUI())
+			{
+				if (current_ui->ActorMenu().IsShown())
+				{
+					current_ui->ActorMenu().ReloadActorInfo();
+				}
+			}
 			shared_str DefVisual	= pActor->GetDefaultVisualOutfit();
 			if (DefVisual.size())
 			{
@@ -275,23 +313,27 @@ void CCustomOutfit::ApplySkinModel(CActor* pActor, bool bDress, bool bHUDOnly)
 			};
 		}
 
-		if (pActor == Level().CurrentViewEntity())	
-			g_player_hud->load_default();
+		if (pActor == Level().CurrentViewEntity())
+		{
+			g_player_hud->NextHUDSect = 0;
+			g_player_hud->m_need_reload = false;
+		}
 	}
 
 }
 
-void	CCustomOutfit::OnMoveToRuck		(const SInvItemPlace& prev)
+void CCustomOutfit::OnMoveToRuck(const SInvItemPlace& prev)
 {
-	if(m_pInventory && prev.type==eItemPlaceSlot)
+	if (m_pInventory && prev.type==eItemPlaceSlot)
 	{
-		CActor* pActor = smart_cast<CActor*> (H_Parent());
+		CActor* pActor = H_Parent() ? H_Parent()->cast_actor() : nullptr;
 		if (pActor)
 		{
 			ApplySkinModel(pActor, false, false);
-			CTorch* pTorch = smart_cast<CTorch*>(pActor->inventory().ItemFromSlot(TORCH_SLOT));
-			if(pTorch && !bIsHelmetAvaliable)
-				pTorch->SwitchNightVision(false);
+			if (pActor->GetNightVisionEffector() && !bIsHelmetAvaliable)
+			{
+				pActor->GetNightVisionEffector()->SwitchNightVision(false);
+			}
 		}
 	}
 };
@@ -349,7 +391,7 @@ bool CCustomOutfit::install_upgrade_impl( LPCSTR section, bool test )
 	clamp( m_fPowerLoss, 0.0f, 1.0f );
 
 	result |= process_if_exists( section, "artefact_count", &CInifile::r_u32, m_artefact_count, test );
-	clamp( m_artefact_count, (u32)0, (u32)5 );
+	//clamp( m_artefact_count, (u32)0, (u32)100 );
 
 	return result;
 }
@@ -358,7 +400,7 @@ void CCustomOutfit::AddBonesProtection(LPCSTR bones_section)
 {
 	CObject* parent = H_Parent();
 	if(IsGameTypeSingle())
-		parent = smart_cast<CObject*>(Level().CurrentViewEntity());
+		parent = Level().CurrentViewEntity();
 
 	if ( parent && parent->Visual() && m_BonesProtectionSect.size() )
 		m_boneProtection->add(bones_section, smart_cast<IKinematics*>( parent->Visual() ) );

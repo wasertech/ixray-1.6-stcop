@@ -10,6 +10,48 @@ file(GLOB_RECURSE XGM_SOURCE_ALL_FILES CONFIGURE_DEPENDS
 	"../xrServerEntities/*.*"
 	"../xrGameSpy/gamespy/md5c.c"
 )
+
+file(GLOB_RECURSE XGM_SOURCE_AI_PLANNERS
+	"*_planner_*.*"
+	"planner_*.*"
+	"*_planner.*"
+	"planner.*"
+
+	"action_*.*"
+	"*_action.*"
+	"*_action_*.*"
+	"action.*"
+
+	"squad_hierarchy_holder.*"
+)
+
+file(GLOB_RECURSE XGM_SOURCE_AI_SCRIPT
+	"*script*.*"
+)
+
+file(GLOB_RECURSE XGM_SOURCE_AI_STALKER_AI_Brains
+	"ai_*.*"
+	"aimers_*.*"
+	"agent_*.*"
+	"property*.*"
+	"stalker_*.*" 
+)
+
+file(GLOB_RECURSE XGM_SOURCE_AI_STALKER_AI_Pathes
+	"abstract_location_selector*.*"
+	"abstract_path_manager*.*"
+	"movement_manager*.*"
+	"moving*.*"
+	"patrol_*"
+	"path_manager_params.h"
+
+)
+
+file(GLOB_RECURSE XGM_SOURCE_AI_STALKER_AI_Controls
+	"control_*.*"
+	"monster_*.*"
+)
+ 
 file(GLOB_RECURSE XGM_SOURCE_AI_FILES
 	"ai/*.*"
 	"ai_*.*"
@@ -59,6 +101,8 @@ file(GLOB_RECURSE XGM_SOURCE_SERV_FILES
 	"game_*.*"
 )
 
+file(GLOB_RECURSE XGM_SOURCE_AI_STALKER_FILES "ai/stalker/*.*")
+file(GLOB_RECURSE XGM_SOURCE_AI_TRADER_FILES "ai/trader/*.*")
 file(GLOB_RECURSE XGM_SOURCE_AI_BASE_FILES "ai/monsters/base_monster/*.*")
 file(GLOB_RECURSE XGM_SOURCE_AI_GS_FILES "ai/monsters/group_states/*.*")
 file(GLOB_RECURSE XGM_SOURCE_AI_STATE_FILES "ai/monsters/states/*.*")
@@ -78,14 +122,20 @@ file(GLOB_RECURSE XGM_SOURCE_AI_RATS_FILES "ai/monsters/rats/*.*")
 file(GLOB_RECURSE XGM_SOURCE_AI_SNORK_FILES "ai/monsters/snork/*.*")
 file(GLOB_RECURSE XGM_SOURCE_AI_TUSH_FILES "ai/monsters/tushkano/*.*")
 file(GLOB_RECURSE XGM_SOURCE_AI_ZOMB_FILES "ai/monsters/zombie/*.*")
+file(GLOB_RECURSE XGM_SOURCE_WPN_FILES "Weapon*.*")
 
 file(GLOB_RECURSE XGM_SOURCE_LEGACY_FILES "Legacy/*.*")
+
+file(GLOB_RECURSE XGM_SOURCE_IMGUI_INGAME_FILES "ImUtils/*.*")
+file(GLOB_RECURSE XGM_SOURCE_ANIM_NOTIFY_FILES "AnimNotify/*.*")
 
 # Source groups
 source_group("core" FILES ${XGM_SOURCE_ALL_FILES})
 source_group("ui" FILES ${XGM_SOURCE_UI_FILES})
 #source_group("ai" FILES ${XGM_SOURCE_AI_FILES})
 source_group("ai/car" FILES ${XGM_SOURCE_CAR_FILES})
+source_group("ai/trader" FILES ${XGM_SOURCE_AI_TRADER_FILES})
+source_group("ai/stalker" FILES ${XGM_SOURCE_AI_STALKER_FILES})
 source_group("ai/smart_cover" FILES ${XGM_SOURCE_SC_FILES})
 source_group("ai/space_restictor" FILES ${XGM_SOURCE_SR_FILES})
 source_group("ai/monsters/base" FILES ${XGM_SOURCE_AI_BASE_FILES})
@@ -108,13 +158,28 @@ source_group("ai/monsters/snork" FILES ${XGM_SOURCE_AI_SNORK_FILES})
 source_group("ai/monsters/tushkano" FILES ${XGM_SOURCE_AI_TUSH_FILES})
 source_group("ai/monsters/zombie" FILES ${XGM_SOURCE_AI_ZOMB_FILES})
 source_group("alife" FILES ${XGM_SOURCE_ALIFE_FILES})
-source_group("script" FILES ${XGM_SOURCE_SCRIPT_FILES})
-source_group("server" FILES ${XGM_SOURCE_SERV_FILES})
+source_group("client&server" FILES ${XGM_SOURCE_SERV_FILES})
 source_group("actor" FILES ${XGM_SOURCE_ACTOR_FILES})
 source_group("level" FILES ${XGM_SOURCE_LEVEL_FILES})
 source_group("ikan" FILES ${XGM_SOURCE_IKAN_FILES})
 source_group("inventory" FILES ${XGM_SOURCE_INV_FILES})
-source_group("Legacy" FILES ${XGM_SOURCE_LEGACY_FILES})
+source_group("weapons" FILES ${XGM_SOURCE_WPN_FILES})
+source_group("ai/legacy_planner" FILES ${XGM_SOURCE_LEGACY_FILES})
+source_group("AnimNotify" FILES ${XGM_SOURCE_ANIM_NOTIFY_FILES})
+
+source_group("imgui/utils" FILES ${XGM_SOURCE_IMGUI_INGAME_FILES})
+source_group("ai/scripting" FILES ${XGM_SOURCE_AI_SCRIPT})
+
+source_group("ai_brains/planners" FILES ${XGM_SOURCE_AI_PLANNERS} )
+source_group("ai_brains/stalker/brains" FILES ${XGM_SOURCE_AI_STALKER_AI_Brains} )
+source_group("ai_brains/stalker/pathes" FILES ${XGM_SOURCE_AI_STALKER_AI_Pathes})
+source_group("ai_brains/monsters" FILES ${XGM_SOURCE_AI_STALKER_AI_Controls} )
+ 
+
+
+
+
+
 
 # Apply list
 list(APPEND XGM_SRC_FILES ${XGM_SOURCE_ALL_FILES})
@@ -125,7 +190,6 @@ list(FILTER XGM_SRC_FILES EXCLUDE REGEX "WeaponMounted.*")
 list(FILTER XGM_SRC_FILES EXCLUDE REGEX "LevelFogOfWar.*")
 list(FILTER XGM_SRC_FILES EXCLUDE REGEX "ai/monsters/rats/ai_rat_fsm.*")
 list(FILTER XGM_SRC_FILES EXCLUDE REGEX "ui/IUWpnParams.*")
-list(FILTER XGM_SRC_FILES EXCLUDE REGEX "ui/UIRankFaction.*")
 list(FILTER XGM_SRC_FILES EXCLUDE REGEX "ui/UIRankFraction.*")
 list(FILTER XGM_SRC_FILES EXCLUDE REGEX "ui/UIStalkersRankingWnd.*")
 
@@ -149,12 +213,6 @@ target_compile_definitions(xrGame PRIVATE _USRDLL)
 target_compile_definitions(xrGame PRIVATE XRGAME_EXPORTS)
 target_compile_definitions(xrGame PRIVATE dSINGLE)
 
-if (IXRAY_MP)
-	target_compile_definitions(xrGame PRIVATE XR_MP_BUILD)
-endif()
-
-add_compile_options(/fp:fast)
-add_compile_options(/FS)
 target_compile_definitions(xrGame PRIVATE "$<$<CONFIG:Debug>:DEBUG>")
 
 # Linker list
@@ -167,10 +225,6 @@ target_link_libraries(xrGame PUBLIC luabind)
 target_link_libraries(xrGame PUBLIC crypto)
 
 target_link_libraries(xrGame PRIVATE "shlwapi.lib")
-
-if(IXRAY_MP)
-    target_link_libraries(xrGame PUBLIC CxImage)
-endif()
 
 # Move precompiled header
 set_target_properties(xrGame PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
@@ -186,3 +240,15 @@ endif()
 
 file(GLOB_RECURSE GAME_SOURCE_PCH_FILES "stdafx.*")
 source_group("pch" FILES ${GAME_SOURCE_PCH_FILES})
+
+# RedImage
+if(IXRAY_MP)
+	target_link_libraries(xrGame PUBLIC ${REDIMAGE_LIB})
+	target_include_directories(xrGame PUBLIC "${REDIMAGE_INCL}")
+
+	## Copy binaries
+	add_custom_command(TARGET ${PROJECT_NAME}
+	    POST_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${REDIMAGE_BIN} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
+	)
+endif()

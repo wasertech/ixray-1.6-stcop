@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <SDL_Ext/SDL_image.h>
@@ -56,7 +56,10 @@ void Update(int progress = 0, const char*status = "")
 
 	SDL_RenderClear(splashRenderer);
 
-	SDL_QueryTexture(texture, nullptr, nullptr, &WinW, &WinH);
+	float sizeX, sizeY;
+	SDL_GetTextureSize(texture, &sizeX, &sizeY);
+	WinW = sizeX;
+	WinH = sizeY;
 
 	SDL_FRect dstRect = { 0, 0, WinW, WinH };
 	SDL_RenderTexture(splashRenderer, texture, nullptr, &dstRect);
@@ -102,14 +105,7 @@ SDL_Surface* LoadPNGSurfaceFromResource(unsigned char* imageData, LPCTSTR lpName
 		return nullptr;
 	}
 	
-	SDL_Surface* surface = SDL_CreateSurfaceFrom(
-		imageData,            
-		width,                
-		height,               
-		width * 4,            
-		SDL_PIXELFORMAT_RGBA32
-	);
-
+	SDL_Surface* surface = SDL_CreateSurfaceFrom(width, height, SDL_PIXELFORMAT_RGBA32, imageData, width * 4);
 	if (!surface) {
 		stbi_image_free(imageData);
 		ErrorMsg("Failed to create pixel format (ID %d). %s", lpName, SDL_GetError());
@@ -121,10 +117,12 @@ SDL_Surface* LoadPNGSurfaceFromResource(unsigned char* imageData, LPCTSTR lpName
 
 void Destroy()
 {
+	if (texture)
+		SDL_DestroyTexture(texture);
+	SDL_DestroyTexture(fontTexture);
+
 	SDL_DestroyRenderer(splashRenderer);
 	SDL_DestroyWindow(splashWindow);
-	SDL_DestroyTexture(texture);
-	SDL_DestroyTexture(fontTexture);
 
 	splashRenderer = nullptr;
 	splashWindow = nullptr;
@@ -140,14 +138,9 @@ namespace splash
 		
 		outText = true;
 		
-		if (SDL_Init(0) != 0) {
-			ErrorMsg("SDL_Init Error: %s", SDL_GetError());
-			return;
-		}
-		
 		unsigned char* imageData = nullptr;
 
-		SDL_Surface* surface = LoadPNGSurfaceFromResource(imageData, MAKEINTRESOURCE(idb), _T("PNG"));
+		SDL_Surface* surface = LoadPNGSurfaceFromResource(imageData, MAKEINTRESOURCE(idb), TEXT("PNG"));
 		
 		if (!surface)
 		{
@@ -172,8 +165,7 @@ namespace splash
 			return;
 		}
 
-		splashRenderer = SDL_CreateRenderer(splashWindow, NULL, NULL
-		/*"splashRenderer", SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC*/);
+		splashRenderer = SDL_CreateRenderer(splashWindow, NULL);
 		if (!splashRenderer) {
 			Destroy();
 			ErrorMsg("SDL_CreateRenderer Error: %s", SDL_GetError());
@@ -190,7 +182,7 @@ namespace splash
 			return;
 		}
 
-		SDL_Surface* fontSurface = LoadPNGSurfaceFromResource(imageData, MAKEINTRESOURCE(IDB_FONT), _T("PNG"));
+		SDL_Surface* fontSurface = LoadPNGSurfaceFromResource(imageData, MAKEINTRESOURCE(IDB_FONT), TEXT("PNG"));
 
 		if (!fontSurface)
 		{

@@ -1,6 +1,6 @@
 //---------------------------------------------------------------------------
 #include "stdafx.h"
-#pragma hdrstop
+
 #include "../xrEngine/GameFont.h"
 #include <sal.h>
 #include "ImageManager.h"
@@ -10,6 +10,7 @@
 #include "../Layers/xrRender/ResourceManager.h"
 #include "../Layers/xrRender/dxRenderDeviceRender.h"
 #include "UI_ToolsCustom.h"
+#include "SoundProcessor.h"
 
 CEditorRenderDevice 	*	EDevice;
 bool g_bIsEditor;
@@ -124,8 +125,6 @@ void CEditorRenderDevice::Initialize()
 	DRender = &DebugRenderImpl;
 #endif
 
-	SDL_Init(0);
-
 	// compiler shader
     string_path fn;
     FS.update_path(fn,_game_data_,"shaders_xrlc.xr");
@@ -152,6 +151,16 @@ void CEditorRenderDevice::Initialize()
 		SDL_MaximizeWindow(g_AppInfo.Window);
 	
 	SDL_ShowWindow(g_AppInfo.Window);
+
+
+	if (psDeviceFlags.test(mtSound))
+	{
+		Device.seqFrameMT.Add(&SoundProcessor);
+	}
+	else
+	{
+		Device.seqFrame.Add(&SoundProcessor);
+	}
 }
 
 void CEditorRenderDevice::ShutDown()
@@ -162,7 +171,16 @@ void CEditorRenderDevice::ShutDown()
 	ShaderXRLC.Unload	();
 
 	// destroy context
-	Destroy				();
+	Destroy();
+
+	if (psDeviceFlags.test(mtSound))
+	{
+		Device.seqFrameMT.Remove(&SoundProcessor);
+	}
+	else
+	{
+		Device.seqFrame.Remove(&SoundProcessor);
+	}
 }
 
 void CEditorRenderDevice::InitTimer()
@@ -217,7 +235,7 @@ bool CEditorRenderDevice::Create()
 	//HW.CreateDevice		(m_hWnd, true);
 	if (UI)
 	{
-		hwnd = (HWND)SDL_GetProperty(SDL_GetWindowProperties(g_AppInfo.Window), "SDL.window.win32.hwnd", nullptr);
+		HWND hwnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(g_AppInfo.Window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
 		string_path 		ini_path;
 		string_path			ini_name;
 		xr_strcpy			(ini_name, UI->EditorName());
@@ -400,6 +418,7 @@ void CEditorRenderDevice::Reset(IReader* F, BOOL bKeepTextures)
 
 void CEditorRenderDevice::MaximizedWindow()
 {
+	auto hwnd = GetHWND();
 	if (IsZoomed(hwnd))
 		SendMessageW(hwnd, WM_SYSCOMMAND, SC_RESTORE, 0);
 
@@ -429,7 +448,7 @@ void CEditorRenderDevice::ResoreWindow(bool moving)
 	if (EDevice->NormalWinSizeSaved)
 	{
 		auto& r = EDevice->NormalWinSize;
-		MoveWindow(hwnd, r.left, r.top, r.right - r.left, r.bottom - r.top, TRUE);
+		MoveWindow(GetHWND(), r.left, r.top, r.right - r.left, r.bottom - r.top, TRUE);
 
 		if (moving)
 		{
@@ -439,9 +458,25 @@ void CEditorRenderDevice::ResoreWindow(bool moving)
 		}
 	}
 	{
-		LONG style = GetWindowLong(hwnd, GWL_STYLE);
-		style |= WS_THICKFRAME;
-		SetWindowLong(hwnd, GWL_STYLE, style);
+		// Получаем текущий стиль окна
+		LONG style = GetWindowLong(GetHWND(), GWL_STYLE);
+
+		// Оставляем WS_THICKFRAME (для докинга), но убираем заголовок и ненужные элементы
+		style &= ~WS_CAPTION;         // Убираем заголовок (крестик, свернуть и т. д.)
+		style &= ~WS_SYSMENU;         // Убираем системное меню (Alt+Space)
+		style |= WS_THICKFRAME;       // Оставляем для докинга и изменения размера
+		style |= WS_BORDER;           // Тонкая рамка (опционально)
+
+		// Применяем новый стиль
+		SetWindowLong(GetHWND(), GWL_STYLE, style);
+
+		// Принудительно обновляем окно, чтобы изменения вступили в силу
+		SetWindowPos(
+			GetHWND(),
+			nullptr,
+			0, 0, 0, 0,
+			SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
+		);
 	}
 	EDevice->isZoomed = false;
 
@@ -538,9 +573,9 @@ void CEditorRenderDevice::InitWindowStyle()
 	UI->InitWindowIcons();
 
 #if _WINDOWS
-	LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
+	LONG_PTR style = GetWindowLongPtr(GetHWND(), GWL_STYLE);
 	style &= ~WS_CAPTION;
-	SetWindowLongPtr(hwnd, GWL_STYLE, style);
+	SetWindowLongPtr(GetHWND(), GWL_STYLE, style);
 #else
 	SDL_SetWindowResizable(g_AppInfo.Window, SDL_TRUE);
 	SDL_SetWindowHitTest(g_AppInfo.Window, HitTestCallback, 0);
@@ -590,6 +625,12 @@ void CEditorRenderDevice::time_factor(float v)
 	 TimerGlobal.time_factor(v);
 }
 
+HWND CEditorRenderDevice::GetHWND() const
+{
+	HWND hwnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(g_AppInfo.Window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
+	return hwnd;
+}
+
 void CEditorRenderDevice::CreateWindow()
 {
 	int DisplayX = GetSystemMetrics(SM_CXFULLSCREEN);
@@ -601,4 +642,9 @@ void CEditorRenderDevice::CreateWindow()
 void CEditorRenderDevice::DestryWindow()
 {
 	SDL_DestroyWindow(g_AppInfo.Window);
+}
+
+u32 GetGpuNum()
+{
+	return 2;
 }

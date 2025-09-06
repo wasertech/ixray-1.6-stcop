@@ -1,10 +1,6 @@
 #pragma once
 #include "Engine/communicate.h"
 
-//refs
-
-#if 1
-//extern doug_lea_allocator	g_render_lua_allocator;
 extern doug_lea_area_allocator	g_render_lua_allocator_area;
 
 template <class T>
@@ -54,7 +50,6 @@ struct doug_lea_allocator_wrapper {
 
 #	define render_alloc				doug_lea_alloc
 typedef doug_lea_allocator_wrapper	render_allocator;
-#endif
 
 struct FSChunkDef;
 class PropValue;
@@ -288,7 +283,8 @@ public:
 	int  			GetQueryObjects(ObjectList& objset, ObjClassID classfilter, int iSel = 1, int iVis = 1, int iLock = 0);
 	const Fvector&	GetCameraPosition() const;
 
-public:
+	bool GetPlayInEditorRayPickCall();
+	virtual void SetPlayInEditorRayPickCall(bool Value) override;
 
 	void 			OnCreate();
 	void 			OnDestroy();
@@ -356,7 +352,15 @@ public:
 private:
 	virtual void OnFrame() override;
 
+public:
+	xr_string full_name;
+
+	bool IsValidateAtMake = true;
+	bool IsValidateDublicateNames = true;
+	bool IsValidateLODs = true;
 private:
+	bool IsAppliedPos = false;
+	bool IsPIERayPick = false;
 	CLevelGraphEditor m_level_graph;
 	CGameGraphEditor m_game_graph;
 	CMemoryWriter	m_spawn_data;
@@ -364,8 +368,9 @@ private:
 	CGameGraphBuilder m_graph_builder;
 	CFormBuilder m_cform_builder;
 
-	bool IsAppliedPos = false;
 	Fvector ActorNewPos = {};
+	Fvector ActorNewDir = {};
+	xrCriticalSection PickUpLock;
 };
 
 

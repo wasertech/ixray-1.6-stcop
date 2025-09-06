@@ -1,6 +1,4 @@
 #pragma once
-
-
 #include "../../xrUI/Widgets/UIStatic.h"
 #include "../../xrUI/Widgets/UI3tButton.h"
 #include "../../xrUI/Widgets/UIFrameLineWnd.h"
@@ -9,7 +7,7 @@
 
 #include "UICharacterInfo.h"
 #include "UIItemInfo.h"
-
+#include "../Phrase.h"
 #include "../../xrUI/Widgets/UIWndCallback.h"
 
 class CUIScrollView;
@@ -45,15 +43,19 @@ public:
 	shared_str			m_ClickedQuestionID;
 
 	//список вопросов, которые мы можем задавать персонажу
+	CUIStatic* UIDialogFrameTop;
+	CUIStatic* UIDialogFrameBottom;
 
-//	Fvector2			m_btn_pos[3];
+	Fvector2			m_btn_pos[3];
 	CUI3tButton			UIToTradeButton;
-//	CUI3tButton			UIToExitButton;
+	CUI3tButton*		UIToExitButton;
 
+	CUIStatic* UIOurIcon;
+	CUIStatic* UIOthersIcon;
 	CUICharacterInfo	UICharacterInfoLeft;
 	CUICharacterInfo	UICharacterInfoRight;
 
-	void				AddQuestion			(LPCSTR str, LPCSTR value, int number, bool b_finalizer);
+	void				AddQuestion			(LPCSTR str, LPCSTR value, int number, SPhraseInfo &phInfo);
 	void				AddAnswer			(LPCSTR SpeakerName, const char* str, bool bActor);
 	void				AddIconedAnswer		(LPCSTR caption, LPCSTR text, LPCSTR texture_name, LPCSTR templ_name);
 	void				ClearAll			();
@@ -62,6 +64,8 @@ public:
 	void				SetOsoznanieMode	(bool b);
 	void				SetTradeMode		();
 	void				UpdateButtonsLayout	(bool b_disable_break, bool trade_enabled);
+
+	virtual CUIWindow* ui_cast_window() { return this; }
 
 private:
 	CUIScrollView*			UIQuestionsList;
@@ -89,11 +93,15 @@ public:
 	CUI3tButton*	m_text;
 	shared_str		m_s_value;
 	float			m_fOffset;
+	Fvector2		m_icon_size;
+	float			m_fOffsetAfterIcon;
 					CUIQuestionItem			(CUIXml* xml_doc, LPCSTR path);
 	void			Init					(LPCSTR val, LPCSTR text);
 
 	virtual void	SendMessage				(CUIWindow* pWnd, s16 msg, void* pData = NULL);
 	void 	OnTextClicked			(CUIWindow* w, void*);
+
+	virtual CUIWindow* ui_cast_window() { return this; }
 };
 
 class CUIAnswerItem :public CUIWindow
@@ -117,5 +125,6 @@ class CUIAnswerItemIconed :public CUIAnswerItem
 public:
 					CUIAnswerItemIconed		(CUIXml* xml_doc, LPCSTR path);
 	void			Init					(LPCSTR text, LPCSTR name, LPCSTR texture_name);
+	virtual CUIWindow* ui_cast_window() { return this; }
 
 };

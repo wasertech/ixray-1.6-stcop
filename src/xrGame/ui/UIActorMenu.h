@@ -5,6 +5,9 @@
 #include "../../xrServerEntities/inventory_space.h"
 #include "../../xrUI/Widgets/UIHint.h"
 
+#include "../script_game_object.h" //Alundaio
+#include <WeaponMagazined.h>
+
 class CUICharacterInfo;
 class CUIDragDropListEx;
 class CUIDragDropReferenceList;
@@ -97,8 +100,8 @@ protected:
 	CUIDragDropListEx*			m_pDeadBodyBagList;
 	CUIDragDropListEx*			m_pTrashList;
 
-	enum						{e_af_count = 5};
-	CUIStatic*					m_belt_list_over[e_af_count];
+	int							m_ArtefactSlotsCount = 5;
+	xr_vector<CUIStatic*>		m_belt_list_over;
 	CUIStatic*					m_HelmetOver;
 
 	u8							m_slot_count;
@@ -106,73 +109,108 @@ protected:
 	CUIProgressBar*				m_pInvSlotProgress[LAST_SLOT + 1];
 	CUIDragDropListEx*			m_pInvList[LAST_SLOT + 1];
 
-	CUIStatic*					m_InvSlot2Highlight;
-	CUIStatic*					m_InvSlot3Highlight;
-	CUIStatic*					m_HelmetSlotHighlight;
-	CUIStatic*					m_OutfitSlotHighlight;
-	CUIStatic*					m_DetectorSlotHighlight;
+	CUIStatic*					m_InvSlot2Highlight = nullptr;
+	CUIStatic*					m_InvSlot3Highlight = nullptr;
+	CUIStatic*					m_HelmetSlotHighlight= nullptr;
+	CUIStatic*					m_OutfitSlotHighlight= nullptr;
+	CUIStatic*					m_DetectorSlotHighlight = nullptr;
 	CUIStatic*					m_QuickSlotsHighlight[4];
-	CUIStatic*					m_ArtefactSlotsHighlight[e_af_count];
+	xr_vector<CUIStatic*>		m_ArtefactSlotsHighlight;
 
-	CUIInventoryUpgradeWnd*		m_pUpgradeWnd;
+	CUIInventoryUpgradeWnd*		m_pUpgradeWnd = nullptr;
 	
-	CUIStatic*					m_LeftBackground;
+	CUIStatic*					m_LeftBackground = nullptr;
 
-	UIInvUpgradeInfo*			m_upgrade_info;
-	CUIMessageBoxEx*			m_message_box_yes_no;
-	CUIMessageBoxEx*			m_message_box_ok;
+	UIInvUpgradeInfo*			m_upgrade_info = nullptr;
+	CUIMessageBoxEx*			m_message_box_yes_no = nullptr;
+	CUIMessageBoxEx*			m_message_box_ok = nullptr;
 
-	CInventoryOwner*			m_pActorInvOwner;
-	CInventoryOwner*			m_pPartnerInvOwner;
-	CInventoryBox*				m_pInvBox;
+	CInventoryOwner*			m_pActorInvOwner = nullptr;
+	CInventoryOwner*			m_pPartnerInvOwner = nullptr;
+	CInventoryBox*				m_pInvBox = nullptr;
 
-	CUITextWnd*					m_ActorMoney;
-	CUITextWnd*					m_PartnerMoney;
-	CUITextWnd*					m_QuickSlot1;
-	CUITextWnd*					m_QuickSlot2;
-	CUITextWnd*					m_QuickSlot3;
-	CUITextWnd*					m_QuickSlot4;
+	CUITextWnd*					m_ActorMoney = nullptr;
+	CUITextWnd*					m_PartnerMoney = nullptr;
+	CUITextWnd*					m_QuickSlot1= nullptr;
+	CUITextWnd*					m_QuickSlot2= nullptr;
+	CUITextWnd*					m_QuickSlot3= nullptr;
+	CUITextWnd*					m_QuickSlot4= nullptr;
 	
-	CUIProgressBar*				m_WeaponSlot1_progress;
-	CUIProgressBar*				m_WeaponSlot2_progress;
-	CUIProgressBar*				m_Helmet_progress;
-	CUIProgressBar*				m_Outfit_progress;
+	CUIProgressBar*				m_WeaponSlot1_progress = nullptr;
+	CUIProgressBar*				m_WeaponSlot2_progress = nullptr;
+	CUIProgressBar*				m_Helmet_progress = nullptr;
+	CUIProgressBar*				m_Outfit_progress = nullptr;
 	// bottom ---------------------------------
-	CUIStatic*					m_ActorBottomInfo;
-	CUITextWnd*					m_ActorWeight;
-	CUITextWnd*					m_ActorWeightMax;
+	CUIStatic*					m_ActorBottomInfo = nullptr;
+	CUITextWnd*					m_ActorWeight = nullptr;
+	CUITextWnd*					m_ActorWeightMax = nullptr;
 	
-	CUIStatic*					m_PartnerBottomInfo;
-	CUITextWnd*					m_PartnerWeight;
+	CUIStatic*					m_PartnerBottomInfo = nullptr;
+	CUITextWnd*					m_PartnerWeight = nullptr;
 	float						m_PartnerWeight_end_x;
 //*	CUIStatic*					m_PartnerWeightMax;
 
 	// delimiter ------------------------------
-	CUIStatic*					m_LeftDelimiter;
-//	CUITextWnd*					m_PartnerTradeCaption;
-	CUITextWnd*					m_PartnerTradePrice;
-	CUITextWnd*					m_PartnerTradeWeightMax;
+	CUIStatic*					m_LeftDelimiter = nullptr;
+	CUITextWnd*					m_PartnerTradeCaption = nullptr;
+	CUITextWnd*					m_PartnerTradePrice = nullptr;
+	CUITextWnd*					m_PartnerTradeWeightMax = nullptr;
 
-	CUIStatic*					m_RightDelimiter;
-//	CUITextWnd*					m_ActorTradeCaption;
-	CUITextWnd*					m_ActorTradePrice;
-	CUITextWnd*					m_ActorTradeWeightMax;
+	CUIStatic*					m_RightDelimiter = nullptr;
+	CUITextWnd*					m_ActorTradeCaption = nullptr;
+	CUITextWnd*					m_ActorTradePrice = nullptr;
+	CUITextWnd*					m_ActorTradeWeightMax = nullptr;
 
-	CTrade*						m_actor_trade;
-	CTrade*						m_partner_trade;
+	CTrade*						m_actor_trade = nullptr;
+	CTrade*						m_partner_trade = nullptr;
 
-	CUI3tButton*				m_trade_buy_button;
-	CUI3tButton*				m_trade_sell_button;
-	CUI3tButton*				m_takeall_button;
-	CUI3tButton*				m_putall_button;
-	CUI3tButton*				m_exit_button;
-//	CUIStatic*					m_clock_value;
+	CUI3tButton*				m_trade_button = nullptr;
+	CUI3tButton*				m_trade_buy_button = nullptr;
+	CUI3tButton*				m_trade_sell_button = nullptr;
+	CUI3tButton*				m_takeall_button = nullptr;
+	CUI3tButton*				m_putall_button = nullptr;
+	CUI3tButton*				m_exit_button = nullptr;
+	CUIStatic*					m_clock_value = nullptr;
 
 	u32							m_last_time;
-	bool						m_repair_mode;
+	u8							m_repair_mode;
 	bool						m_item_info_view;
 	bool						m_highlight_clear;
 	u32							m_trade_partner_inventory_state;
+
+private:
+	const char* m_onItemDropped = {};
+	bool m_isItemDropped = false;
+
+	const char* m_onCanMoveToPartner = {};
+	bool m_isCanMoveToPartner = false;
+
+	const char* m_onItemFocusReceive = {};
+	bool m_isItemFocusReceive = false;
+
+	const char* m_onItemFocusLost = {};
+	bool m_isItemFocusLost = false;
+
+	const char* m_onCanTake = {};
+	bool m_isCanTake = false;
+
+	const char* m_onInvBoxCanTakeItem = {};	// FFx0001
+	bool m_isInvBoxCanTakeItem = false;		// FFx0001
+
+	const char* m_onInvBoxCanPlaceItem = {};	// FFx0001
+	bool m_isInvBoxCanPlaceItem = false;		// FFx0001
+
+	const char* m_onCanDisassembleItem = {};
+	bool m_isCanDisassembleItem = false;
+
+	const char* m_onQuestionDisassembleItem = {};
+	bool m_isQuestionDisassembleItem = false;
+
+	const char* m_onEffectDisassemble = {};
+	bool m_isEffectDisassemble = false;
+
+	const char* m_onDonateCurrentItem = {};
+	bool m_isDonateCurrentItem = false;
 public:
 	CUIDragDropReferenceList*	m_pQuickSlot;
 
@@ -180,10 +218,13 @@ public:
 	void						SetMenuMode					(EMenuMode mode);
 	EMenuMode					GetMenuMode					() {return m_currMenuMode;};
 	void						SetActor					(CInventoryOwner* io);
+	void						ReloadActorInfo				();
 	void						SetPartner					(CInventoryOwner* io);
 	CInventoryOwner*			GetPartner					() {return m_pPartnerInvOwner;};
 	void						SetInvBox					(CInventoryBox* box);
 	CInventoryBox*				GetInvBox					() {return m_pInvBox;};
+
+	virtual CUIWindow* ui_cast_window() { return this; }
 
 private:
 	void						PropertiesBoxForSlots		(PIItem item, bool& b_show);
@@ -193,6 +234,8 @@ private:
 	void						PropertiesBoxForPlaying		(PIItem item, bool& b_show);
 	void						PropertiesBoxForDrop		(CUICellItem* cell_item, PIItem item, bool& b_show);
 	void						PropertiesBoxForRepair		(PIItem item, bool& b_show);
+	void						PropertiesBoxForParse		(PIItem item, bool& b_show);
+	void						PropertiesBoxForDonate		(PIItem item, bool& b_show); //Alundaio
 
 private:
 	void						clear_highlight_lists		();
@@ -203,6 +246,7 @@ private:
 	void						highlight_weapons_for_ammo	(PIItem ammo_item, CUIDragDropListEx* ddlist);
 	bool						highlight_addons_for_weapon	(PIItem weapon_item, CUICellItem* ci);
 	void						highlight_weapons_for_addon	(PIItem addon_item, CUIDragDropListEx* ddlist);
+	void						highlight_related_config_sections (PIItem item, CUIDragDropListEx* ddlist); // FFx001 ++
 
 protected:			
 	void						Construct					();
@@ -244,16 +288,15 @@ protected:
 
 	void						CurModeToScript				();
 	void						RepairEffect_CurItem		();
+	void						PerformDisassemble			();
 
-	void						SetCurrentItem				(CUICellItem* itm);
-	CUICellItem*				CurrentItem					();
 	PIItem						CurrentIItem				();
 
 	void						InfoCurItem					(CUICellItem* cell_item); //on update item
 
 	void						ActivatePropertiesBox		();
 	void						TryHidePropertiesBox		();
-	void				ProcessPropertiesBoxClicked	(CUIWindow* w, void* d);
+	void				        ProcessPropertiesBoxClicked	(CUIWindow* w, void* d);
 	
 	void						CheckDistance				();
 	void						UpdateItemsPlace			();
@@ -264,8 +307,10 @@ protected:
 	void						UpdateButtonsLayout			();
 
 	// inventory
+	bool						ToSlotScript				(CScriptGameObject* GO, bool force_place, u16 slot_id);
 	bool						ToSlot						(CUICellItem* itm, bool force_place, u16 slot_id);
 	bool						ToBag						(CUICellItem* itm, bool b_use_cursor_pos);
+	bool						ToBeltScript				(CScriptGameObject* GO, bool b_use_cursor_pos);
 	bool						ToBelt						(CUICellItem* itm, bool b_use_cursor_pos);
 	bool						TryUseItem					(CUICellItem* cell_itm);
 	bool						ToQuickSlot					(CUICellItem* itm);
@@ -275,16 +320,23 @@ protected:
 	void						UpdateOutfit				();
 	void						MoveArtefactsToBag			();
 	bool						TryActiveSlot				(CUICellItem* itm);
-	void				TryRepairItem				(CUIWindow* w, void* d);
+	void						TryRepairItem				(CUIWindow* w, void* d);
+	void						TryDisassembleItem			(CUIWindow* w, void* d);
 	bool						CanUpgradeItem				(PIItem item);
 
 	bool						ToActorTrade				(CUICellItem* itm, bool b_use_cursor_pos);
 	bool						ToPartnerTrade				(CUICellItem* itm, bool b_use_cursor_pos);
 	bool						ToPartnerTradeBag			(CUICellItem* itm, bool b_use_cursor_pos);
 	bool						ToDeadBodyBag				(CUICellItem* itm, bool b_use_cursor_pos);
+	bool						IsAllowTakeFromInvBox		(CUICellItem* itm); // FFx0001
+	bool						IsAllowPlaceToInvBox		(CUICellItem* itm); // FFx0001
 
 	void						AttachAddon					(PIItem item_to_upgrade);
 	void						DetachAddon					(LPCSTR addon_name, PIItem itm = NULL);
+
+	void						UnloadWeapon				(CWeaponMagazined* pWnp);
+
+	//void						UnloadWeapon				(CWeaponMagazined* pWnp);
 
 	void						SendEvent_Item2Slot			(PIItem	pItem, u16 parent, u16 slot_id);
 	void						SendEvent_Item2Belt			(PIItem	pItem, u16 parent);
@@ -303,11 +355,14 @@ protected:
 	void						UpdatePrices				();
 	bool						CanMoveToPartner			(PIItem pItem);
 	void						TransferItems				(CUIDragDropListEx* pSellList, CUIDragDropListEx* pBuyList, CTrade* pTrade, bool bBuying);
+	void						TransferItemsMp             (CUIDragDropListEx* pSellList, CUIDragDropListEx* pBuyList, CTrade* pTrade, bool bBuying);
 
 public:
 								CUIActorMenu				();
 	virtual						~CUIActorMenu				();
 
+	CUICellItem*				CurrentItem					();
+	void						SetCurrentItem				(CUICellItem* itm);
 	virtual bool				StopAnyMove					();
 	virtual void				SendMessage					(CUIWindow* pWnd, s16 msg, void* pData = NULL);
 	virtual void				Draw						();
@@ -332,15 +387,25 @@ public:
 	void						UpdateActor					();
 	void						UpdatePartnerBag			();
 	void						UpdateDeadBodyBag			();
+	void						RefreshCurrentItemCell		();
+	void						DonateCurrentItem			(CUICellItem* cell_item); //Alundaio: Donate item via context menu while in trade menu
 
-	void				OnBtnPerformTradeBuy		(CUIWindow* w, void* d);
-	void				OnBtnPerformTradeSell		(CUIWindow* w, void* d);
-	void				OnBtnExitClicked			(CUIWindow* w, void* d);
-	void				TakeAllFromPartner			(CUIWindow* w, void* d);
-	void				PutAllToPartner			(CUIWindow* w, void* d);
+    void						OnBtnPerformTrade			(CUIWindow* w, void* d);
+	void						OnBtnPerformTradeBuy		(CUIWindow* w, void* d);
+	void						OnBtnPerformTradeSell		(CUIWindow* w, void* d);
+	void						OnBtnExitClicked			(CUIWindow* w, void* d);
+	void						TakeAllFromPartner			(CUIWindow* w, void* d);
+	void						PutAllToPartner				(CUIWindow* w, void* d);
 	void						TakeAllFromInventoryBox		();
 	void						UpdateConditionProgressBars	();
 
+	void OnSuccessRepairMP(PIItem item);
+	const UIInvUpgradeInfo* GetUpgradeInfo() const { return m_upgrade_info; }
+
 	IC	UIHint*					get_hint_wnd				() { return m_hint_wnd; }
+
+	void HighlightSectionInSlot(LPCSTR section, u8 type, u16 slot_id = 0);
+	CScriptGameObject* GetCurrentItemAsGameObject();
+	void HighlightForEachInSlot(const luabind::functor<bool>& functor, u8 type, u16 slot_id);
 	DECLARE_SCRIPT_REGISTER_FUNCTION
 }; // class CUIActorMenu

@@ -31,6 +31,8 @@ public:
 
 	float					HitThroughArmor			(float hit_power, s16 element, float ap, bool& add_wound, ALife::EHitType hit_type);
 
+	bool					GlassPresent = false;
+
 	float					m_fPowerLoss;
 	float					m_fHealthRestoreSpeed;
 	float 					m_fRadiationRestoreSpeed;
@@ -38,10 +40,16 @@ public:
 	float					m_fPowerRestoreSpeed;
 	float					m_fBleedingRestoreSpeed;
 
+	bool					bIsHudGasMaskAvialable;		// FFx0001 ++
+	bool					bIsHudRainDropsAvialable;	// FFx0001 ++
+
 	float					m_fShowNearestEnemiesDistance;
 
 	void					ReloadBonesProtection	();
 	void					AddBonesProtection		(LPCSTR bones_section);
+
+	virtual CHelmet* cast_helmet() { return this; }
+
 protected:
 	HitImmunity::HitTypeSVec	m_HitTypeProtection;
 	SBoneProtections*		m_boneProtection;	

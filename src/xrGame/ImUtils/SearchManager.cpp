@@ -118,8 +118,8 @@ void RenderSearchManagerWindow()
 								{
 									if (pCasted && pObject)
 									{
-										std::string_view cname = pObject->cName().c_str();
-										std::string_view translate_name = Platform::ANSI_TO_UTF8(g_pStringTable->translate(pCasted->Name()).c_str()).c_str();
+										xr_string_view cname = pObject->cName().c_str();
+										xr_string_view translate_name = Platform::ANSI_TO_UTF8(g_pStringTable->translate(pCasted->Name()).c_str()).c_str();
 
 										if (cname.find(imgui_search_manager.search_string) == xr_string::npos && translate_name.find(imgui_search_manager.search_string) == xr_string::npos)
 										{
@@ -337,9 +337,9 @@ void RenderSearchManagerWindow()
 										bool filter_by_s_name = true;
 										if (pServerObject->name_replace())
 										{
-											std::string_view cname = pServerObject->name_replace();
+											xr_string_view cname = pServerObject->name_replace();
 											const xr_string& translated_by_cname = Platform::ANSI_TO_UTF8(g_pStringTable->translate(cname.data()).c_str());
-											if (cname.find(imgui_search_manager.search_string) == std::string_view::npos && translated_by_cname.find(imgui_search_manager.search_string) == xr_string::npos)
+											if (cname.find(imgui_search_manager.search_string) == xr_string_view::npos && translated_by_cname.find(imgui_search_manager.search_string) == xr_string::npos)
 											{
 												filter_by_cname = false;
 											}
@@ -348,14 +348,14 @@ void RenderSearchManagerWindow()
 										{
 											filter_by_cname = false;
 										}
-										
+
 										if (pAbstract->s_name.c_str())
 										{
-											std::string_view s_name = pAbstract->s_name.c_str();
+											xr_string_view s_name = pAbstract->s_name.c_str();
 
 											const xr_string& translated_by_s_name = Platform::ANSI_TO_UTF8(g_pStringTable->translate(s_name.data()).c_str());
 
-											if (s_name.find(imgui_search_manager.search_string) == std::string_view::npos && translated_by_s_name.find(imgui_search_manager.search_string) == xr_string::npos)
+											if (s_name.find(imgui_search_manager.search_string) == xr_string_view::npos && translated_by_s_name.find(imgui_search_manager.search_string) == xr_string::npos)
 											{
 												filter_by_s_name = false;
 											}
@@ -364,10 +364,10 @@ void RenderSearchManagerWindow()
 										{
 											filter_by_s_name = false;
 										}
-										
+
 										passed_filter = filter_by_cname || filter_by_s_name;
 									}
-									
+
 									char button_name[128];
 									sprintf_s(button_name, "%s [%s]", pServerObject->name_replace() ? pServerObject->name_replace() : "", Platform::ANSI_TO_UTF8(g_pStringTable->translate(pAbstract->s_name).c_str()).c_str());
 
@@ -456,7 +456,6 @@ void RenderSearchManagerWindow()
 					}
 				}
 
-
 				ImGui::EndTabItem();
 			}
 
@@ -472,6 +471,8 @@ clsid_manager imgui_clsid_manager;
 
 void InitImGuiCLSIDInGame()
 {
+	imgui_clsid_manager.add_npc(imgui_clsid_manager.stalker);
+
 	imgui_clsid_manager.add_monster(imgui_clsid_manager.monster_bloodsucker);
 	imgui_clsid_manager.add_monster(imgui_clsid_manager.monster_boar);
 	imgui_clsid_manager.add_monster(imgui_clsid_manager.monster_dog);
@@ -489,6 +490,7 @@ void InitImGuiCLSIDInGame()
 	imgui_clsid_manager.add_monster(imgui_clsid_manager.monster_tushkano);
 	imgui_clsid_manager.add_monster(imgui_clsid_manager.monster_psydog);
 	imgui_clsid_manager.add_monster(imgui_clsid_manager.monster_psydogphantom);
+	imgui_clsid_manager.add_monster(imgui_clsid_manager.monster_crow);
 
 	imgui_clsid_manager.add_weapon(imgui_clsid_manager.weapon_binocular);
 	imgui_clsid_manager.add_weapon(imgui_clsid_manager.weapon_knife);
@@ -512,18 +514,26 @@ void InitImGuiCLSIDInGame()
 	imgui_clsid_manager.add_weapon(imgui_clsid_manager.weapon_stationary_machine_gun);
 
 	imgui_clsid_manager.add_item(imgui_clsid_manager.item_torch);
-	imgui_clsid_manager.add_item(imgui_clsid_manager.item_detector_scientific);
-	imgui_clsid_manager.add_item(imgui_clsid_manager.item_detector_elite);
-	imgui_clsid_manager.add_item(imgui_clsid_manager.item_detector_advanced);
-	imgui_clsid_manager.add_item(imgui_clsid_manager.item_detector_simple);
 	imgui_clsid_manager.add_item(imgui_clsid_manager.item_d_pda);
 	imgui_clsid_manager.add_item(imgui_clsid_manager.item_pda);
 	imgui_clsid_manager.add_item(imgui_clsid_manager.item_medkit);
 	imgui_clsid_manager.add_item(imgui_clsid_manager.item_bandage);
 	imgui_clsid_manager.add_item(imgui_clsid_manager.item_antirad);
-	imgui_clsid_manager.add_item(imgui_clsid_manager.item_food);
 	imgui_clsid_manager.add_item(imgui_clsid_manager.item_bottle);
 	imgui_clsid_manager.add_item(imgui_clsid_manager.item_ii_attch);
+
+	imgui_clsid_manager.add_item(imgui_clsid_manager.item_ii_doc);
+	imgui_clsid_manager.add_item(imgui_clsid_manager.item_ii_bttch);
+	imgui_clsid_manager.add_item(imgui_clsid_manager.item_nw_attch);
+	imgui_clsid_manager.add_item(imgui_clsid_manager.item_ii_bolt);
+
+	// Items used
+	imgui_clsid_manager.add_item_used(imgui_clsid_manager.item_food);
+	imgui_clsid_manager.add_item_used(imgui_clsid_manager.item_ii_antir);
+	imgui_clsid_manager.add_item_used(imgui_clsid_manager.item_ii_medki);
+	imgui_clsid_manager.add_item_used(imgui_clsid_manager.item_ii_bandg);
+	imgui_clsid_manager.add_item_used(imgui_clsid_manager.item_ii_food);
+	imgui_clsid_manager.add_item_used(imgui_clsid_manager.item_ii_bottl);
 
 	imgui_clsid_manager.add_ammo(imgui_clsid_manager.ammo_base);
 	imgui_clsid_manager.add_ammo(imgui_clsid_manager.ammo_vog25);
@@ -599,6 +609,49 @@ void InitImGuiCLSIDInGame()
 	imgui_clsid_manager.add_addon(imgui_clsid_manager.mp_addon_silen);
 	imgui_clsid_manager.add_addon(imgui_clsid_manager.mp_addon_glaun);
 
+	imgui_clsid_manager.add_device(imgui_clsid_manager.item_detector_scientific);
+	imgui_clsid_manager.add_device(imgui_clsid_manager.item_detector_elite);
+	imgui_clsid_manager.add_device(imgui_clsid_manager.item_detector_advanced);
+	imgui_clsid_manager.add_device(imgui_clsid_manager.item_detector_simple);
+	imgui_clsid_manager.add_device(imgui_clsid_manager.item_d_elite);
+	imgui_clsid_manager.add_device(imgui_clsid_manager.item_d_scientific);
+	imgui_clsid_manager.add_device(imgui_clsid_manager.item_d_advanc);
+	imgui_clsid_manager.add_device(imgui_clsid_manager.item_d_flare);
+	imgui_clsid_manager.add_device(imgui_clsid_manager.item_d_simple);
+	imgui_clsid_manager.add_device(imgui_clsid_manager.item_d_smetr);
+	imgui_clsid_manager.add_device(imgui_clsid_manager.item_d_custom);
+
+	imgui_clsid_manager.add_dynamic_object(imgui_clsid_manager.do_dstr_s);
+	imgui_clsid_manager.add_dynamic_object(imgui_clsid_manager.o_physic_s);
+	imgui_clsid_manager.add_dynamic_object(imgui_clsid_manager.do_object_item_std);
+	imgui_clsid_manager.add_dynamic_object(imgui_clsid_manager.do_object_breakable);
+	imgui_clsid_manager.add_dynamic_object(imgui_clsid_manager.do_object_climable);
+	imgui_clsid_manager.add_dynamic_object(imgui_clsid_manager.do_object_holder_ent);
+	imgui_clsid_manager.add_dynamic_object(imgui_clsid_manager.do_ph_skeleton_object);
+	imgui_clsid_manager.add_dynamic_object(imgui_clsid_manager.do_object_physic);
+	imgui_clsid_manager.add_dynamic_object(imgui_clsid_manager.do_physics_destr);
+	imgui_clsid_manager.add_dynamic_object(imgui_clsid_manager.do_invbox);
+	imgui_clsid_manager.add_dynamic_object(imgui_clsid_manager.s_invbox);
+
+	// Explo
+	imgui_clsid_manager.add_explo(imgui_clsid_manager.item_s_explo);
+	imgui_clsid_manager.add_explo(imgui_clsid_manager.item_ii_explo);
+
+	// Anomalies
+	imgui_clsid_manager.add_anomaly(imgui_clsid_manager.zs_bfuzz);
+	imgui_clsid_manager.add_anomaly(imgui_clsid_manager.zs_galan);
+	imgui_clsid_manager.add_anomaly(imgui_clsid_manager.zs_mbald);
+	imgui_clsid_manager.add_anomaly(imgui_clsid_manager.zs_mince);
+	imgui_clsid_manager.add_anomaly(imgui_clsid_manager.zs_radio);
+	imgui_clsid_manager.add_anomaly(imgui_clsid_manager.zs_torrd);
+	imgui_clsid_manager.add_anomaly(imgui_clsid_manager.z_cfire);
+	imgui_clsid_manager.add_anomaly(imgui_clsid_manager.z_mbald);
+	imgui_clsid_manager.add_anomaly(imgui_clsid_manager.z_nograv);
+	imgui_clsid_manager.add_anomaly(imgui_clsid_manager.z_radio);
+	imgui_clsid_manager.add_anomaly(imgui_clsid_manager.z_teambs);
+
+	imgui_clsid_manager.add_squad(imgui_clsid_manager.sim_squad_scripted);
+
 	g_pClsidManager = &imgui_clsid_manager;
 }
 
@@ -606,4 +659,102 @@ void InitImGuiCLSIDInGame()
 void InitImGuiSearchInGame()
 {
 	imgui_search_manager.init();
+}
+
+void InitImGuiHudAdjustInGame()
+{
+	string_path path_to_user_settings;
+	FS.update_path(path_to_user_settings, "$app_data_root$", kImGuiHudAdjustInGame_SettingsFileName);
+
+	xr_path path(path_to_user_settings);
+
+	if (path.is_absolute())
+	{
+		// do nothing
+	}
+	else
+	{
+		path = reinterpret_cast<const char*>(std::filesystem::current_path().u8string().c_str());
+		path /= path_to_user_settings;
+	}
+
+
+	bool need_to_init_defaults = false;
+	if (std::filesystem::exists(path))
+	{
+		// loading user settings
+		imgui_hud_adjust_manager.settings.p_file = fopen(path_to_user_settings, "rb+");
+
+		assert(imgui_hud_adjust_manager.settings.p_file && "failed to open file are you sure that system can read and write files on specified path?");
+
+		if (imgui_hud_adjust_manager.settings.p_file)
+		{
+			fread(&imgui_hud_adjust_manager.settings.history_command_max_count, sizeof(imgui_hud_adjust_manager.settings.history_command_max_count), 1, imgui_hud_adjust_manager.settings.p_file);
+
+			static_assert(sizeof(CHudAdjustManager::Settings::hud_position) == sizeof(float) * 3, "expected like this otherwise will fail to initialize data of last_position field");
+			static_assert(sizeof(CHudAdjustManager::Settings::hud_rotation) == sizeof(float) * 3, "expected like this otherwise will fail to initialize data of last_position field");
+			static_assert(sizeof(CHudAdjustManager::Settings::item_position) == sizeof(float) * 3, "expected like this otherwise will fail to initialize data of last_position field");
+			static_assert(sizeof(CHudAdjustManager::Settings::item_rotation) == sizeof(float) * 3, "expected like this otherwise will fail to initialize data of last_position field");
+
+
+
+			fread(&imgui_hud_adjust_manager.settings.hud_position.x, sizeof(float), 3, imgui_hud_adjust_manager.settings.p_file);
+
+			fread(&imgui_hud_adjust_manager.settings.hud_rotation.x, sizeof(float), 3, imgui_hud_adjust_manager.settings.p_file);
+
+			fread(&imgui_hud_adjust_manager.settings.item_position.x, sizeof(float), 3, imgui_hud_adjust_manager.settings.p_file);
+
+			fread(&imgui_hud_adjust_manager.settings.item_rotation.x, sizeof(float), 3, imgui_hud_adjust_manager.settings.p_file);
+
+			fread(&imgui_hud_adjust_manager.settings.data_of_save[0], sizeof(char), 32, imgui_hud_adjust_manager.settings.p_file);
+		}
+		else
+		{
+			need_to_init_defaults = true;
+		}
+	}
+	else
+	{
+		xr_string FilePath = Platform::UTF8_to_CP1251(path.xstring());
+		imgui_hud_adjust_manager.settings.p_file = fopen(FilePath.c_str(), "wb+");
+
+		assert(imgui_hud_adjust_manager.settings.p_file && "failed to open file are you sure that system can read and write files on specified path?");
+
+		need_to_init_defaults = true;
+	}
+
+	if (need_to_init_defaults)
+	{
+		// user defaults here...
+
+		imgui_hud_adjust_manager.settings.history_command_max_count = 100;
+
+		imgui_hud_adjust_manager.settings.hud_position.x = 0.0f;
+		imgui_hud_adjust_manager.settings.hud_position.y = 0.0f;
+		imgui_hud_adjust_manager.settings.hud_position.z = 0.0f;
+
+		imgui_hud_adjust_manager.settings.hud_rotation.x = 0.0f;
+		imgui_hud_adjust_manager.settings.hud_rotation.y = 0.0f;
+		imgui_hud_adjust_manager.settings.hud_rotation.z = 0.0f;
+
+		imgui_hud_adjust_manager.settings.item_position.x = 0.0f;
+		imgui_hud_adjust_manager.settings.item_position.y = 0.0f;
+		imgui_hud_adjust_manager.settings.item_position.z = 0.0f;
+
+		imgui_hud_adjust_manager.settings.item_rotation.x = 0.0f;
+		imgui_hud_adjust_manager.settings.item_rotation.y = 0.0f;
+		imgui_hud_adjust_manager.settings.item_rotation.z = 0.0f;
+
+
+		imgui_hud_adjust_manager.settings.hud_position_default = imgui_hud_adjust_manager.settings.hud_position;
+		imgui_hud_adjust_manager.settings.hud_rotation_default = imgui_hud_adjust_manager.settings.hud_rotation;
+
+		imgui_hud_adjust_manager.settings.item_position_default = imgui_hud_adjust_manager.settings.item_position;
+
+		imgui_hud_adjust_manager.settings.item_rotation_default = imgui_hud_adjust_manager.settings.item_rotation;
+	}
+
+	imgui_hud_adjust_manager.history.storage.reserve(imgui_hud_adjust_manager.settings.history_command_max_count);
+
+	imgui_hud_adjust_manager.is_initialized = true;
 }

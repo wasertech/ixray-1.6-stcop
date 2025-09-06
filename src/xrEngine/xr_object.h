@@ -1,7 +1,7 @@
 #ifndef __XR_OBJECT_H__
 #define __XR_OBJECT_H__
 
-#include "../xrCDB/ISpatial.h"
+#include "../xrCore/Collision/ISpatial.h"
 #include "ISheduled.h"
 #include "IRenderable.h"
 #include "ICollidable.h"
@@ -13,8 +13,60 @@ class	ENGINE_API	IRender_Sector;
 class	ENGINE_API	IRender_ObjectSpecific;
 class	ENGINE_API	CCustomHUD;
 class	NET_Packet	;
-class	CSE_Abstract;
-class	CGameObject;
+
+class CSE_Abstract;
+class CGameObject;
+class CActor;
+class CInventoryItem;
+class CEntity;
+class CEntityAlive;
+class CInventoryOwner;
+class CMissile;
+class CPhysicsShellHolder;
+class CWeapon;
+class CWeaponBM16;
+class CWeaponRPG7;
+class CWeaponRG6;
+class CWeaponMagazined;
+class CWeaponMagazinedWGrenade;
+class CWeaponKnife;
+class CWeaponBinoculars;
+class CHudItem;
+class CWeaponAmmo;
+class CTorch;
+class CCustomDetector;
+class CArtefact;
+class CCustomOutfit;
+class CHelmet;
+class CAI_Stalker;
+class CBolt;
+class CPda;
+class CInventoryBox;
+class CCustomZone;
+class CSpaceRestrictor;
+class CSpectator;
+class CSilencer;
+class CScope;
+class CGrenadeLauncher;
+class CAttachmentOwner;
+class CProjector;
+class CLevelChanger;
+class CPhysicItem;
+class CEatableItem;
+class CScriptZone;
+class CHelicopter;
+class CHangingLamp;
+class CHolderCustom;
+class CCar;
+class CBaseMonster;
+class CGrenade;
+class CCustomMonster;
+class CPhraseDialogManager;
+class CBackpack;
+class CClimableObject;
+class CPhysicObject;
+class CTeamBaseZone;
+
 //-----------------------------------------------------------------------------------------------------------
 #define CROW_RADIUS		(30.f)
 #define CROW_RADIUS2	(60.f)
@@ -65,6 +117,9 @@ protected:
 	// Parentness
 	CObject*							Parent;
 
+	float u_optimize_time = 0;
+	float f_optimize_dist = 0;
+
 	// Geometric (transformation)
 	svector<SavedPosition,4>			PositionStack;
 public:
@@ -95,7 +150,8 @@ public:
 	virtual BOOL						Ready				()					{ return Props.net_Ready;	}
 	BOOL								GetTmpPreDestroy		()		const	{ return Props.bPreDestroy;	}
 	void								SetTmpPreDestroy	(BOOL b)			{ Props.bPreDestroy = b;}
-	virtual float						shedule_Scale		()					{ return Device.vCameraPosition.distance_to(Position())/200.f; }
+	virtual float						shedule_Scale();
+	virtual float shedule_Scale_Base();
 	virtual bool						shedule_Needed		()					{return processing_enabled();};
 
 	// Parentness
@@ -133,7 +189,57 @@ public:
 	virtual		IRenderable*			dcast_Renderable	() override			{ return this;						}
 	virtual		Feel::Sound*			dcast_FeelSound		() override			{ return nullptr;					}
 
-	virtual		CGameObject*			cast_game_object	()					{ return nullptr;					}
+	virtual	CGameObject*				cast_game_object	()					{return nullptr;}
+	virtual	CActor*						cast_actor			()					{return nullptr;}
+	virtual CInventoryOwner*			cast_inventory_owner()					{return nullptr;}
+	virtual CInventoryItem*				cast_inventory_item	()					{return nullptr;}
+	virtual CEntity*					cast_entity			()					{return nullptr;}
+	virtual CEntityAlive*				cast_entity_alive	()					{return nullptr;}
+	virtual CMissile*					cast_missile		()					{return nullptr;}
+	virtual CPhysicsShellHolder*		cast_physics_shell_holder()				{return nullptr;}
+	virtual CWeapon*					cast_weapon			()					{return nullptr;}
+	virtual CHudItem*					cast_hud_item		()					{return nullptr;}
+	virtual CWeaponRPG7* cast_weapon_rpg7() { return nullptr; }
+	virtual CWeaponRG6* cast_weapon_rg6() { return nullptr; }
+	virtual CTorch* cast_torch() { return nullptr; }
+	virtual CCustomDetector* cast_custom_detector() { return nullptr; }
+	virtual CWeaponBinoculars* cast_weapon_binoculars() { return nullptr; }
+	virtual CWeaponKnife* cast_weapon_knife() { return nullptr; }
+	virtual CWeaponMagazined* cast_weapon_magazined() { return nullptr; }
+	virtual CWeaponMagazinedWGrenade* cast_weapon_magazined_w_grenade() { return nullptr; }
+	virtual CWeaponBM16* cast_weapon_bm16() { return nullptr; }
+	virtual CArtefact* cast_artefact() { return nullptr; }
+	virtual CCustomOutfit* cast_outfit() { return nullptr; }
+	virtual CHelmet* cast_helmet() { return nullptr; }
+	virtual CWeaponAmmo* cast_weapon_ammo() { return nullptr; }
+	virtual CAI_Stalker* cast_stalker() { return nullptr; }
+	virtual CBolt* cast_bolt() { return nullptr; }
+	virtual CPda* cast_pda() { return nullptr; }
+	virtual CInventoryBox* cast_inventory_box() { return nullptr; }
+	virtual CCustomZone* cast_custom_zone() { return nullptr; }
+	virtual CSpaceRestrictor* cast_restrictor() { return nullptr; }
+	virtual CSpectator* cast_spectator() {return nullptr;}
+	virtual CSilencer* cast_addon_silencer() {return nullptr;}
+	virtual CScope* cast_addon_scope() {return nullptr;}
+	virtual CGrenadeLauncher* cast_addon_grenade_launcher() {return nullptr;}
+	virtual CAttachmentOwner* cast_attachment_owner() { return nullptr; }
+	virtual CProjector* cast_projector() { return nullptr; }
+	virtual CLevelChanger* cast_level_changer() { return nullptr; }
+	virtual CPhysicItem* cast_physics_item() { return nullptr; }
+	virtual CEatableItem* cast_eatable_item() { return nullptr; }
+	virtual CScriptZone* cast_script_zone() { return nullptr; }
+	virtual CHelicopter* cast_helicopter() { return nullptr; }
+	virtual CHangingLamp* cast_hanging_lamp() { return nullptr; }
+	virtual CHolderCustom* cast_holder_custom() { return nullptr; }
+	virtual CCar* cast_car() { return nullptr; }
+	virtual CBaseMonster* cast_base_monster() { return nullptr; }
+	virtual CGrenade* cast_grenade() { return nullptr; }
+	virtual CCustomMonster* cast_custom_monster() { return nullptr; }
+	virtual CPhraseDialogManager* cast_phrase_dialog_manager() { return nullptr; }
+	virtual CBackpack* cast_backpack() { return nullptr; }
+	virtual CClimableObject* cast_climable_object() { return nullptr; }
+	virtual CPhysicObject* cast_physics_object() { return nullptr; }
+	virtual CTeamBaseZone* cast_team_base_zone() { return nullptr; }
 
 	virtual void						OnChangeVisual		()					{ }
 	virtual		IPhysicsShell			*physics_shell		()					{ return  0; }
@@ -182,6 +288,10 @@ virtual	const IObjectPhysicsCollision	*physics_collision	()					{ return  0; }
 	virtual void						net_Destroy			();
 	virtual void						net_Export			(NET_Packet& P) {};					// export to server
 	virtual void						net_Import			(NET_Packet& P) {};					// import from server
+
+	virtual void						SyncRead			(NET_Packet& Packet) {};
+	virtual void						SyncWrite			(NET_Packet& Packet) {};
+
 	virtual	void						net_ImportInput		(NET_Packet& P)	{};
 	virtual BOOL						net_Relevant		()				{ return FALSE; };	// relevant for export to server
 	virtual void						net_MigrateInactive	(NET_Packet& P)	{ Props.net_Local = FALSE;		};

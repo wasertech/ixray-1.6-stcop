@@ -97,11 +97,11 @@ void CUIActorMenu::InitDeadBodySearchMode()
 		m_pDeadBodyBagList->SetItem	(itm);
 	}
 
-	CBaseMonster* monster = smart_cast<CBaseMonster*>( m_pPartnerInvOwner );
-	CCar* pCar = smart_cast<CCar*>( m_pPartnerInvOwner );
+	CBaseMonster* monster = m_pPartnerInvOwner != nullptr ? m_pPartnerInvOwner->cast_base_monster() : nullptr;
+	CCar* pCar = m_pPartnerInvOwner != nullptr ? m_pPartnerInvOwner->cast_car() : nullptr;
 	
 	//only for partner, box = no, monster = no
-	if (m_pPartnerInvOwner && !monster && !pCar)
+	if (m_pPartnerInvOwner != nullptr && monster == nullptr && pCar == nullptr)
 	{
 		CInfoPortionWrapper						known_info_registry;
 		known_info_registry.registry().init		(m_pPartnerInvOwner->object_id());
@@ -142,28 +142,107 @@ void CUIActorMenu::DeInitDeadBodySearchMode()
 	}
 }
 
+// FFx0001 
+bool CUIActorMenu::IsAllowTakeFromInvBox(CUICellItem* itm)
+{
+	if (!m_isInvBoxCanTakeItem) {
+		return true;
+	}
+
+	// inv box
+	if (m_pInvBox) {
+		luabind::functor<bool> funct;
+		R_ASSERT2(ai().script_engine().functor(m_onInvBoxCanTakeItem, funct), make_string<const char*>("failed to get %s functor", m_onInvBoxCanTakeItem));
+
+		if (funct(m_pInvBox->cast_game_object()->lua_game_object(), ((PIItem)itm->m_pData)->cast_game_object()->lua_game_object()) == false)
+		{
+			return false;
+		}
+	}
+	else {
+		// npc
+	}
+
+	return true;
+}
+
+// FFx0001
+bool CUIActorMenu::IsAllowPlaceToInvBox(CUICellItem* itm)
+{
+	if (!m_isInvBoxCanPlaceItem) {
+		return true;
+	}
+
+	// inv box
+	if (m_pInvBox) {
+		luabind::functor<bool> funct;
+		R_ASSERT2(ai().script_engine().functor(m_onInvBoxCanPlaceItem, funct), make_string<const char*>("failed to get %s functor", m_onInvBoxCanPlaceItem));
+
+		if (funct(m_pInvBox->cast_game_object()->lua_game_object(), ((PIItem)itm->m_pData)->cast_game_object()->lua_game_object()) == false)
+		{
+			return false;
+		}
+	}
+	else {
+		// npc
+	}
+
+	return true;
+}
+
+
 bool CUIActorMenu::ToDeadBodyBag(CUICellItem* itm, bool b_use_cursor_pos)
 {
+	PIItem quest_item = (PIItem)itm->m_pData;
+	if (quest_item->IsQuestItem())
+		return false;
+
 	if ( m_pPartnerInvOwner )
 	{
 		if ( !m_pPartnerInvOwner->deadbody_can_take_status() )
 		{
 			return false;
 		}
+		if (m_isCanMoveToPartner && m_pPartnerInvOwner->is_alive())
+		{
+
+			luabind::functor<bool> funct;
+			R_ASSERT2(ai().script_engine().functor(m_onCanMoveToPartner, funct), "failed to get OnCanMoveToPartner functor");
+			float itmWeight = quest_item->Weight();
+			float partner_inv_weight = m_pPartnerInvOwner->inventory().CalcTotalWeight();
+			float partner_max_weight = m_pPartnerInvOwner->MaxCarryWeight();
+
+			if (funct(m_pPartnerInvOwner->cast_game_object()->lua_game_object(), quest_item->object().lua_game_object(), 0, 0, itmWeight, partner_inv_weight, partner_max_weight) == false)
+				return false;
+			
+		}
 	}
 	else // box
 	{
-		if ( !m_pInvBox->can_take() )
+		if (!m_pInvBox->can_take())
 		{
 			return false;
 		}
-	}
-	PIItem quest_item					= (PIItem)itm->m_pData;
-	if(quest_item->IsQuestItem())
-		return false;
 
-	CUIDragDropListEx*	old_owner		= itm->OwnerList();
-	CUIDragDropListEx*	new_owner		= nullptr;
+		if (m_isCanTake)
+		{
+			luabind::functor<bool> funct;
+			R_ASSERT2(ai().script_engine().functor(m_onCanTake, funct), "failed to get OnCanTake functor");
+
+			if (funct(m_pInvBox->cast_game_object()->lua_game_object(), quest_item->cast_game_object()->lua_game_object()) == false)
+			{
+				return false;
+			}
+
+		}
+
+		if (!IsAllowPlaceToInvBox(itm)) {
+			return false;
+		}
+	}
+
+	CUIDragDropListEx* old_owner = itm->OwnerList();
+	CUIDragDropListEx* new_owner = nullptr;
 
 	if(b_use_cursor_pos)
 	{
@@ -247,26 +326,39 @@ void CUIActorMenu::TakeAllFromPartner(CUIWindow* w, void* d)
 		}
 		PIItem item = (PIItem)(ci->m_pData);
 		move_item_check( item, m_pPartnerInvOwner, m_pActorInvOwner, false );
-	}//for i
-	m_pDeadBodyBagList->ClearAll( true ); // false
+	}
+
+	m_pDeadBodyBagList->ClearAll(true); // false
 }
 
 void CUIActorMenu::TakeAllFromInventoryBox()
 {
 	u16 actor_id = m_pActorInvOwner->object_id();
+	xr_vector<u16> IgnoredItemsIds = {};
 
 	u32 const cnt = m_pDeadBodyBagList->ItemsCount();
 	for ( u32 i = 0; i < cnt; ++i )
 	{
 		CUICellItem* ci = m_pDeadBodyBagList->GetItemIdx(i);
+		PIItem item = (PIItem)(ci->m_pData);
+
+		// FFx0001
+		if (!IsAllowTakeFromInvBox(ci)) { 
+			IgnoredItemsIds.push_back(item->object_id());
+
+			continue;
+		}
+
 		for ( u32 j = 0; j < ci->ChildsCount(); ++j )
 		{
 			PIItem j_item = (PIItem)(ci->Child(j)->m_pData);
 			move_item_from_to( m_pInvBox->ID(), actor_id, j_item->object_id() );
 		}
 
-		PIItem item = (PIItem)(ci->m_pData);
+		
 		move_item_from_to( m_pInvBox->ID(), actor_id, item->object_id() );
-	}//for i
-	m_pDeadBodyBagList->ClearAll( true ); // false
+	}
+
+	m_pDeadBodyBagList->ClearAll(true, IgnoredItemsIds); // FFx0001
+	IgnoredItemsIds.clear();
 }

@@ -3,7 +3,7 @@
 //----------------------------------------------------
 
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "EditMesh.h"
 #include "EditObject.h"
@@ -12,10 +12,10 @@
 #include "face_smoth_flags.h"
 #include "itterate_adjacents.h"
 #include "itterate_adjacents_dynamic.h"
-#	include "UI_ToolsCustom.h"
-#include "..\utils\ETools\ETools.h"
+#include "UI_ToolsCustom.h"
 
-CEditableMesh::~CEditableMesh(){
+CEditableMesh::~CEditableMesh()
+{
 	Clear();
     R_ASSERT2(0==m_RenderBuffers,"Render buffer still referenced.");
 }
@@ -74,7 +74,7 @@ void CEditableMesh::Clear()
 
 void CEditableMesh::UnloadCForm     ()
 {
-	ETOOLS::destroy_model			(m_CFModel);
+	xr_delete(m_CFModel);
 }
 
 void CEditableMesh::UnloadFNormals  (bool force)
@@ -518,3 +518,57 @@ bool CEditableMesh::Validate()
 }
 //----------------------------------------------------------------------------
 
+void CEditableMesh::Create(st_Face* faces, u32 face_count, Fvector* vertices, u32 vertex_count, Fvector* normals, u32 normal_count)
+{
+	// Clear existing data
+	Clear();
+
+	// Allocate and copy vertices
+	m_VertCount = vertex_count;
+	m_Vertices = xr_alloc<Fvector>(m_VertCount);
+	CopyMemory(m_Vertices, vertices, m_VertCount * sizeof(Fvector));
+
+	// Allocate and copy faces
+	m_FaceCount = face_count;
+	m_Faces = xr_alloc<st_Face>(m_FaceCount);
+	CopyMemory(m_Faces, faces, m_FaceCount * sizeof(st_Face));
+
+	// Allocate smooth groups
+	m_SmoothGroups = xr_alloc<u32>(m_FaceCount);
+	for (u32 i = 0; i < m_FaceCount; ++i)
+		m_SmoothGroups[i] = 0;
+
+	// Generate normals if needed
+	if (normals && normal_count)
+	{
+		m_Normals = xr_alloc<Fvector>(normal_count);
+		CopyMemory(m_Normals, normals, normal_count * sizeof(Fvector));
+	}
+	else
+	{
+		GenerateFNormals();
+		GenerateVNormals(nullptr, true);
+	}
+
+	// Generate adjacency information
+	GenerateAdjacency();
+
+	// Update bounding box
+	RecomputeBBox();
+
+	// Create default surface if none exists
+	if (m_SurfFaces.empty())
+	{
+		CSurface* surf = new CSurface();
+		surf->SetName("default");
+		surf->SetShader("default");
+		m_Parent->Surfaces().push_back(surf);
+
+		IntVec face_indices;
+		face_indices.resize(m_FaceCount);
+		for (u32 i = 0; i < m_FaceCount; ++i)
+			face_indices[i] = i;
+
+		m_SurfFaces[surf] = face_indices;
+	}
+}

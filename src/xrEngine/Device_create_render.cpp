@@ -25,7 +25,6 @@ void* SwapChainRTV = nullptr;
 extern ENGINE_API BOOL g_appLoaded;
 void DrawMainViewport()
 {
-#ifndef _EDITOR
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -51,19 +50,16 @@ void DrawMainViewport()
 	ImGui::PopStyleVar();
 	ImGui::PopStyleVar();
 	ImGui::PopStyleVar();
-#endif
 }
 
 void free_vid_mode_list()
 {
-#ifndef _EDITOR
 	for (int i = 0; vid_mode_token[i].name; i++) {
 		xr_free(vid_mode_token[i].name);
 	}
 
 	xr_free(vid_mode_token);
 	vid_mode_token = nullptr;
-#endif
 }
 
 struct _uniq_mode
@@ -93,7 +89,6 @@ bool sort_vid_mode(DXGI_MODE_DESC& left, DXGI_MODE_DESC& right) {
 
 void fill_vid_mode_list()
 {
-#ifndef _EDITOR
 	if (vid_mode_token != nullptr)		return;
 	xr_vector<LPCSTR>	_tmp;
 	xr_vector<DXGI_MODE_DESC>	modes;
@@ -158,7 +153,6 @@ void fill_vid_mode_list()
 		Msg("[%s]", _tmp[i]);
 #endif // DEBUG
 	}
-#endif
 }
 
 bool CreateD3D9();
@@ -166,12 +160,10 @@ bool UpdateBuffersD3D9();
 void ResizeBuffersD3D9(u16 Width, u16 Height);
 void DestroyD3D9();
 
-#ifndef _EDITOR
 bool CreateD3D11();
 bool UpdateBuffersD3D11();
 void ResizeBuffersD3D11(u16 Width, u16 Height);
 void DestroyD3D11();
-#endif
 
 bool CreateVulkan();
 bool UpdateBuffersVulkan();
@@ -196,8 +188,9 @@ bool CRenderDevice::InitRenderDeviceEditor()
 
 bool CRenderDevice::InitRenderDevice(APILevel API)
 {
+	PROF_EVENT("InitRenderDevice");
 	fill_vid_mode_list();
-#ifndef _EDITOR
+
 	CImGuiManager& ImManager = CImGuiManager::Instance();
 
 	ImManager.PlatformNewFrameCallback = ImGui_ImplSDL3_NewFrame;
@@ -207,7 +200,7 @@ bool CRenderDevice::InitRenderDevice(APILevel API)
 	ImManager.InitPlatform();
 
 	ImManager.ApplyMainViewport(DrawMainViewport);
-	ImManager.Subscribe("Dockspace", CImGuiManager::ERenderPriority::eHight,[]() 
+	ImManager.Subscribe("Dockspace", CImGuiManager::ERenderPriority::eHight, []()
 	{
 		auto& States = Engine.External.EditorStates;
 
@@ -224,18 +217,18 @@ bool CRenderDevice::InitRenderDevice(APILevel API)
 				ImGui::EndMenu();
 			}
 
-			if (ImGui::BeginMenu("Edit")) {
-				ImGui::MenuItem("Console variables", nullptr, &States[static_cast<u8>(EditorUI::CmdVars)]);
-				ImGui::MenuItem("Hud Adjust", nullptr, &States[static_cast<u8>(EditorUI::HudAdjust)]);
-				ImGui::EndMenu();
-			}
-
 			if (ImGui::BeginMenu("View")) {
-				ImGui::MenuItem("Debug Render", nullptr, &States[static_cast<u8>(EditorUI::DebugDraw)]);
 				ImGui::MenuItem("Actor InfoPortions", nullptr, &States[static_cast<u8>(EditorUI::ActorInfos)]);
 				ImGui::MenuItem("Scenes Viewer", nullptr, &States[static_cast<u8>(EditorUI::ScenesViewer)]);
-				ImGui::MenuItem("Console", nullptr, &States[static_cast<u8>(EditorUI::CmdConsole)]);
-				ImGui::MenuItem("Effectors", nullptr, &States[static_cast<u8>(EditorUI::CameraEffectors)]);
+
+				// TODO: Необходима доработка, лог выводится некорректно
+				//ImGui::MenuItem("Console", nullptr, &States[static_cast<u8>(EditorUI::CmdConsole)]);
+				
+				ImGui::MenuItem("Console variables", nullptr, &States[static_cast<u8>(EditorUI::CmdVars)]);
+				
+				// TODO: Необходима доработка
+				// ImGui::MenuItem("Effectors", nullptr, &States[static_cast<u8>(EditorUI::CameraEffectors)]);
+
 				ImGui::EndMenu();
 			}
 
@@ -245,16 +238,18 @@ bool CRenderDevice::InitRenderDevice(APILevel API)
 				ImGui::MenuItem("Weapon Manager", nullptr, &States[static_cast<u8>(EditorUI::Game_WeaponManager)]);
 				ImGui::MenuItem("Search Manager", nullptr, &States[static_cast<u8>(EditorUI::Game_SearchManager)]);
 				ImGui::MenuItem("Weather Editor", nullptr, &States[static_cast<u8>(EditorUI::Weather)]);
-				ImGui::MenuItem("Time Manager", nullptr, &States[static_cast<u8>(EditorUI::Game_TimeManager)]);
+				//ImGui::MenuItem("Time Manager", nullptr, &States[static_cast<u8>(EditorUI::Game_TimeManager)]);
+					ImGui::MenuItem("Hud Adjust", nullptr, &States[static_cast<u8>(EditorUI::Game_HudAdjustManager)]);
+				ImGui::MenuItem("Hud Adjust (Legacy)", nullptr, &States[static_cast<u8>(EditorUI::HudAdjust)]);
 
 				ImGui::EndMenu();
 			}
 
-			if (ImGui::BeginMenu("Tools")) 
+			if (ImGui::BeginMenu("Debug"))
 			{
-				ImGui::MenuItem("Lua: Run code", nullptr, &States[static_cast<u8>(EditorUI::LuaCodespace)]);
-				ImGui::MenuItem("Lua: Attach to VSCode", nullptr, &States[static_cast<u8>(EditorUI::LuaDebug)]);
 				ImGui::MenuItem("Shader Debug", nullptr, &States[static_cast<u8>(EditorUI::Shaders)]);
+				ImGui::MenuItem("Render Debug", nullptr, &States[static_cast<u8>(EditorUI::DebugDraw)]);
+			#if defined(IXRAY_PROFILER)
 				if (ImGui::MenuItem("Optick Start Capture"))
 				{
 					PROF_START_CAPTURE();
@@ -263,13 +258,39 @@ bool CRenderDevice::InitRenderDevice(APILevel API)
 				if (ImGui::MenuItem("Optick Stop Capture"))
 				{
 					PROF_STOP_CAPTURE();
-					PROF_SAVE_CAPTURE("ixr.opt");
+
+					string256 currentDate{};
+					string256 currentTime{};
+
+					Time time{};
+					xr_strconcat(currentDate, time.GetYearString().c_str(), ".", time.GetMonthString().c_str(), ".", time.GetDayString().c_str());
+					xr_strconcat(currentTime, time.GetHoursString().c_str(), ".", time.GetMinutesString().c_str(), ".", time.GetSecondsString().c_str());
+					string_path optickFileName{};
+					xr_strconcat(optickFileName, "ixray-optick-", currentDate, "-", currentTime, "-", Core.UserName, ".opt");
+
+					PROF_SAVE_CAPTURE(optickFileName);
 				}
+			#endif
 				
 				ImGui::EndMenu();
 			}
 
-			ImGui::MenuItem("Click `Alt+I` (English language layout)");
+			if (ImGui::BeginMenu("Tools"))
+			{
+				ImGui::MenuItem("Lua: Run code", nullptr, &States[static_cast<u8>(EditorUI::LuaCodespace)]);
+				ImGui::MenuItem("Lua: Attach to VSCode", nullptr, &States[static_cast<u8>(EditorUI::LuaDebug)]);
+
+				if (ImGui::BeginMenu("Editors##ToolsInGameImGui"))
+				{
+					ImGui::MenuItem("OMF##ToolsInGameImGui", nullptr, &States[static_cast<u8>(EditorUI::Tools_OMFEditor)]);
+					ImGui::EndMenu();
+				}
+
+
+				ImGui::EndMenu();
+			}
+
+			ImGui::MenuItem("Click `Alt`");
 			ImGui::EndMainMenuBar();
 		}
 
@@ -298,7 +319,7 @@ bool CRenderDevice::InitRenderDevice(APILevel API)
 		ImGui::PopStyleVar();
 		ImGui::PopStyleVar();
 	});
-#endif
+
 	switch (API) {
 
 	case APILevel::DX9:
@@ -336,28 +357,16 @@ bool CRenderDevice::InitRenderDevice(APILevel API)
 
 void CRenderDevice::DestroyRenderDevice()
 {
-#ifndef _EDITOR
 	CImGuiManager::Instance().Destroy();
-#endif
+
 	switch (CurrentAPILevel) 
 	{
 
-	case APILevel::DX9:
-		DestroyD3D9();
-		break;
+	case APILevel::DX9:  DestroyD3D9(); break;
+	case APILevel::DX11: DestroyD3D11(); break;
+  case APILevel::Vulkan: DestroyVulkan();break;
+	default: break;
 
-#ifndef _EDITOR
-	case APILevel::DX11:
-		DestroyD3D11();
-		break;
-
-	case APILevel::Vulkan:
-		DestroyVulkan();
-		break;
-#endif
-
-	default:
-		break;
 	}
 
 	free_vid_mode_list();
@@ -408,23 +417,35 @@ u32	CRenderDevice::GetSwapchainHeight()
 	return TargetHeight;
 }
 
+u32 CRenderDevice::GetTimeDeltaSafe(u32 starttime)
+{
+	u32 curtime = dwTimeGlobal;
+	u32 result = curtime - starttime;
+
+
+	if (result > curtime)
+		result = u32(-1) - starttime + curtime;
+
+	return result;
+}
+
+u32 CRenderDevice::GetTimeDeltaSafe(u32 starttime, u32 endtime)
+{
+	u32 result = endtime - starttime;
+
+	if (result > endtime)
+		result = u32(-1) - starttime + endtime;
+
+	return result;
+}
+
 void CRenderDevice::ResizeBuffers(u32 Width, u32 Height)
 {
-	switch (CurrentAPILevel) {
-
-	case APILevel::DX9:
-		ResizeBuffersD3D9(Width, Height);
-		break;
-#ifndef _EDITOR
-	case APILevel::DX11:
-		ResizeBuffersD3D11(Width, Height);
-		break;
-	case APILevel::Vulkan:
-		ResizeBuffersVulkan(Width, Height);
-		break;
-#endif
-	default:
-		break;
+	switch (CurrentAPILevel)
+	{
+	case APILevel::DX9:  ResizeBuffersD3D9(Width, Height); break;
+	case APILevel::DX11: ResizeBuffersD3D11(Width, Height); break;
+	default: break;
 	}
 
 	Device.TargetWidth = Width;
@@ -433,13 +454,16 @@ void CRenderDevice::ResizeBuffers(u32 Width, u32 Height)
 
 void CRenderDevice::ResizeWindow(u32 width, u32 height)
 {
-	if (psDeviceFlags.is(rsFullscreen)) {
+	if (psDeviceFlags.is(rsFullscreen)) 
+	{
 		SDL_DisplayMode displayMode;
 		displayMode.w = psCurrentVidMode[0];
 		displayMode.h = psCurrentVidMode[1];
 		SDL_SetWindowFullscreenMode(g_AppInfo.Window, &displayMode);
 		SDL_SetWindowFullscreen(g_AppInfo.Window, SDL_WINDOW_FULLSCREEN);
-	} else {
+	}
+	else 
+	{
 		SDL_SetWindowFullscreen(g_AppInfo.Window, 0);
 		SDL_SetWindowSize(g_AppInfo.Window, width, height);
 
@@ -465,10 +489,9 @@ RENDERDOC_API_1_6_0* CRenderDevice::GetRenderDocAPI()
 void CRenderDevice::BeginRender()
 {
 	PROF_EVENT("CRenderDevice::BeginRender");
-#ifndef _EDITOR
+
 	CImGuiManager::Instance().NewPlatformFrame();
 	CImGuiManager::Instance().UpdateCapture();
-#endif
 }
 
 void CRenderDevice::EndRender()

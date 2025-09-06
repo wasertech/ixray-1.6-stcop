@@ -39,6 +39,8 @@ public:
 
 	virtual void		Draw();
 
+	virtual CUIWindow* ui_cast_window() { return this; }
+
 protected:
 	Upgrade_type*		m_upgrade;
 	CUIFrameWindow*		m_background;
@@ -49,6 +51,7 @@ protected:
 	CUITextWnd*			m_cost;
 	CUITextWnd*			m_desc;
 	CUITextWnd*			m_prereq;
+	bool				m_legacy_mode;
 	
 }; // class UIInvUpgradeInfo
 

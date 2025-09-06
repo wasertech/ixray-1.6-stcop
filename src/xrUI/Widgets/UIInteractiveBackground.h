@@ -37,12 +37,14 @@ public:
 			void InitIB				(LPCSTR texture_e, Fvector2 pos, Fvector2 size);
 			T*	 Get				(IBState state){return m_states[state];};
 
-			void InitState			(IBState state, LPCSTR texture);
+			void InitState			(IBState state, LPCSTR texture, bool fatal = true);
 			void SetCurrentState	(IBState state);
 
 	virtual void Draw				();
 	virtual void SetWidth			(float width);
 	virtual void SetHeight			(float heigth);
+
+	virtual CUIWindow* ui_cast_window() { return this; }
 
 protected:
 	T*			m_states [S_Total];
@@ -72,7 +74,7 @@ void CUIInteractiveBackground<T>::InitIB(LPCSTR texture, Fvector2 pos, Fvector2 
 }
 
 template <class T>
-void CUIInteractiveBackground<T>::InitState(IBState state, LPCSTR texture)
+void CUIInteractiveBackground<T>::InitState(IBState state, LPCSTR texture, bool fatal)
 {
 	Fvector2 size					= GetWndSize();
 
@@ -83,7 +85,7 @@ void CUIInteractiveBackground<T>::InitState(IBState state, LPCSTR texture)
 		AttachChild					(m_states[state]);
 	}
 
-	m_states[state]->InitTexture	(texture);
+	m_states[state]->InitTextureEx	(texture, "hud\\default", fatal);
 	m_states[state]->SetWndPos		(Fvector2().set(0,0));
 	m_states[state]->SetWndSize		(size);
 
@@ -122,3 +124,4 @@ void CUIInteractiveBackground<T>::SetHeight(float height)
 }
 
 typedef CUIInteractiveBackground<CUIFrameLineWnd> CUI_IB_FrameLineWnd;
+typedef CUIInteractiveBackground<CUIFrameWindow> CUI_IB_FrameWindow;

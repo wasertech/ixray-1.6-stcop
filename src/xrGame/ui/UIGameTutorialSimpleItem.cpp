@@ -6,7 +6,7 @@
 #include "../../xrUI/UIXmlInit.h"
 #include "object_broker.h"
 #include "../../xrEngine/xr_input.h"
-#include "../UIGameSP.h"
+#include "UIGameSP.h"
 #include "../Level.h"
 #include "UIPdaWnd.h"
 #include "UIActorMenu.h"
@@ -118,14 +118,19 @@ void CUISequenceSimpleItem::Load(CUIXml* xml, int idx)
 		_si->m_start				= xml->ReadAttribFlt("auto_static", i, "start_time", 0);
 		_si->m_length				= xml->ReadAttribFlt("auto_static", i, "length_sec", 0);
 
-		_si->m_visible				= false;
-		_si->m_wnd					= smart_cast<CUIStatic*>(find_child_window(m_UIWindow, sname)); 
-		VERIFY						(_si->m_wnd);
+		_si->m_visible = false;
+		CUIWindow* finded_child = find_child_window(m_UIWindow, sname);
+		_si->m_wnd = finded_child != nullptr ? finded_child->ui_cast_static() : nullptr;
+		VERIFY(_si->m_wnd);
 
 		_si->m_wnd->TextItemControl()->SetTextComplexMode(true);
 		_si->m_wnd->Show			(false);
-		_si->m_wnd->SetWidth		(_si->m_wnd->GetWidth()*UI().get_current_kx());
-		
+		if (EngineExternal().CallOfPripyatMode())
+			_si->m_wnd->SetWidth		(_si->m_wnd->GetWidth()*UI().get_current_kx());
+		else if (UI().is_widescreen())
+			_si->m_wnd->SetWidth		(_si->m_wnd->GetWidth() / 1.2f);
+
+
 		if(UI().is_widescreen())
 		{
 			XML_NODE* autostatic_node	= xml->NavigateToNode("auto_static", i);
@@ -201,14 +206,12 @@ void CUISequenceSimpleItem::Update()
 	
 	if(g_pGameLevel && (!m_pda_section || 0 == xr_strlen(m_pda_section)) )
 	{
-		CUIGameSP* ui_game_sp	= smart_cast<CUIGameSP*>(CurrentGameUI());
-
-		if(ui_game_sp)
+ 		if(CurrentGameUI())
 		{
-			if ( ui_game_sp->PdaMenu().IsShown()		||
-				ui_game_sp->ActorMenu().IsShown()		||
-				ui_game_sp->TalkMenu->IsShown()			||
-				ui_game_sp->UIChangeLevelWnd->IsShown() ||
+			if (CurrentGameUI()->PdaMenu().IsShown()		||
+				CurrentGameUI()->ActorMenu().IsShown()		||
+				CurrentGameUI()->TalkMenu->IsShown()			||
+				CurrentGameUI()->UIChangeLevelWnd->IsShown() ||
 				(MainMenu()->IsActive() && !m_owner->m_flags.test(CUISequencer::etsOverMainMenu) )
 				)
 				m_UIWindow->Show						(false);
@@ -248,22 +251,20 @@ void CUISequenceSimpleItem::Start()
 	if (g_pGameLevel)
 	{
 		bool bShowPda			= false;
-		CUIGameSP* ui_game_sp	= smart_cast<CUIGameSP*>(CurrentGameUI());
-
-		if (     !_stricmp( m_pda_section, "pda_tasks"       ) ) {ui_game_sp->PdaMenu().SetActiveSubdialog("eptTasks");		bShowPda = true;	}
-		else if( !_stricmp( m_pda_section, "pda_ranking"     ) ) {ui_game_sp->PdaMenu().SetActiveSubdialog("eptRanking");	bShowPda = true;	}
-		else if( !_stricmp( m_pda_section, "pda_logs"        ) ) {ui_game_sp->PdaMenu().SetActiveSubdialog("eptLogs");		bShowPda = true;	}
+		if (     !_stricmp( m_pda_section, "pda_tasks"       ) ) {CurrentGameUI()->PdaMenu().SetActiveSubdialog("eptTasks");		bShowPda = true;	}
+		else if( !_stricmp( m_pda_section, "pda_fraction_war") ) {CurrentGameUI()->PdaMenu().SetActiveSubdialog("eptFractionWar");bShowPda = true;	}
+		else if( !_stricmp( m_pda_section, "pda_ranking"     ) ) {CurrentGameUI()->PdaMenu().SetActiveSubdialog("eptRanking");	bShowPda = true;	}
+		else if( !_stricmp( m_pda_section, "pda_logs"        ) ) {CurrentGameUI()->PdaMenu().SetActiveSubdialog("eptLogs");		bShowPda = true;	}
 		else if( !_stricmp( m_pda_section, "pda_show_second_task_wnd" ) )
 		{
-			ui_game_sp->PdaMenu().Show_SecondTaskWnd(true);	bShowPda = true;
+			CurrentGameUI()->PdaMenu().Show_SecondTaskWnd(true);	bShowPda = true;
 		}
 		
-		if ( ui_game_sp )
+		if (CurrentGameUI())
 		{
-			if ( ( !ui_game_sp->PdaMenu().IsShown() &&  bShowPda ) || 
-				(   ui_game_sp->PdaMenu().IsShown() && !bShowPda ) )
+			if ( ( !CurrentGameUI()->PdaMenu().IsShown() &&  bShowPda ) || (CurrentGameUI()->PdaMenu().IsShown() && !bShowPda ) )
 			{
-				ui_game_sp->PdaMenu().HideDialog();
+				CurrentGameUI()->PdaMenu().ShowOrHideDialog(true);
 			}
 		}
 	}
@@ -290,10 +291,9 @@ bool CUISequenceSimpleItem::Stop			(bool bForce)
 
 	if ( g_pGameLevel )
 	{
-		CUIGameSP* ui_game_sp	= smart_cast<CUIGameSP*>( CurrentGameUI() );
-		if ( ui_game_sp && ui_game_sp->PdaMenu().IsShown() )
+ 		if (CurrentGameUI() && CurrentGameUI()->PdaMenu().IsShown() )
 		{
-			ui_game_sp->PdaMenu().HideDialog();
+			CurrentGameUI()->PdaMenu().HideDialog();
 		}
 	}
 	inherited::Stop				();

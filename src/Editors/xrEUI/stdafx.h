@@ -1,7 +1,4 @@
 #pragma once
-#include <d3d9.h>
-using ImTextureID = IDirect3DBaseTexture9*;
-#define ImTextureID ImTextureID 
 
 #ifdef XREUI_EXPORTS
 #define XREUI_API __declspec(dllexport)
@@ -9,15 +6,27 @@ using ImTextureID = IDirect3DBaseTexture9*;
 #define XREUI_API __declspec(dllimport)
 #endif
 
+#define IM_TEXTURE_RELEASE(tex) ((IDirect3DBaseTexture9*)(tex))->Release()
+
 #include "../../xrCore/xrCore.h"
+
+enum class EDragDropType : u8
+{
+	Folder,
+	File,
+	Viewport,
+	RandomAppend,
+	Details,
+	Logic,
+
+	None
+};
 
 #include "EditorWnd.h"
 #include "XrUIManager.h"
 
-#define IMGUI_API XREUI_API
 #define IMGUI_IMPL_API
 #define IMGUI_DISABLE_INCLUDE_IMCONFIG_H
-#define IMGUI_INCLUDE_IMGUI_USER_H
 #define IMGUI_DEFINE_MATH_OPERATORS
 
 #include "imgui.h"

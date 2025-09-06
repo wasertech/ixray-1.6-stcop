@@ -146,13 +146,6 @@ IC	CALifeRegistryContainer		&CALifeSimulatorBase::registry						() const
 	return						(*m_registry_container);
 }
 
-IC	inventory::upgrade::Manager	&CALifeSimulatorBase::inventory_upgrade_manager		() const
-{
-	VERIFY						(initialized());
-	VERIFY						(m_upgrade_manager);
-	return						(*m_upgrade_manager);
-}
-
 IC	CRandom32							&CALifeSimulatorBase::random				()
 {
 	return						(m_random);
@@ -190,9 +183,9 @@ IC	shared_str							*CALifeSimulatorBase::server_command_line	() const
 }
 
 template <typename T>
-IC	T									&CALifeSimulatorBase::registry				(T *t) const
+IC T& CALifeSimulatorBase::registry(T* t) const
 {
-	return						(registry()(t));
+	return registry().get<T>();
 }
 
 IC	void								CALifeSimulatorBase::can_register_objects	(const bool &value)

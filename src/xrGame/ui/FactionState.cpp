@@ -7,7 +7,7 @@
 
 #include "stdafx.h"
 #include "pch_script.h"
-/*
+
 #include "FactionState.h"
 
 #include "../Actor.h"
@@ -15,7 +15,7 @@
 #include "../character_reputation.h"
 #include "../relation_registry.h"
 #include "../ai_space.h"
-#include "../../xrServerEntities/script_engine.h"
+#include "../../xrScripts/script_engine.h"
 
 using namespace luabind;
 
@@ -38,7 +38,7 @@ FactionState::FactionState():
 
 FactionState::FactionState( shared_str const& id )
 {
-	FactionState();
+	this->FactionState::FactionState();
 	set_faction_id2( id );
 }
 
@@ -96,23 +96,23 @@ void FactionState::script_register( lua_State* L )
 
 void FactionState::update_info()
 {
-	if ( m_id.size() == 0 )
+	if (m_id.size() == 0)
 	{
 		return;
 	}
+
 	m_actor_goodwill = 0;
-	CActor* pActor = smart_cast<CActor*>( Level().CurrentEntity() );
-	if ( pActor )
+	CObject* current_entity = Level().CurrentEntity();
+	if (CActor* pActor = current_entity != nullptr ? current_entity->cast_actor() : nullptr)
 	{
-		CHARACTER_COMMUNITY		char_ñomm;
-		char_ñomm.set( m_id );
-		m_actor_goodwill = RELATION_REGISTRY().GetCommunityGoodwill( char_ñomm.index(), pActor->object_id() );
+		CHARACTER_COMMUNITY	char_comm;
+		char_comm.set(m_id);
+		m_actor_goodwill = RELATION_REGISTRY().GetCommunityGoodwill(char_comm.index(), pActor->object_id());
 	}
+
 	ResetStates();
 
-	luabind::functor<void>	m_functor;
-	R_ASSERT( ai().script_engine().functor( "pda.fill_faction_state", m_functor ) );
-	m_functor( this );
+	luabind::functor<void> m_functor;
+	R_ASSERT(ai().script_engine().functor("pda.fill_faction_state", m_functor));
+	m_functor(this);
 }
-
-*/

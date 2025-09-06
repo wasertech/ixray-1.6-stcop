@@ -2,16 +2,13 @@
 
 #include "../Shader_xrLC.h"
 #include "../../xrCore/xrPool.h"
-//#include "xrface.h"
-#include "xrFaceDefs.h"
+#include "xrFace.h"
 #include "xrDeflectorDefs.h"
 #include "b_build_texture.h"
 #include "base_lighting.h"
 #include "../../Include/Editors/communicate.h"
-//#include "mu_model_face.h"
-//#include "mu_model_face_defs.h"
-//struct _face;
-//struct _vertex;
+#include "../xrForms/CompilersUI.h"
+
 namespace CDB{
 class MODEL;
 class CollectorPacked;
@@ -22,82 +19,93 @@ class xrMU_Reference;
 class base_Vertex;
 class base_Face;
 
-struct	compilers_global_data
+struct compilers_global_data
 {
-		xr_vector<b_BuildTexture>		_textures;
-		xr_vector<b_material>			_materials;
-		Shader_xrLC_LIB					_shaders;
-		b_params						_g_params;
-		base_lighting					_L_static;
-		CDB::MODEL*						_RCAST_Model;
+	xr_vector<b_BuildTexture>		_textures;
+	xr_vector<b_material>			_materials;
+	Shader_xrLC_LIB					_shaders;
+	b_params						_g_params;
+	base_lighting					_L_static;
+	CDB::MODEL* _RCAST_Model;
 };
 
-
-class	XRLC_LIGHT_API xrLC_GlobalData
+class XRLC_LIGHT_API xrLC_GlobalData
 {
-	
-		compilers_global_data			_cl_globs;
 
-		CMemoryWriter					_err_invalid;
-		CMemoryWriter					_err_multiedge;
-		CMemoryWriter					_err_tjunction;
-		xr_vector<CLightmap*>			_g_lightmaps;
-		xr_vector<xrMU_Model*>			_mu_models;
-		xr_vector<xrMU_Reference*>		_mu_refs;
-		vecVertex						_g_vertices;
-		vecFace							_g_faces;
-		vecDefl							_g_deflectors;
+	compilers_global_data			_cl_globs;
 
+	CMemoryWriter					_err_invalid;
+	CMemoryWriter					_err_multiedge;
+	CMemoryWriter					_err_tjunction;
+	xr_vector<CLightmap*>			_g_lightmaps;
+	xr_vector<xrMU_Model*>			_mu_models;
+	xr_vector<xrMU_Reference*>		_mu_refs;
+	vecVertex						_g_vertices;
+	vecFace							_g_faces;
+	vecDefl							_g_deflectors;
 
-		bool							_b_nosun;
-		bool							_gl_linear;
+	bool							_gl_linear;
+ 	bool							_b_skipWeld;
+	bool							_b_use_lmaps_build_alt;
 
 private:
 	bool _skipInvalid;
 	bool _skipTesselate;
 	bool _lmapRGBA;
 	bool _skipSubdivide;
+	u32 JSampleMU;
+	bool _OverrideSettings;
+
 private:
-		bool							b_vert_not_register;
-public:
+	bool b_vert_not_register;
 
 public:
-									xrLC_GlobalData	();//:_RCAST_Model (0), _b_nosun(false),_gl_linear(false){}
-									~xrLC_GlobalData();
-		IC xr_vector<b_BuildTexture>& textures		()		{	return _cl_globs._textures; }
-		IC xr_vector<CLightmap*>	& lightmaps		()		{	return _g_lightmaps; }
-		IC xr_vector<b_material>	& materials		()		{	return _cl_globs._materials; }
-		IC Shader_xrLC_LIB			& shaders		()		{	return _cl_globs._shaders; }
-		IC CMemoryWriter			&err_invalid	()		{	return _err_invalid; }
-		IC CMemoryWriter			&err_multiedge	()		{ return _err_multiedge;  };
-		IC CMemoryWriter			&err_tjunction	()		{ return _err_tjunction;  };
-		IC b_params					&g_params		()		{	return _cl_globs._g_params; }
-			
-		Face						*create_face	()		;
-		void						destroy_face	(Face* &f );
+	xrLC_GlobalData();
+	~xrLC_GlobalData();
 
-		Vertex						*create_vertex	()		;
-		void						destroy_vertex	(Vertex* &f );
+	IC xr_vector<b_BuildTexture>& textures() { return _cl_globs._textures; }
+	IC xr_vector<CLightmap*>& lightmaps() { return _g_lightmaps; }
+	IC xr_vector<b_material>& materials() { return _cl_globs._materials; }
+	IC Shader_xrLC_LIB& shaders() { return _cl_globs._shaders; }
+	IC CMemoryWriter& err_invalid() { return _err_invalid; }
+	IC CMemoryWriter& err_multiedge() { return _err_multiedge; };
+	IC CMemoryWriter& err_tjunction() { return _err_tjunction; };
+	IC b_params& g_params() { return _cl_globs._g_params; }
 
-		void						vertices_isolate_and_pool_reload();
+	Face* create_face();
+	void						destroy_face(Face*& f);
 
-		vecVertex					&g_vertices		()		{	return	_g_vertices; }
-		vecFace						&g_faces		()		{	return	_g_faces; }
-		vecDefl						&g_deflectors	()		{	return	_g_deflectors; }
-		bool						b_r_vertices	()		;
-		bool						vert_construct_register(){return !b_r_vertices() && !b_vert_not_register; }
+	Vertex* create_vertex();
+	void						destroy_vertex(Vertex*& f);
 
- 
-		base_lighting				&L_static		()		{	return _cl_globs._L_static; }
-		CDB::MODEL*					RCAST_Model		()		{	return _cl_globs._RCAST_Model; }
-		xr_vector<xrMU_Model*>		&mu_models		()		{	return _mu_models; }
-		xr_vector<xrMU_Reference*>	&mu_refs		()		{	return _mu_refs; }
+	void						vertexes_allocated(size_t& mem, size_t& VertexCount);
+	void						faces_allocated(size_t& mem, size_t& FacesCount);
+
+	void						vertices_isolate_and_pool_reload();
+
+	vecVertex& g_vertices() { return	_g_vertices; }
+	vecFace& g_faces() { return	_g_faces; }
+	vecDefl& g_deflectors() { return	_g_deflectors; }
+	bool						b_r_vertices();
+	bool						vert_construct_register() { return !b_r_vertices() && !b_vert_not_register; }
 
 
+	base_lighting& L_static() { return _cl_globs._L_static; }
+	CDB::MODEL* RCAST_Model() { return _cl_globs._RCAST_Model; }
+	xr_vector<xrMU_Model*>& mu_models() { return _mu_models; }
+	xr_vector<xrMU_Reference*>& mu_refs() { return _mu_refs; }
 
-		bool						b_nosun			()		{	return _b_nosun; }
+
+	shared_str					level_name;
+
+	void						SetLevelName(LPCSTR name) { level_name = name; }
+	LPCSTR						GetLavelName() { return level_name.c_str(); }
+
+	bool SkipThm = false;
+	bool GetSkipTHM() { return SkipThm; };
+	void SetSkipTHM(bool v) { SkipThm = v; };
+
 		bool						gl_linear		()		{	return _gl_linear; }
-IC		void						b_nosun_set		(bool v){	_b_nosun = v; }
 		void						initialize		()		;
 		void						destroy_rcmodel	()		;
 
@@ -132,6 +140,18 @@ public:
 
 	bool GetSkipSubdivide() { return _skipSubdivide; }
 	void SetSkipSubdivide(bool skipSubdivide) { _skipSubdivide = skipSubdivide; }
+ 
+	bool GetSkipWeld() { return _b_skipWeld; }
+	void SetSkipWeld(bool value) { _b_skipWeld = value; }
+
+	void SetJitterMU(u32 size) { JSampleMU = size; }
+	u32 GetJitterMU() { return JSampleMU; }
+
+	void SetOverrideSettings(bool value) 
+	{ _OverrideSettings = value; }
+
+	bool GetOverrideSettings() 
+	{  return _OverrideSettings; }
 };
 
 extern "C" XRLC_LIGHT_API xrLC_GlobalData*	lc_global_data();
@@ -146,11 +166,3 @@ static LPCSTR gl_data_net_file_name = "tmp_global_data";
 
 XRLC_LIGHT_API base_Face* convert_nax(u32 dummy);
 XRLC_LIGHT_API u32 convert_nax(base_Face* F);
-
-#ifdef _DEBUG
-static LPCSTR libraries = "XRLC_LightStab.dll,XRLC_Light.dll,xrCore.dll,xrCDB.dll,xrAPI.dll,DXT.dll,BugTrap.dll,BugTrapD.dll,FreeImage.dll,msvcr80.dll,Microsoft.VC80.CRT.manifest";
-#else
-static LPCSTR libraries = "XRLC_LightStab.dll,XRLC_Light.dll,xrCore.dll,xrCDB.dll,xrAPI.dll,DXT.dll,BugTrap.dll,FreeImage.dll,msvcr80.dll,Microsoft.VC80.CRT.manifest";
-#endif
-//#define NET_CMP
-//#define LOAD_GL_DATA

@@ -251,6 +251,17 @@ void CSpawnPoint::SSpawnData::Create(LPCSTR _entity_ref)
 			m_Motion = new CLE_Motion(m_Data->motion());
 			m_Data->set_editor_flag(CSE_Abstract::flMotionChange);
 		}
+		
+		if (pSettings->line_exist(_entity_ref, "idle_particles"))
+		{
+			shared_str m_sIdleParticles = pSettings->r_string(_entity_ref, "idle_particles");
+			if (IdleParticle = ::Render->model_CreateParticles(*m_sIdleParticles))
+			{
+				IParticleCustom* Particles = smart_cast<IParticleCustom*>(IdleParticle);
+				Particles->Play();
+			}
+		}
+
 		if (pSettings->line_exist(_entity_ref, "$player"))
 		{
 			if (pSettings->r_bool(_entity_ref, "$player"))
@@ -270,10 +281,12 @@ void CSpawnPoint::SSpawnData::Create(LPCSTR _entity_ref)
 
 void CSpawnPoint::SSpawnData::Destroy()
 {
-	g_SEFactoryManager->destroy_entity		(m_Data);
-	xr_delete			(m_Visual);
-	xr_delete			(m_Motion);
+	g_SEFactoryManager->destroy_entity(m_Data);
+	xr_delete(m_Visual);
+	xr_delete(m_Motion);
+	xr_delete(IdleParticle);
 }
+
 void CSpawnPoint::SSpawnData::get_bone_xform	(LPCSTR name, Fmatrix& xform)
 {
 	xform.identity		();
@@ -416,11 +429,15 @@ void CSpawnPoint::SSpawnData::PreExportSpawn(CSpawnPoint* owner)
 		ELog.DlgMsg(mtError, "Spawn Point: '%s' must contain attached shape.", owner->GetName());
 		;
 	}
-	if (cform) {
-		CEditShape* shape = smart_cast<CEditShape*>(owner->m_AttachedObject); R_ASSERT(shape);
-		shape->ApplyScale();
-		owner->SetScale(shape->GetScale());
-		cform->assign_shapes(&*shape->GetShapes().begin(), shape->GetShapes().size());
+	if (cform)
+	{
+		R_ASSERT2(owner->m_AttachedObject, "Not found shape!");
+		if (CEditShape* shape = smart_cast<CEditShape*>(owner->m_AttachedObject))
+		{
+			shape->ApplyScale();
+			owner->SetScale(shape->GetScale());
+			cform->assign_shapes(&*shape->GetShapes().begin(), shape->GetShapes().size());
+		}
 	}
 	// end
 }
@@ -489,6 +506,16 @@ void CSpawnPoint::SSpawnData::Render(bool bSelected, const Fmatrix& parent,int p
 	EDevice->SetShader			(EDevice->m_WireShader);
 	m_Data->on_render			(&DU_impl,this,bSelected,parent,priority,strictB2F);
 
+	if (IdleParticle)
+	{
+		IParticleCustom* Particles = smart_cast<IParticleCustom*>(IdleParticle);
+		static Fvector v = { 0.f, 0.f, 0.f };
+		Particles->UpdateParent(parent, v, FALSE);
+		Particles->OnFrame(1);
+
+		::RImplementation.model_Render(IdleParticle, parent, priority, strictB2F, 1.f);
+	}
+
 	if(bSelected)
 	{
 		xr_vector<CLE_Visual*>::iterator it 	= m_VisualHelpers.begin();
@@ -508,9 +535,11 @@ void CSpawnPoint::SSpawnData::Render(bool bSelected, const Fmatrix& parent,int p
 
 void CSpawnPoint::SSpawnData::OnFrame()
 {
+	xrCriticalSectionGuard guard(FrameMutex);
+
 	if (m_Data->m_editor_flags.is(CSE_Abstract::flUpdateProperties))
 		ExecCommand				(COMMAND_UPDATE_PROPERTIES);
-	// visual part
+
 	if (m_Visual)
 	{
 		if (m_Data->m_editor_flags.is(CSE_Abstract::flVisualChange))

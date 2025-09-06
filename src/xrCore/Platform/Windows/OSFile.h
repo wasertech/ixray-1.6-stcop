@@ -3,6 +3,14 @@
 using FileHandle = HANDLE;
 class FS_Path;
 
+#if defined(_WIN64)
+#define xr_fseek _fseeki64
+#define xr_ftell _ftelli64
+#else
+#define xr_fseek fseek
+#define xr_ftell ftell
+#endif
+
 namespace Platform
 {
     IC const char* ValidPath(const char* In)
@@ -128,7 +136,7 @@ namespace Platform
 
     IC void* MapFile(FileHandle hSrcFile, [[maybe_unused]] size_t Size, bool bRead = false, size_t Offset = 0)
     {
-        return MapViewOfFile(hSrcFile, bRead ? FILE_MAP_READ: FILE_MAP_ALL_ACCESS, 0, (DWORD)Offset, 0);
+        return MapViewOfFile(hSrcFile, bRead ? FILE_MAP_READ: FILE_MAP_ALL_ACCESS, 0, (DWORD)Offset, Size);
     }
 
     IC void UnmapFile(void* Ptr, [[maybe_unused]] size_t Size)
@@ -146,5 +154,30 @@ namespace Platform
     inline int Unlink(const char* path)
     {
         return _wunlink(Platform::ANSI_TO_TCHAR_U8(path));
+    }
+
+    size_t Stat(const char* path, time_t& Time);
+
+    static constexpr size_t INVALID_READ_SIZE = (size_t)-1;
+
+    IC std::uint32_t SetFilePointer(FileHandle hFile, std::uint32_t lDistanceToMove, std::uint32_t dwMoveMethod)
+    {
+        LARGE_INTEGER liDistance;
+        liDistance.QuadPart = lDistanceToMove;
+
+        LARGE_INTEGER liNewPosition;
+        if (!::SetFilePointerEx(hFile, liDistance, &liNewPosition, dwMoveMethod))
+            return INVALID_SET_FILE_POINTER;
+
+        return (std::uint32_t)liNewPosition.QuadPart;
+    }
+
+    IC size_t ReadFile(FileHandle hFile, void* lpBuffer, size_t nNumberOfBytesToRead)
+    {
+        DWORD bytesRead = 0;
+        if (!::ReadFile(hFile, lpBuffer, (DWORD)nNumberOfBytesToRead, &bytesRead, nullptr))
+            return INVALID_READ_SIZE;
+
+        return bytesRead;
     }
 }

@@ -1,5 +1,5 @@
-﻿#include "stdafx.h"
-#pragma hdrstop
+#include "stdafx.h"
+
 
 #include "EThumbnail.h"
 //#include "ImageManager.h"

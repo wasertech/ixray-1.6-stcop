@@ -6,11 +6,11 @@
 #include "ExtendedGeom.h"
 #include "IPhysicsShellHolder.h"
 
-#include "../xrEngine/cl_intersect.h"
+#include "../xrCore/Collision/cl_intersect.h"
 #include "../xrEngine/GameMtlLib.h"
 
 #include "tri-colliderknoopc/__aabb_tri.h"
-#include "../3rd party/ode/ode/src/util.h"
+#include "../3rd-party/ode/ode/src/util.h"
 #include "ph_valid_ode.h"
 #include "PHAICharacter.h"
 #include "PHActorCharacter.h"

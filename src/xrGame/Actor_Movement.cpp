@@ -14,6 +14,9 @@
 #include "CharacterPhysicsSupport.h"
 #include "ActorEffector.h"
 #include "player_hud.h"
+#include "Artefact.h"
+#include "CustomOutfit.h"
+#include "ActorBackpack.h"
 
 #ifdef DEBUG
 #include "PHDebug.h"
@@ -67,6 +70,10 @@ void CActor::g_cl_ValidateMState(float dt, u32 mstate_wf)
 				}
 			}
 		}
+
+		PlayRainStep(!!HUDview());
+		PlayExoStep(!!HUDview());
+
 		m_bJumpKeyPressed	=	TRUE;
 		m_fJumpTime			=	s_fJumpTime;
 		mstate_real			&=~	(mcFall|mcJump);
@@ -201,12 +208,15 @@ void CActor::g_cl_CheckControls(u32 mstate_wf, Fvector &vControlAccel, float &Ju
 		// jump
 		m_fJumpTime				-=	dt;
 
-		if( CanJump() && (mstate_wf&mcJump) )
+		if (CanJump() && (mstate_wf & mcJump))
 		{
 			mstate_real			|=	mcJump;
 			m_bJumpKeyPressed	=	TRUE;
 			Jump				= m_fJumpSpeed;
 			m_fJumpTime			= s_fJumpTime;
+
+			PlayRainStep(!!HUDview());
+			PlayExoStep(!!HUDview());
 
 			//уменьшить силу игрока из-за выполненого прыжка
 			if (!GodMode())
@@ -483,8 +493,7 @@ void CActor::g_cl_Orientate	(u32 mstate_rl, float dt)
 	unaffected_r_torso.pitch	= r_torso.pitch;
 	unaffected_r_torso.roll		= r_torso.roll;
 
-	CWeaponMagazined *pWM = smart_cast<CWeaponMagazined*>(inventory().GetActiveSlot() != NO_ACTIVE_SLOT ? 
-		inventory().ItemFromSlot(inventory().GetActiveSlot()) : nullptr);
+	CWeaponMagazined* pWM = inventory().ActiveItem() ? inventory().ActiveItem()->cast_weapon_magazined() : nullptr;
 	if (pWM && pWM->GetCurrentFireMode() == 1 && eacFirstEye != cam_active)
 	{
 		Fvector dangle = weapon_recoil_last_delta();
@@ -524,8 +533,7 @@ void CActor::g_sv_Orientate(u32 /**mstate_rl/**/, float /**dt/**/)
 	r_torso.pitch	=	unaffected_r_torso.pitch;
 	r_torso.roll	=	unaffected_r_torso.roll;
 
-	CWeaponMagazined *pWM = smart_cast<CWeaponMagazined*>(inventory().GetActiveSlot() != NO_ACTIVE_SLOT ? 
-		inventory().ItemFromSlot(inventory().GetActiveSlot()) : nullptr);
+	CWeaponMagazined* pWM = inventory().ActiveItem() ? inventory().ActiveItem()->cast_weapon_magazined() : nullptr;
 	if (pWM && pWM->GetCurrentFireMode() == 1/* && eacFirstEye != cam_active*/)
 	{
 		Fvector dangle = weapon_recoil_last_delta();
@@ -562,13 +570,19 @@ bool CActor::CanAccelerate()
 
 bool CActor::CanRun()
 {
-	bool can_run		= !IsZoomAimingMode() && !(mstate_real&mcLookout);
+	const static bool isSprintWhileOverweightDisabled = EngineExternal()[EEngineExternalGame::DisableSprintWhileOverweight];
+	bool can_run = !IsZoomAimingMode() && !(mstate_real & mcLookout);
+	if (isSprintWhileOverweightDisabled)
+	{
+		can_run = !IsZoomAimingMode() && !(mstate_real & mcLookout) && (inventory().TotalWeight() < (MaxWalkWeight() - 10.0f));
+	}
 	return can_run;
 }
 
 bool CActor::CanSprint()
 {
-	bool can_Sprint = CanAccelerate() && !conditions().IsCantSprint() && Game().PlayerCanSprint(this) && CanRun() && !(mstate_real & mcLStrafe || mstate_real & mcRStrafe) && InventoryAllowSprint() && !bBlockSprint;
+	bool is_animator = (HudAnimator() && (HudAnimator()->IsActive() && HudAnimator()->CanSprint() || !HudAnimator()->IsActive()) || !HudAnimator());
+	bool can_Sprint = CanAccelerate() && !conditions().IsCantSprint() && Game().PlayerCanSprint(this) && CanRun() && !(mstate_real & mcLStrafe || mstate_real & mcRStrafe) && InventoryAllowSprint() && !bBlockSprint && is_animator;
 
 	return can_Sprint && (m_block_sprint_counter<=0);
 }
@@ -626,7 +640,6 @@ bool CActor::is_jump()
 }
 
 //максимальный переносимы вес
-#include "CustomOutfit.h"
 float CActor::MaxCarryWeight () const
 {
 	float res = inventory().GetMaxWeight();
@@ -637,25 +650,30 @@ float CActor::MaxCarryWeight () const
 float CActor::MaxWalkWeight() const
 {
 	float max_w = CActor::conditions().MaxWalkWeight();
-	max_w      += get_additional_weight();
+	max_w += get_additional_weight();
 	return max_w;
 }
-#include "Artefact.h"
+
 float CActor::get_additional_weight() const
 {
-	float res = 0.0f ;
-	CCustomOutfit* outfit	= GetOutfit();
-	if ( outfit )
+	float res = 0.0f;
+
+	if (CCustomOutfit* outfit = GetOutfit())
 	{
-		res				+= outfit->m_additional_weight;
+		res += outfit->m_additional_weight;
 	}
 
-	for(TIItemContainer::const_iterator it = inventory().m_belt.begin(); 
-		inventory().m_belt.end() != it; ++it) 
+	if (CBackpack* backpack = GetBackpack())
 	{
-		CArtefact*	artefact = smart_cast<CArtefact*>(*it);
-		if(artefact)
-			res			+= artefact->AdditionalInventoryWeight();
+		res += backpack->m_additional_weight;
+	}
+
+	for (const PIItem item : inventory().m_belt)
+	{
+		if (CArtefact* artefact = item->cast_artefact())
+		{
+			res += artefact->AdditionalInventoryWeight() * artefact->GetCondition();
+		}
 	}
 
 	return res;

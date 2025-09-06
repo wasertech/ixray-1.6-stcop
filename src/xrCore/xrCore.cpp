@@ -1,8 +1,8 @@
 // xrCore.cpp : Defines the entry point for the DLL application.
 //
 #include "stdafx.h"
-#include "XmlParser/Expression.h"
-#pragma hdrstop
+#include "FormatParsers/XML/Expression.h"
+
 
 #ifdef IXR_WINDOWS
 #include <mmsystem.h>
@@ -15,13 +15,15 @@
 #	include	<malloc.h>
 #endif // DEBUG
 
-XRCORE_API		xrCore	Core;
-XRCORE_API		u32		build_id;
-XRCORE_API		LPCSTR	build_date;
+#include "stack_string.h"
+
+XRCORE_API xrCore	Core;
+XRCORE_API u32		build_id;
+XRCORE_API LPCSTR	build_date;
 
 namespace CPU
 {
-	extern	void			Detect	();
+	extern void Detect();
 };
 
 static u32	init_counter	= 0;
@@ -32,16 +34,10 @@ char g_application_path[256];
 
 void xrCore::_initialize	(LPCSTR _ApplicationName, xrLogger::LogCallback cb, BOOL init_fs, LPCSTR fs_fname)
 {
+	PROF_EVENT("xrCore::_initialize");
 	xr_strcpy					(ApplicationName,_ApplicationName);
 	if (0==init_counter) 
 	{
-#ifdef XRCORE_STATIC	
-		_clear87	();
-		_control87	( _PC_53,   MCW_PC );
-		_control87	( _RC_CHOP, MCW_RC );
-		_control87	( _RC_NEAR, MCW_RC );
-		_control87	( _MCW_EM,  MCW_EM );
-#endif
 		// Init COM so we can use CoCreateInstance
 #ifdef IXR_WINDOWS
         CoInitializeEx	(nullptr, COINIT_MULTITHREADED);
@@ -97,6 +93,7 @@ void xrCore::_initialize	(LPCSTR _ApplicationName, xrLogger::LogCallback cb, BOO
 		flags |= CLocatorAPI::flScanAppRoot;
 
 		FS._initialize		(flags,0,fs_fname);
+		BuildId             = build_id;
 		Msg					("'%s' build %d, %s\n","xrCore",build_id, build_date);
 		EFS._initialize		();
 #if defined(DEBUG) && defined(IXR_WINDOWS)

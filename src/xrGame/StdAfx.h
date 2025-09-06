@@ -24,7 +24,6 @@
 #include "../xrEngine/xr_object.h"
 #include "../xrEngine/IGame_Level.h"
 #include "../xrPhysics/xrPhysics.h"
-#include "smart_cast.h"
 #else
 #include "../Editors/ActorEditor/stdafx.h"
 #endif
@@ -37,6 +36,8 @@
 #ifndef _EDITOR
 #	include "pch_script.h"
 extern CInifile* pGameGlobals;
+
+void LoadCallbackGlobals(bool& flag, const char*& value, const char* section);
 #endif
 
 extern void DestroyImGuiInGame();

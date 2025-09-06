@@ -8,7 +8,6 @@
 #include "UIMessageBox.h"
 #include "TeamInfo.h"
 #include "../MainMenu.h"
-#include "../login_manager.h"
 #include "../gamespy/GameSpy_Full.h"
 #include "../gamespy/GameSpy_Browser.h"
 
@@ -112,8 +111,10 @@ bool CServerList::NeedToRefreshCurServer	()
 	return browser().HasAllKeys(pItem->GetInfo()->info.Index) == false;
 };
 
-void CServerList::SendMessage(CUIWindow* pWnd, s16 msg, void* pData){
-	if (m_bShowServerInfo && LIST_ITEM_CLICKED == msg && &m_list[LST_SERVER] == pWnd){
+void CServerList::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
+{
+	if (m_bShowServerInfo && LIST_ITEM_CLICKED == msg && &m_list[LST_SERVER] == pWnd)
+	{
 		if (NeedToRefreshCurServer())
 		{
 			RefreshQuick();
@@ -124,39 +125,52 @@ void CServerList::SendMessage(CUIWindow* pWnd, s16 msg, void* pData){
 			FillUpDetailedServerInfo();
 		}
 	}
-	else if (BUTTON_CLICKED == msg){
-		if (pWnd == &m_header[1]){
-			SetSortFunc("server_name",true);
+	else if (BUTTON_CLICKED == msg)
+	{
+		if (pWnd == &m_header[1])
+		{
+			SetSortFunc("server_name", true);
 		}
-		else if (pWnd == &m_header[2]){
-			SetSortFunc("map",true);
+		else if (pWnd == &m_header[2])
+		{
+			SetSortFunc("map", true);
 		}
-		else if (pWnd == &m_header[3]){
-			SetSortFunc("game_type",true);
+		else if (pWnd == &m_header[3])
+		{
+			SetSortFunc("game_type", true);
 		}
-		else if (pWnd == &m_header[4]){
-			SetSortFunc("player",true);
+		else if (pWnd == &m_header[4])
+		{
+			SetSortFunc("player", true);
 		}
-		else if (pWnd == &m_header[5]){
-			SetSortFunc("ping",true);
+		else if (pWnd == &m_header[5])
+		{
+			SetSortFunc("ping", true);
 		}
-		else if (pWnd == &m_header[6]){
-			SetSortFunc("version",true);
+		else if (pWnd == &m_header[6])
+		{
+			SetSortFunc("version", true);
 		}
-	}else if( EDIT_TEXT_COMMIT == msg && pWnd==&m_edit_gs_filter){
+	}
+	else if (EDIT_TEXT_COMMIT == msg && pWnd == &m_edit_gs_filter)
+	{
 		RefreshGameSpyList(m_b_local);
 	}
-	else if ( MESSAGE_BOX_YES_CLICKED == msg )
+	else if (MESSAGE_BOX_YES_CLICKED == msg)
 	{
-		CUIListItemServer* item		= smart_cast<CUIListItemServer*>(m_list[LST_SERVER].GetSelectedItem());
-		if(!item)
+		CUIListBoxItem* selected_item = m_list[LST_SERVER].GetSelectedItem();
+		CUIListItemServer* item = selected_item != nullptr ? selected_item->ui_cast_list_item_server() : nullptr;
+		if (item == nullptr)
+		{
 			return;
-		xr_string					command;
+		}
 
-		item->CreateConsoleCommand	(command, m_playerName.c_str(), m_message_box->m_pMessageBox->GetUserPassword(), m_message_box->GetPassword() );
-		Console->Execute			(command.c_str());
+		xr_string command;
+
+		item->CreateConsoleCommand(command, m_playerName.c_str(), m_message_box->m_pMessageBox->GetUserPassword(), m_message_box->GetPassword());
+		Console->Execute(command.c_str());
 	}
-	else if ( WINDOW_LBUTTON_DB_CLICK == msg && &m_list[LST_SERVER] == pWnd )
+	else if (WINDOW_LBUTTON_DB_CLICK == msg && &m_list[LST_SERVER] == pWnd)
 	{
 		ConnectToSelected();
 	}
@@ -461,33 +475,13 @@ void CServerList::InitFromXml(CUIXml& xml_doc, LPCSTR path)
 
 void CServerList::ConnectToSelected()
 {
-	gamespy_gp::login_manager const * lmngr = MainMenu()->GetLoginMngr();
-	R_ASSERT(lmngr);
-	gamespy_gp::profile const * tmp_profile = lmngr->get_current_profile(); 
-	R_ASSERT2(tmp_profile, "need first to log in");
-	if (tmp_profile->online())
+	CUIListBoxItem* selected_item = m_list[LST_SERVER].GetSelectedItem();
+	CUIListItemServer* item = selected_item != nullptr ? selected_item->ui_cast_list_item_server() : nullptr;
+	if (item == nullptr)
 	{
-		if (!MainMenu()->ValidateCDKey())
-			return;
-
-		if (!xr_strcmp(tmp_profile->unique_nick(), "@unregistered"))
-		{
-			if (m_connect_cb)
-				m_connect_cb(ece_unique_nick_not_registred, "mp_gp_unique_nick_not_registred");
-			return;
-		}
-		if (!xr_strcmp(tmp_profile->unique_nick(), "@expired"))
-		{
-			if (m_connect_cb)
-				m_connect_cb(ece_unique_nick_expired, "mp_gp_unique_nick_has_expired");
-			return;
-		}
+		return;
 	}
 
-
-	CUIListItemServer* item = smart_cast<CUIListItemServer*>(m_list[LST_SERVER].GetSelectedItem());
-	if(!item)
-		return;
 	if (!browser().CheckDirectConnection(item->GetInfo()->info.Index))
 	{
 		Msg("! Direct connection to this server is not available -> its behind firewall");
@@ -503,15 +497,15 @@ void CServerList::ConnectToSelected()
 
 	if (item->GetInfo()->info.icons.pass || item->GetInfo()->info.icons.user_pass)
 	{
-		m_message_box->m_pMessageBox->SetUserPasswordMode	(item->GetInfo()->info.icons.user_pass);
-		m_message_box->m_pMessageBox->SetPasswordMode		(item->GetInfo()->info.icons.pass);
+		m_message_box->m_pMessageBox->SetUserPasswordMode(item->GetInfo()->info.icons.user_pass);
+		m_message_box->m_pMessageBox->SetPasswordMode(item->GetInfo()->info.icons.pass);
 		m_message_box->ShowDialog(true);
 	}
 	else
 	{
 		xr_string command;
 
-		item->CreateConsoleCommand(command, m_playerName.c_str(), "", "" );
+		item->CreateConsoleCommand(command, m_playerName.c_str(), "", "");
 
 		Console->Execute(command.c_str());
 	}
@@ -665,18 +659,22 @@ void	CServerList::RefreshList_internal()
 
 void CServerList::RefreshQuick()
 {
-	CUIListItemServer* pItem = (CUIListItemServer*)m_list[LST_SERVER].GetSelectedItem();
-	if(!pItem)
+	CUIListBoxItem* selected_item = m_list[LST_SERVER].GetSelectedItem();
+	CUIListItemServer* pItem = selected_item != nullptr ? selected_item->ui_cast_list_item_server() : nullptr;
+	if (pItem == nullptr)
+	{
 		return;
+	}
+
 	browser().RefreshQuick(pItem->GetInfo()->info.Index);
-	
+
 	RefreshList();
 
 	if (m_bShowServerInfo)
 	{
 		ClearDetailedServerInfo();
 		FillUpDetailedServerInfo();
-	}	
+	}
 }
 
 bool g_bSort_Ascending = true;

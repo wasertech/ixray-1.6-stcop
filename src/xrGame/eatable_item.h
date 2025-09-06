@@ -13,16 +13,16 @@ protected:
 	CPhysicItem* m_physic_item;
 
 	u8 m_iMaxUses;
-	float m_iPortionsMarker;
+	u8 m_iRemainingUses;
 	BOOL m_bRemoveAfterUse;
 	BOOL m_bConsumeChargeOnUse;
 	float m_fWeightFull;
 	float m_fWeightEmpty;
-	bool bUseHUDAnim = false;
+	shared_str m_sUseAnimator;
+	shared_str m_sLastUseAnimator;
 
 public:
 	shared_str UseText;
-	float m_eat_condition = 1;
 
 public:
 	CEatableItem();
@@ -30,6 +30,7 @@ public:
 	virtual	DLL_Pure* _construct();
 
 	virtual CEatableItem* cast_eatable_item() { return this; }
+	virtual CInventoryItem* cast_inventory_item() { return this; }
 
 	virtual void			Load(LPCSTR section);
 	virtual void			load(IReader& packet);
@@ -44,13 +45,14 @@ public:
 	virtual float			Weight() const;
 	
 	virtual	void			Hit(SHit* pHDS);
+	virtual void			EatableEffects();
 
-	IC bool Empty() const { return GetRemainingUses() == 0; };
+	bool Empty() const { return m_iRemainingUses == 0; };
 	IC bool CanDelete() const { return m_bRemoveAfterUse == 1; };
 	IC bool CanConsumeCharge() const { return m_bConsumeChargeOnUse == 1; };
-	IC u8 GetMaxUses() { return m_iMaxUses; };
-	IC u8 GetRemainingUses() const { return m_iPortionsMarker / m_eat_condition; };
-	IC void SetRemainingUses(u8 value) { m_fCondition = ((float)value / (float)m_iMaxUses); clamp(m_fCondition, 0.f, 1.f); };
+	u8 GetMaxUses() const { return m_iMaxUses; };
+	u8 GetRemainingUses() const { return m_iRemainingUses; };
+	void SetRemainingUses(u8 value) { if (value <= m_iMaxUses) m_iRemainingUses = value; };
 
 	DECLARE_SCRIPT_REGISTER_FUNCTION
 };

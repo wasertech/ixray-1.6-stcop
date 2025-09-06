@@ -29,6 +29,7 @@
 #include "CustomDetector.h"
 #include "ai/monsters/basemonster/base_monster.h"
 #include "ai/trader/ai_trader.h"
+#include "../xrScripts/script_callback_ex.h"
 
 void  CActor::AddGameNews			 (GAME_NEWS_DATA& news_data)
 {
@@ -54,17 +55,14 @@ bool CActor::OnReceiveInfo(shared_str info_id) const
 
 	callback(GameObject::eInventoryInfo)(lua_game_object(), *info_id);
 
-	if(!CurrentGameUI())
-		return false;
+
 	//только если находимся в режиме single
-	CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
-	if(!pGameSP) return false;
+ 	if(CurrentGameUI() == nullptr) return false;
 
-	if(pGameSP->TalkMenu->IsShown())
+	if(CurrentGameUI()->TalkMenu->IsShown())
 	{
-		pGameSP->TalkMenu->NeedUpdateQuestions();
+		CurrentGameUI()->TalkMenu->NeedUpdateQuestions();
 	}
-
 
 	return true;
 }
@@ -74,39 +72,43 @@ void CActor::OnDisableInfo(shared_str info_id) const
 {
 	CInventoryOwner::OnDisableInfo(info_id);
 
-	if(!CurrentGameUI())
+	if(CurrentGameUI() == nullptr)
 		return;
 
 	//только если находимся в режиме single
-	CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
-	if(!pGameSP) return;
-
-	if(pGameSP->TalkMenu->IsShown())
-		pGameSP->TalkMenu->NeedUpdateQuestions();
+	if(CurrentGameUI()->TalkMenu->IsShown())
+		CurrentGameUI()->TalkMenu->NeedUpdateQuestions();
 }
 
 void  CActor::ReceivePhrase		(DIALOG_SHARED_PTR& phrase_dialog)
 {
 	//только если находимся в режиме single
-	CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
-	if(!pGameSP) return;
+ 	if(CurrentGameUI() == nullptr) return;
 
-	if(pGameSP->TalkMenu->IsShown())
-		pGameSP->TalkMenu->NeedUpdateQuestions();
+	if(CurrentGameUI()->TalkMenu->IsShown())
+		CurrentGameUI()->TalkMenu->NeedUpdateQuestions();
 
 	CPhraseDialogManager::ReceivePhrase(phrase_dialog);
 }
 
-void   CActor::UpdateAvailableDialogs	(CPhraseDialogManager* partner)
+void CActor::UpdateAvailableDialogs(CPhraseDialogManager* partner)
 {
 	m_AvailableDialogs.clear();
 	m_CheckedDialogs.clear();
 
 	//добавить актерский диалог собеседника
-	CInventoryOwner* pInvOwnerPartner = smart_cast<CInventoryOwner*>(partner); VERIFY(pInvOwnerPartner);
-	
-	for(u32 i = 0; i<pInvOwnerPartner->CharacterInfo().ActorDialogs().size(); i++)
+	CInventoryOwner* pInvOwnerPartner = partner->cast_inventory_owner();
+	VERIFY(pInvOwnerPartner);
+
+	for (u32 i = 0; i < pInvOwnerPartner->CharacterInfo().ActorDialogs().size(); i++)
+	{
 		AddAvailableDialog(pInvOwnerPartner->CharacterInfo().ActorDialogs()[i], partner);
+	}
+
+	if (EngineExternal().ClearSkyMode())
+	{
+		AddAvailableDialog("actor_break_dialog", partner);
+	}
 
 	CPhraseDialogManager::UpdateAvailableDialogs(partner);
 }
@@ -126,11 +128,12 @@ void CActor::RunTalkDialog(CInventoryOwner* talk_partner, bool disable_break)
 	{	
 		StartTalk(talk_partner);
 
-		if(CurrentGameUI()->TopInputReceiver())
+		if (CurrentGameUI()->TopInputReceiver())
+		{
 			CurrentGameUI()->TopInputReceiver()->HideDialog();
-
-//		smart_cast<CUIGameSP*>(CurrentGameUI())->StartTalk(disable_break);
-		smart_cast<CUIGameSP*>(CurrentGameUI())->StartTalk(talk_partner->bDisableBreakDialog);
+		}
+		bool disableBreakDialog = EngineExternal().ClearSkyMode() ? disable_break : talk_partner->bDisableBreakDialog;
+ 		CurrentGameUI()->StartTalk(disableBreakDialog);
 	}
 }
 
@@ -182,25 +185,29 @@ void CActor::UpdateDefferedMessages()
 
 bool CActor::OnDialogSoundHandlerStart(CInventoryOwner *inv_owner, LPCSTR phrase)
 {
-	CAI_Trader *trader = smart_cast<CAI_Trader*>(inv_owner);
-	if (!trader) return false;
+	if (CAI_Trader* trader = inv_owner->cast_trader())
+	{
+		trader->dialog_sound_start(phrase);
+		return true;
+	}
 
-	trader->dialog_sound_start(phrase);
-	return true;
+	return false;
 }
 
 bool CActor::OnDialogSoundHandlerStop(CInventoryOwner *inv_owner)
 {
-	CAI_Trader *trader = smart_cast<CAI_Trader*>(inv_owner);
-	if (!trader) return false;
+	if (CAI_Trader* trader = inv_owner->cast_trader())
+	{
+		trader->dialog_sound_stop();
+		return true;
+	}
 
-	trader->dialog_sound_stop();
-	return true;
+	return false;
 }
 
 #ifdef DEBUG
 void CActor::DumpTasks()
 {
-	Level().GameTaskManager().DumpTasks();
+	Level().GameTaskManager()->DumpTasks();
 }
 #endif // DEBUG

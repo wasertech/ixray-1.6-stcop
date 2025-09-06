@@ -18,7 +18,7 @@ void UIChooseForm::UpdateSelected(UIChooseFormItem*NewSelected)
 		if (E.flags.test(SChooseEvents::flClearTexture))
 		{
 			if (m_Texture)
-				m_Texture->Release();
+				((IDirect3DBaseTexture9*)(m_Texture))->Release();
 			m_Texture = 0;
 		}
 		if (!E.on_get_texture.empty())
@@ -82,7 +82,7 @@ UIChooseForm::UIChooseForm():m_Texture(nullptr),m_SelectedItem(nullptr), m_RootI
 UIChooseForm::~UIChooseForm()
 {
 	if (m_Texture)
-		m_Texture->Release();
+		((IDirect3DBaseTexture9*)(m_Texture))->Release();
 	if (!E.on_close.empty())
 	{
 		E.on_close();
@@ -226,10 +226,11 @@ void UIChooseForm::SetNullTexture(ImTextureID Texture)
 void UIChooseForm::Update()
 {
 	// ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings
-	if (Form&& !Form->IsClosed())
+	if (Form && !Form->IsClosed())
 	{
+		ImGui::OpenPopup("Choose form");
 		ImGui::SetNextWindowSize(ImVec2(400, 500), ImGuiCond_::ImGuiCond_FirstUseEver);
-		if (ImGui::BeginPopupModal("Choose form", nullptr,0,true))
+		if (ImGui::BeginPopupModal("Choose form", nullptr,0))
 		{
 			Form->Draw();
 			ImGui::EndPopup();

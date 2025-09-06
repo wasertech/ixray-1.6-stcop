@@ -41,13 +41,15 @@ CUIItemInfo::CUIItemInfo()
 	UIWeight					= nullptr;
 	UIItemImage					= nullptr;
 	UIDesc						= nullptr;
-//	UIConditionWnd				= nullptr;
+	UIConditionWnd				= nullptr;
 	UIWpnParams					= nullptr;
 	UIKnifeParams				= nullptr;
 	UIProperties				= nullptr;
 	UIOutfitInfo				= nullptr;
 	UIBoosterInfo				= nullptr;
 	UIArtefactParams			= nullptr;
+	UIOutfitParams				= nullptr;
+	UIBackpackParams			= nullptr;
 	UIName						= nullptr;
 	UIBackground				= nullptr;
 	m_pInvItem					= nullptr;
@@ -57,19 +59,25 @@ CUIItemInfo::CUIItemInfo()
 
 CUIItemInfo::~CUIItemInfo()
 {
-//	xr_delete	(UIConditionWnd);
+	xr_delete	(UIConditionWnd);
 	xr_delete	(UIWpnParams);
 	xr_delete	(UIKnifeParams);
 	xr_delete	(UIArtefactParams);
+	xr_delete	(UIOutfitParams);
+	xr_delete	(UIBackpackParams);
 	xr_delete	(UIProperties);
 	xr_delete	(UIOutfitInfo);
 	xr_delete	(UIBoosterInfo);
 }
 
-void CUIItemInfo::InitItemInfo(LPCSTR xml_name)
+bool CUIItemInfo::InitItemInfo(LPCSTR xml_name)
 {
 	CUIXml						uiXml;
 	uiXml.Load					(CONFIG_PATH, UI_PATH, xml_name);
+
+	if (uiXml.GetNodesNum(uiXml.GetRoot(), nullptr) == 0)
+		return false;
+
 	CUIXmlInit					xml_init;
 
 	if(uiXml.NavigateToNode("main_frame",0))
@@ -128,15 +136,21 @@ void CUIItemInfo::InitItemInfo(LPCSTR xml_name)
 
 	if(uiXml.NavigateToNode("descr_list",0))
 	{
-//		UIConditionWnd					= new CUIConditionParams();
-//		UIConditionWnd->InitFromXml		(uiXml);
+		UIConditionWnd					= new CUIConditionParams();
+		UIConditionWnd->InitFromXml		(uiXml);
 		UIWpnParams						= new CUIWpnParams();
 		UIWpnParams->InitFromXml		(uiXml);
 		UIKnifeParams					= new CUIKnifeParams();
 		UIKnifeParams->InitFromXml		(uiXml);
 
-		UIArtefactParams				= new CUIArtefactParams();
+		UIArtefactParams				= new CUIArtefactParams(CUIArtefactParams::CParamType::eParamTypeArtefact);
 		UIArtefactParams->InitFromXml	(uiXml);
+
+		UIOutfitParams = new CUIArtefactParams(CUIArtefactParams::CParamType::eParamTypeOutfit);
+		UIOutfitParams->InitFromXml(uiXml);
+
+		UIBackpackParams = new CUIArtefactParams(CUIArtefactParams::CParamType::eParamTypeBackpack);
+		UIBackpackParams->InitFromXml(uiXml);
 
 		UIBoosterInfo					= new CUIBoosterInfo();
 		UIBoosterInfo->InitFromXml		(uiXml);
@@ -179,6 +193,7 @@ void CUIItemInfo::InitItemInfo(LPCSTR xml_name)
 	}
 
 	xml_init.InitAutoStaticGroup	(uiXml, "auto", 0, this);
+	return true;
 }
 
 void CUIItemInfo::InitItemInfo(Fvector2 pos, Fvector2 size, LPCSTR xml_name)
@@ -244,7 +259,7 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 
 	if (UICost != nullptr)
 	{
-		if (IsGameTypeSingle() && item_price != u32(-1))
+		if (IsGameTypeSingleCompatible() && item_price != u32(-1))
 		{
 			xr_sprintf(str, "%d RU", item_price);// will be owerwritten in multiplayer
 			UICost->SetText(str);
@@ -261,7 +276,7 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 		}
 	}
 	
-	if ( UITradeTip && IsGameTypeSingle())
+	if ( UITradeTip && IsGameTypeSingleCompatible())
 	{
 		pos.y = UITradeTip->GetWndPos().y;
 		if ( UIWeight && m_complex_desc )
@@ -306,7 +321,7 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 		TryAddConditionInfo					(*pInvItem, pCompareItem);
 		TryAddWpnInfo						(*pInvItem, pCompareItem);
 		TryAddKnifeInfo						(*pInvItem, pCompareItem);
-		TryAddArtefactInfo					(pInvItem->object().cNameSect());
+		TryAddArtefactInfo					(*pInvItem);
 		TryAddOutfitInfo					(*pInvItem, pCompareItem);
 		TryAddUpgradeInfo					(*pInvItem);
 		TryAddBoosterInfo					(*pInvItem);
@@ -330,7 +345,8 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 	if(UIItemImage)
 	{
 		// Загружаем картинку
-		UIItemImage->SetShader				(InventoryUtilities::GetEquipmentIconsShader());
+		const char* icons_texture = READ_IF_EXISTS(pSettings, r_string, m_pInvItem->m_section_id.c_str(), "icons_texture", nullptr);
+		UIItemImage->SetShader(InventoryUtilities::GetEquipmentIconsShader(icons_texture));
 
 		Irect item_grid_rect				= pInvItem->GetInvGridRect();
 		Frect texture_rect = {};
@@ -362,77 +378,91 @@ void CUIItemInfo::InitItem(CUICellItem* pCellItem, CInventoryItem* pCompareItem,
 	}
 }
 
-void CUIItemInfo::TryAddConditionInfo( CInventoryItem& pInvItem, CInventoryItem* pCompareItem )
+void CUIItemInfo::TryAddConditionInfo(CInventoryItem& pInvItem, CInventoryItem* pCompareItem)
 {
-	if ( pInvItem.IsUsingCondition() )
+	if (pInvItem.IsUsingCondition())
 	{
-//		UIConditionWnd->SetInfo( pCompareItem, pInvItem );
-//		UIDesc->AddWindow( UIConditionWnd, false );
+		UIConditionWnd->SetInfo(pCompareItem, pInvItem);
+		UIDesc->AddWindow(UIConditionWnd, false);
 	}
 }
 
-void CUIItemInfo::TryAddWpnInfo( CInventoryItem& pInvItem, CInventoryItem* pCompareItem )
+void CUIItemInfo::TryAddWpnInfo(CInventoryItem& pInvItem, CInventoryItem* pCompareItem)
 {
-	if ( UIWpnParams->Check( pInvItem ) )
+	if (UIWpnParams->Check(pInvItem))
 	{
-		UIWpnParams->SetInfo( pCompareItem, pInvItem );
-		UIDesc->AddWindow( UIWpnParams, false );
+		UIWpnParams->SetInfo(pCompareItem, pInvItem);
+		UIDesc->AddWindow(UIWpnParams, false);
 	}
 }
 
-void CUIItemInfo::TryAddKnifeInfo( CInventoryItem& pInvItem, CInventoryItem* pCompareItem )
+void CUIItemInfo::TryAddKnifeInfo(CInventoryItem& pInvItem, CInventoryItem* pCompareItem)
 {
-	if ( UIKnifeParams->Check( pInvItem ) )
+	if (UIKnifeParams->Check(pInvItem))
 	{
-		UIKnifeParams->SetInfo( pCompareItem, pInvItem );
-		UIDesc->AddWindow( UIKnifeParams, false );
+		UIKnifeParams->SetInfo(pCompareItem, pInvItem);
+		UIDesc->AddWindow(UIKnifeParams, false);
 	}
 }
 
-void CUIItemInfo::TryAddArtefactInfo	(const shared_str& af_section)
+void CUIItemInfo::TryAddArtefactInfo(CInventoryItem& pInvItem)
 {
-	if ( UIArtefactParams->Check( af_section ) )
+	if (UIArtefactParams->Check(pInvItem.object().cNameSect()))
 	{
-		UIArtefactParams->SetInfo( af_section );
-		UIDesc->AddWindow( UIArtefactParams, false );
+		UIArtefactParams->SetInfo(pInvItem);
+		UIDesc->AddWindow(UIArtefactParams, false);
 	}
 }
 
-void CUIItemInfo::TryAddOutfitInfo( CInventoryItem& pInvItem, CInventoryItem* pCompareItem )
+void CUIItemInfo::TryAddOutfitInfo(CInventoryItem& pInvItem, CInventoryItem* pCompareItem)
 {
-	CCustomOutfit* outfit = smart_cast<CCustomOutfit*>(&pInvItem);
-	CHelmet* helmet = smart_cast<CHelmet*>(&pInvItem);
-	if ( outfit && UIOutfitInfo )
+	CCustomOutfit* outfit = pInvItem.cast_outfit();
+	CHelmet* helmet = pInvItem.cast_helmet();
+	CBackpack* backpack = pInvItem.cast_backpack();
+
+	if (outfit && UIOutfitInfo)
 	{
-		CCustomOutfit* comp_outfit = smart_cast<CCustomOutfit*>(pCompareItem);
-		UIOutfitInfo->UpdateInfo( outfit, comp_outfit );
-		UIDesc->AddWindow( UIOutfitInfo, false );
-	}
-	if ( helmet && UIOutfitInfo )
-	{
-		CHelmet* comp_helmet = smart_cast<CHelmet*>(pCompareItem);
-		UIOutfitInfo->UpdateInfo( helmet, comp_helmet );
-		UIDesc->AddWindow( UIOutfitInfo, false );
+		CCustomOutfit* comp_outfit = pCompareItem ? pCompareItem->cast_outfit() : nullptr;
+		UIOutfitInfo->UpdateInfo(outfit, comp_outfit);
+		UIDesc->AddWindow(UIOutfitInfo, false);
 	}
 
+	if (helmet && UIOutfitInfo)
+	{
+		CHelmet* comp_helmet = pCompareItem ? pCompareItem->cast_helmet() : nullptr;
+		UIOutfitInfo->UpdateInfo(helmet, comp_helmet);
+		UIDesc->AddWindow(UIOutfitInfo, false);
+	}
+
+	if (UIOutfitParams && outfit)
+	{
+		UIOutfitParams->SetInfo(pInvItem);
+		UIDesc->AddWindow(UIOutfitParams, false);
+	}
+
+	if (UIBackpackParams && backpack)
+	{
+		UIBackpackParams->SetInfo(pInvItem);
+		UIDesc->AddWindow(UIBackpackParams, false);
+	}
 }
 
-void CUIItemInfo::TryAddUpgradeInfo( CInventoryItem& pInvItem )
+void CUIItemInfo::TryAddUpgradeInfo(CInventoryItem& pInvItem)
 {
-	if ( pInvItem.upgardes().size() && UIProperties )
+	if (pInvItem.upgardes().size() && UIProperties)
 	{
-		UIProperties->set_item_info( pInvItem );
-		UIDesc->AddWindow( UIProperties, false );
+		UIProperties->set_item_info(pInvItem);
+		UIDesc->AddWindow(UIProperties, false);
 	}
 }
 
 void CUIItemInfo::TryAddBoosterInfo(CInventoryItem& pInvItem)
 {
-	CEatableItem* food = smart_cast<CEatableItem*>(&pInvItem);
-	if ( food && UIBoosterInfo )
+	CEatableItem* food = pInvItem.cast_eatable_item();
+	if (food && UIBoosterInfo)
 	{
 		UIBoosterInfo->SetInfo(pInvItem.object().cNameSect());
-		UIDesc->AddWindow( UIBoosterInfo, false );
+		UIDesc->AddWindow(UIBoosterInfo, false);
 	}
 }
 

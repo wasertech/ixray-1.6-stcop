@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Weapon.h"
-#include "HudSound.h"
 #include "../xrSound/ai_sounds.h"
 
 class ENGINE_API CMotionDef;
@@ -10,6 +9,11 @@ class ENGINE_API CMotionDef;
 //заканчиваем стрельбу, только, если кончились патроны
 #define WEAPON_ININITE_QUEUE -1
 
+class CWeaponBinoculars;
+class CWeaponMagazinedWGrenade;
+class CWeaponBM16;
+class CWeaponRPG7;
+class CWeaponRG6;
 
 class CWeaponMagazined: public CWeapon
 {
@@ -40,12 +44,17 @@ protected:
 	virtual void	switch2_Idle	();
 	virtual void	switch2_Fire	();
 	virtual void	switch2_Empty	();
+	virtual void	switch2_Device	();
 	virtual void	switch2_Reload	();
 	virtual void	switch2_Hiding	();
 	virtual void	switch2_Hidden	();
 	virtual void	switch2_Showing	();
+	virtual void	switch2_FireMode();
+	virtual void	switch2_LightMis();
 	
-	virtual void	OnShot			();	
+	virtual void	OnShot			();
+			void	OnShotJammed	();
+			void	SelectShotSound ();
 	
 	virtual void	OnEmptyClick	();
 
@@ -64,14 +73,21 @@ protected:
 			void	ResetSilencerKoeffs();
 
 	virtual void	state_Fire		(float dt);
-	virtual void	state_Misfire	(float dt);
+	virtual void	state_FireChamber(float dt);
 public:
 					CWeaponMagazined	(ESoundTypes eSoundType=SOUND_TYPE_WEAPON_SUBMACHINEGUN);
 	virtual			~CWeaponMagazined	();
 
-	virtual void	Load			(LPCSTR section);
+	virtual void	Load(LPCSTR section);
+	virtual void	LoadSounds(LPCSTR section);
 			void	LoadSilencerKoeffs();
-	virtual CWeaponMagazined*cast_weapon_magazined	()		 {return this;}
+
+	virtual CWeaponBinoculars* cast_weapon_binoculars() { return nullptr; }
+	virtual CWeaponMagazined* cast_weapon_magazined() { return this; }
+	virtual CWeaponMagazinedWGrenade* cast_weapon_magazined_w_grenade() { return nullptr; }
+	virtual CWeaponBM16* cast_weapon_bm16() { return nullptr; }
+	virtual CWeaponRPG7* cast_weapon_rpg7() { return nullptr; }
+	virtual CWeaponRG6* cast_weapon_rg6() { return nullptr; }
 
 	virtual void	SetDefaults		();
 	virtual void	FireStart		();
@@ -83,7 +99,7 @@ public:
 	virtual void	net_Destroy		();
 	virtual void	net_Export		(NET_Packet& P);
 	virtual void	net_Import		(NET_Packet& P);
-
+	virtual void	OnEvent			(NET_Packet& P, u16 type);
 	virtual void	OnH_A_Chield		();
 
 	virtual bool	Attach			(PIItem pIItem, bool b_send_event);
@@ -93,6 +109,7 @@ public:
 	virtual bool	CanDetach		(const char* item_section_name);
 
 	virtual void	InitAddons		();
+	virtual void	HudSelector		();
 
 	virtual bool	Action			(u16 cmd, u32 flags);
 	bool			IsAmmoAvailable	();
@@ -104,22 +121,24 @@ public:
 
 public:
 	virtual bool	SwitchMode				();
-	virtual bool	SingleShotMode			()			{return 1 == m_iQueueSize;}
-	virtual void	SetQueueSize			(int size);
-	IC		int		GetQueueSize			() const	{return m_iQueueSize;};
+	virtual bool	SingleShotMode			()			{ return m_iQueueSize == 1; }
+	virtual void	SetQueueSize			(s8 size)	{ m_iQueueSize = size; }
+	IC		s8		GetQueueSize			() const	{ return m_iQueueSize; }
 	virtual bool	StopedAfterQueueFired	()			{return m_bStopedAfterQueueFired; }
-	virtual void	StopedAfterQueueFired	(bool value){m_bStopedAfterQueueFired = value; }
+	virtual void	StopedAfterQueueFired	(bool value){ m_bStopedAfterQueueFired = value; }
 	virtual float	GetFireDispersion		(float cartridge_k, bool for_crosshair = false);
 
 protected:
 	//максимальный размер очереди, которой можно стрельнуть
-	int				m_iQueueSize;
+	s8				m_iQueueSize;
 	//количество реально выстреляных патронов
 	int				m_iShotNum;
 	//после какого патрона, при непрерывной стрельбе, начинается отдача (сделано из-за Абакана)
 	int				m_iBaseDispersionedBulletsCount;
 	//скорость вылета патронов, на которые не влияет отдача (сделано из-за Абакана)
 	float			m_fBaseDispersionedBulletsSpeed;
+	float			m_fBaseDispersionedBulletsTimeDelta;
+	float			m_fSingleShootsTimeDelta;
 	//скорость вылета остальных патронов
 	float			m_fOldBulletSpeed;
 	Fvector			m_vStartPos, m_vStartDir;
@@ -130,10 +149,9 @@ protected:
 	//(даже если очень быстро нажали на курок и вызвалось FireEnd)
 	bool			m_bFireSingleShot;
 	//режимы стрельбы
-	bool			m_bHasDifferentFireModes;
 	xr_vector<s8>	m_aFireModes;
-	int				m_iCurFireMode;
-	int				m_iPrefferedFireMode;
+	s8				m_iCurFireMode;
+	s8				m_iPrevFireMode;
 
 	//переменная блокирует использование
 	//только разных типов патронов
@@ -142,13 +160,15 @@ protected:
 public:
 	virtual void	OnZoomIn			();
 	virtual void	OnZoomOut			();
-			void	OnNextFireMode		();
-			void	OnPrevFireMode		();
-			bool	HasFireModes		() { return m_bHasDifferentFireModes; };
+			void	ChangeFireMode		(u16 cmd);
+			bool	HasFireModes		() { return m_aFireModes.size() > 1; };
 	virtual	int		GetCurrentFireMode	() { return m_aFireModes[m_iCurFireMode]; };	
 
 	virtual void	save				(NET_Packet &output_packet);
 	virtual void	load				(IReader &input_packet);
+
+	virtual void OnMotionMark(u32 state, const motion_marks&);
+	virtual bool WpnCanShoot() const { return true; }
 
 protected:
 	virtual bool	install_upgrade_impl( LPCSTR section, bool test );
@@ -165,10 +185,13 @@ protected:
 	virtual void	PlayReloadSound		();
 	virtual void	PlayAnimAim			();
 	virtual void    PlaySoundAim		(bool in = true);
+	virtual shared_str SetCurrentReloadAnimation();
+	virtual shared_str SetCurrentShootAnimation();
+	virtual shared_str SetCurrentStateAnimation(const shared_str& first_name);
+	virtual shared_str SetCurrentAimAnimation();
 
 	virtual	int		ShotsFired			() { return m_iShotNum; }
 	virtual float	GetWeaponDeterioration	();
-	virtual bool	WeaponSoundExist		(LPCSTR section, LPCSTR sound_name);
 
 	virtual void	FireBullet			(const Fvector& pos, 
         								 const Fvector& dir, 
@@ -177,9 +200,5 @@ protected:
 										 u16 parent_ids,
 										 u16 weapon_id,
 										 bool send_hit);
-
-	//Alundaio: LAYERED_SND_SHOOT
-	HUD_SOUND_COLLECTION_LAYERED m_layered_sounds;
-	//-Alundaio
 
 };

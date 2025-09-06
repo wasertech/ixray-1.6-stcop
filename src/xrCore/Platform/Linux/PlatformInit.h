@@ -7,6 +7,7 @@
 #include <utime.h>
 #include <pthread.h>
 #include <dlfcn.h>
+#include <stddef.h>
 
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -22,6 +23,16 @@
 #else
 #	include <xmmintrin.h>
 #   include <x86intrin.h>
+#endif
+
+#if __has_include(<stacktrace>)
+#	include <stacktrace>
+#	define USE_CXX_STACKTRACE 1
+#elif __has_include(<experimental/stacktrace>)
+#	include <experimental/stacktrace>
+#	define USE_CXX_STACKTRACE 1
+#else
+#	define USE_CXX_STACKTRACE 0
 #endif
 
 #define __declspec(t)
@@ -53,7 +64,7 @@ using UINT = unsigned int;
 using xr_special_char = char;
 using LPSTR = char*;
 using LPCSTR = const char*;
-using BYTE = char;
+using BYTE = unsigned char;
 using UINT_PTR = uint64_t;
 
 using DWORD = uint32_t;
@@ -61,6 +72,8 @@ using BOOL = int32_t;
 using HRESULT = long;
 using LRESULT = long;
 using HMODULE = void*;
+using DWORD_PTR = uintptr_t;
+using HFILE = int;
 
 #define SUCCEEDED(hr) (((HRESULT)(hr)) >= 0)
 #define FAILED(hr) (((HRESULT)(hr)) < 0)
@@ -69,6 +82,7 @@ using HMODULE = void*;
 #define E_FAIL 0x80004005
 
 #define xr_strerror(errno, buffer, bufferSize) strerror_r(errno, buffer, sizeof(buffer))
+#define xr_interface class
 
 inline unsigned long GetLastError()
 {

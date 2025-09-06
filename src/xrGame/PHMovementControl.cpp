@@ -1,7 +1,7 @@
 #include "StdAfx.h"
 #include "PHMovementControl.h"
 
-#include "../xrEngine/cl_intersect.h"
+#include "../xrCore/Collision/cl_intersect.h"
 #include "../xrEngine/AI/alife_space.h"
 #include "../xrPhysics/PHCharacter.h"
 #include "../xrPhysics/IPHCapture.h"
@@ -1531,6 +1531,16 @@ void		CPHMovementControl::CollisionEnable(BOOL enable)
 
 }
 
+void CPHMovementControl::CollisionDynamicEnable(BOOL enable)
+{
+	if (!m_character || !m_character->b_exist)
+		return;
+	if (enable)
+		m_character->collision_dynamic_enable();
+	else
+		m_character->collision_dynamic_disable();
+}
+
 void	CPHMovementControl::SetCharacterVelocity(const Fvector& v)
 {
 	if (m_character)
@@ -1631,7 +1641,7 @@ void CPHMovementControl::BlockDamageSet(u64 steps_num)
 
 void CPHMovementControl::NetRelcase(CObject* O)
 {
-	CPhysicsShellHolder* sh = smart_cast<CPhysicsShellHolder*>(O);
+	CPhysicsShellHolder* sh = O->cast_physics_shell_holder();
 	if (!sh)
 		return;
 

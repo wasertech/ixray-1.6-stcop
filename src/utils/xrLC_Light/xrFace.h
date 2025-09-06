@@ -1,8 +1,5 @@
 #pragma once
-
-
 #include "../Shader_xrLC.h"
-//#include "r_light.h"
 
 #include "tcf.h"
 #include "base_face.h"
@@ -21,31 +18,45 @@ typedef std::pair<Vertex*, Vertex *>	PAIR_VV;
 typedef xr_map<Vertex*,Vertex*>			map_v2v;	// vertex to vertex translation
 typedef map_v2v::iterator				map_v2v_it;
 
+template <typename DataVertexType>
+struct Tface;
+typedef	Tface<DataVertex> Face;
+
+template <typename DataVertexType>
+struct Tvertex;
+typedef	Tvertex<DataVertex>	Vertex;
+
+typedef xr_vector<Vertex*>			vecVertex;
+typedef vecVertex::iterator			vecVertexIt;
+
+typedef xr_vector<Face*>			vecFace;
+typedef vecFace::iterator			vecFaceIt;
+typedef vecFace::const_iterator		vecFaceCit;
+
+typedef xr_vector<vecFace*>			vec2Face;
+typedef vec2Face::iterator			splitIt;
 
 
-struct  XRLC_LIGHT_API DataVertex	: public base_Vertex
+typedef vecFace						vecAdj;
+typedef vecAdj::iterator			vecAdjIt;
+
+struct XRLC_LIGHT_API DataVertex :	public base_Vertex
 {
 public:
-	//vecAdj		m_adjacents;
-	typedef		DataFace			DataFaceType;
+	typedef DataFace DataFaceType;
 
-	IC	BOOL	 similar			( Tvertex<DataVertex> &V, float eps );
+	IC BOOL similar(Tvertex<DataVertex>& V, float eps);
 
-	DataVertex				(){};
-	virtual		~DataVertex				(){};
+	DataVertex() {};
+	virtual ~DataVertex() {};
 };
-
-typedef	 Tface<DataVertex>  Face;
-
 
 struct XRLC_LIGHT_API DataFace	: public base_Face
 {
 public:
 
-	//Vertex*					v[3];			// vertices
-	Fvector					N;				// face normal
-
-	svector<_TCF,2>			tc;				// TC
+ 	Fvector					N;				// face normal
+ 	svector<_TCF,2>			tc;				// TC
 
 	void*					pDeflector;		// does the face has LM-UV map?
 	CLightmap*				lmap_layer;
@@ -62,10 +73,6 @@ public:
 	virtual ~DataFace(){};
 };
 
-
-//struct Vertex;
-//struct DataVertex;
-//struct Face;
 class Material;
 class Edge;
 
@@ -73,25 +80,20 @@ class Edge;
 namespace detail
 {
 	typedef xr_vector<Vertex>::iterator	dummy_compiler_treatment;
-} // namespace detail
+}
 
+#include "xrUVpoint.h"
 
-
-
-
-
-#include		"xrUVpoint.h"
-
-#include		"xrFaceInline.h"
-
-
-extern XRLC_LIGHT_API bool						g_bUnregister;
+extern XRLC_LIGHT_API bool g_bUnregister;
 
 #pragma pack(pop)
 
-extern "C" XRLC_LIGHT_API	void start_unwarp_recursion	();
-extern "C" XRLC_LIGHT_API	void destroy_vertex			( Vertex* &v, bool unregister );
+extern "C" XRLC_LIGHT_API void start_unwarp_recursion();
+extern "C" XRLC_LIGHT_API void destroy_vertex(Vertex* &v, bool unregister);
 
-							void destroy_face			( Face* &v, bool unregister );
-
- 
+void destroy_face(Face*& v, bool unregister);
+							
+IC BOOL DataVertex::similar(Vertex& V, float eps)
+{
+	return P.similar(V.P, eps);
+}

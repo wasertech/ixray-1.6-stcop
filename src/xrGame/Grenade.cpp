@@ -30,8 +30,6 @@ void CGrenade::Load(LPCSTR section)
 	inherited::Load(section);
 	CExplosive::Load(section);
 
-	m_sounds.LoadSound(section,"snd_checkout", "sndCheckout", false, m_eSoundCheckout);
-
 	m_bExplosionOnHit = READ_IF_EXISTS(pSettings, r_bool, section, "explosion_on_hit", false);
 	m_bExplosionWhileNotActivated = READ_IF_EXISTS(pSettings, r_bool, section, "explosive_while_not_activated", false);
 
@@ -47,6 +45,12 @@ void CGrenade::Load(LPCSTR section)
 		}
 	}
 
+	m_contact_grenade_params.SafeTime = READ_IF_EXISTS(pSettings, r_u32, section, "safe_time", 0);
+	m_contact_grenade_params.DelayTime = READ_IF_EXISTS(pSettings, r_u32, section, "delay_time", 0);
+	m_contact_grenade_params.ExplosionOnKick = READ_IF_EXISTS(pSettings, r_bool, section, "explosion_on_kick", false);
+	m_contact_grenade_params.MinExplosionSpeed = READ_IF_EXISTS(pSettings, r_float, section, "min_explosion_speed", 0.0f);
+	m_contact_grenade_params.DeactivateOnLowSpeedContact = READ_IF_EXISTS(pSettings, r_bool, section, "deactivate_on_minimal_speed_contact", false);
+
 	//////////////////////////////////////
 	//время убирания оружия с уровня
 	if(pSettings->line_exist(section,"grenade_remove_time"))
@@ -54,6 +58,13 @@ void CGrenade::Load(LPCSTR section)
 	else
 		m_dwGrenadeRemoveTime = GRENADE_REMOVE_TIME;
 	m_grenade_detonation_threshold_hit=READ_IF_EXISTS(pSettings,r_float,section,"detonation_threshold_hit",default_grenade_detonation_threshold_hit);
+}
+
+void CGrenade::LoadSounds(LPCSTR section)
+{
+	inherited::LoadSounds(section);
+
+	m_sounds.LoadSound(section, "snd_checkout", "sndCheckout", false, m_eSoundCheckout);
 }
 
 bool CGrenade::CheckGrenadeExplosionByHit(SHit* SHit)
@@ -142,11 +153,19 @@ void CGrenade::State(u32 state)
 	switch (state)
 	{
 	case eThrowStart:
+	{
+		if (H_Parent())
 		{
-			Fvector						C;
-			Center						(C);
-			PlaySound					("sndCheckout", C);
-		}break;
+			Fvector SndPos;
+
+			if (H_Parent()->Local())
+				Center(SndPos);
+			else
+				SndPos.set(H_Parent()->Position());
+
+			PlaySound("sndCheckout", SndPos);
+		}
+	}break;
 	case eThrowEnd:
 		{
 			if(m_thrown)
@@ -190,7 +209,7 @@ void CGrenade::DiscardState()
 
 bool CGrenade::SendDeactivateItem()
 {
-	CActor* pActor = smart_cast<CActor*>(m_pInventory->GetOwner());
+	CActor* pActor = m_pInventory->GetOwner() ? m_pInventory->GetOwner()->cast_actor() : nullptr;
 	if (pActor && (GetState() == eReady || GetState() == eThrow))
 		return false;
 
@@ -254,45 +273,57 @@ void CGrenade::OnEvent(NET_Packet& P, u16 type)
 
 void CGrenade::PutNextToSlot()
 {
-	if (OnClient()) return;
+	if (OnClient())
+	{
+		return;
+	}
 
-	VERIFY									(!getDestroy());
+	VERIFY(!getDestroy());
 	//выкинуть гранату из инвентаря
-	NET_Packet						P;
+	NET_Packet P;
 	if (m_pInventory)
 	{
-		m_pInventory->Ruck					(this);
+		m_pInventory->Ruck(this);
 
-		this->u_EventGen				(P, GEG_PLAYER_ITEM2RUCK, this->H_Parent()->ID());
-		P.w_u16							(this->ID());
-		this->u_EventSend				(P);
+		this->u_EventGen(P, GEG_PLAYER_ITEM2RUCK, this->H_Parent()->ID());
+		P.w_u16(this->ID());
+		this->u_EventSend(P);
 	}
 	else
-		Msg ("! PutNextToSlot : m_pInventory = nullptr [%d][%d]", ID(), Device.dwFrame);	
-
-	if (smart_cast<CInventoryOwner*>(H_Parent()) && m_pInventory)
 	{
-		CGrenade *pNext						= smart_cast<CGrenade*>(	m_pInventory->Same(this,true)		);
-		if(!pNext) pNext					= smart_cast<CGrenade*>(	m_pInventory->SameSlot(GRENADE_SLOT, this, true)	);
+		Msg("! PutNextToSlot : m_pInventory = nullptr [%d][%d]", ID(), Device.dwFrame);
+	}
 
-		VERIFY								(pNext != this);
+	if (H_Parent() && H_Parent()->cast_inventory_owner() && m_pInventory)
+	{
+		PIItem finded_item = m_pInventory->Same(this, true);
 
-		if(pNext && m_pInventory->Slot(pNext->BaseSlot(),pNext) )
+		CGrenade* pNext = finded_item ? finded_item->cast_grenade() : nullptr;
+		if (!pNext)
 		{
-			pNext->u_EventGen				(P, GEG_PLAYER_ITEM2SLOT, pNext->H_Parent()->ID());
-			P.w_u16							(pNext->ID());
-			P.w_u16							(pNext->BaseSlot());
-			pNext->u_EventSend				(P);
-			m_pInventory->SetActiveSlot		(pNext->BaseSlot());
-		}else
-		{
-			CActor* pActor = smart_cast<CActor*>( m_pInventory->GetOwner());
-			
-			if(pActor)
-				pActor->OnPrevWeaponSlot();
+			finded_item = m_pInventory->SameSlot(GRENADE_SLOT, this, true);
+			pNext = finded_item ? finded_item->cast_grenade() : nullptr;
 		}
 
-		m_thrown				= false;
+		VERIFY(pNext != this);
+
+		if (pNext && m_pInventory->Slot(pNext->BaseSlot(), pNext))
+		{
+			pNext->u_EventGen(P, GEG_PLAYER_ITEM2SLOT, pNext->H_Parent()->ID());
+			P.w_u16(pNext->ID());
+			P.w_u16(pNext->BaseSlot());
+			pNext->u_EventSend(P);
+			m_pInventory->SetActiveSlot(pNext->BaseSlot());
+		}
+		else
+		{
+			if (CActor* pActor = m_pInventory->GetOwner() ? m_pInventory->GetOwner()->cast_actor() : nullptr)
+			{
+				pActor->OnPrevWeaponSlot();
+			}
+		}
+
+		m_thrown = false;
 	}
 }
 
@@ -325,21 +356,17 @@ bool CGrenade::Action(u16 cmd, u32 flags)
 	//переключение типа гранаты
 	case kWPN_NEXT:
 		{
-            if(flags&CMD_START) 
+            if (flags & CMD_START) 
 			{
-				if(m_pInventory)
+				if (m_pInventory)
 				{
-					TIItemContainer::iterator it = m_pInventory->m_ruck.begin();
-					TIItemContainer::iterator it_e = m_pInventory->m_ruck.end();
-					for(;it!=it_e;++it) 
+					for (PIItem item : m_pInventory->m_ruck)
 					{
-						CGrenade *pGrenade = smart_cast<CGrenade*>(*it);
-						if(pGrenade && xr_strcmp(pGrenade->cNameSect(), cNameSect())) 
+						CGrenade* pGrenade = item->cast_grenade();
+						if (pGrenade && xr_strcmp(pGrenade->cNameSect(), cNameSect())) 
 						{
-							m_pInventory->Ruck			(this);
-							m_pInventory->SetActiveSlot	(NO_ACTIVE_SLOT);
-							m_pInventory->Slot			(pGrenade->BaseSlot(),pGrenade);
-							return						true;
+							m_pInventory->PutGrenade(pGrenade);
+							return true;
 						}
 					}
 					return true;
@@ -386,26 +413,25 @@ void CGrenade::DeactivateItem()
 {
 	//Drop grenade if primed
 	StopCurrentAnimWithoutCallback();
-	if ( !GetTmpPreDestroy() && Local() && ( GetState()==eThrowStart || GetState()==eReady || GetState()==eThrow ) )
+	if (!GetTmpPreDestroy() && Local() && (GetState() == eThrowStart || GetState() == eReady || GetState() == eThrow))
 	{
 		if (m_fake_missile)
 		{
-			CGrenade*		pGrenade	= smart_cast<CGrenade*>( m_fake_missile );
-			if ( pGrenade )
+			CGrenade* pGrenade	= m_fake_missile->cast_grenade();
+			if (pGrenade)
 			{
-				if ( m_pInventory->GetOwner() )
+				if (m_pInventory->GetOwner())
 				{
-					CActor* pActor = smart_cast<CActor*>( m_pInventory->GetOwner() );
-					if (pActor)
+					if (CActor* pActor = m_pInventory->GetOwner()->cast_actor())
 					{
-						if ( !pActor->g_Alive() )
+						if (!pActor->g_Alive())
 						{
-							m_constpower			= false;
-							m_fThrowForce			= 0;
+							m_constpower = false;
+							m_fThrowForce = 0;
 						}
 					}
 				}				
-				Throw	();
+				Throw();
 			};
 		};
 	};

@@ -5,8 +5,6 @@
 
 #include "../xrRender/R_sun_support.h"
 
-using namespace DirectX;
-
 const	float	tweak_rain_COP_initial_offs = 1200.f;
 const	float	tweak_rain_ortho_xform_initial_offs = 1000.f;	//. ?
 
@@ -34,10 +32,11 @@ void CRender::render_rain() {
 	float	fRainFactor = g_pGamePersistent->Environment().CurrentEnv->rain_density;
 	if(fRainFactor < EPS_L)			return;
 
-	PIX_EVENT(render_rain);
+	GPU_EVENT(render_rain);
 
 	//	Use light as placeholder for rain data.
-	light			RainLight;
+	// нет необходимости создавать каждый кадр структуру размером почти в киллобайт на стеке.
+	light& RainLight = *RImplementation.Lights.rain_light;
 
 	//static const float	source_offset		= 40.f;
 
@@ -53,7 +52,7 @@ void CRender::render_rain() {
 	{
 		//	
 		const float fRainFar = ps_r3_dyn_wet_surf_far;
-		ex_project.build_projection(deg2rad(Device.fFOV/* *Device.fASPECT*/), Device.fASPECT, VIEWPORT_NEAR, fRainFar);
+		ex_project.build_projection(deg2rad(Device.fFOV/* *Device.fASPECT*/), Device.fASPECT, Device.fViewportNear, fRainFar);
 		ex_full.mul(ex_project, Device.mView);
 		ex_full_inverse.invert44(ex_full);
 
@@ -79,7 +78,6 @@ void CRender::render_rain() {
 	CSector* cull_sector;
 	Fmatrix						cull_xform;
 	{
-		FPU::m64r();
 		// Lets begin from base frustum
 		Fmatrix		fullxform_inv = ex_full_inverse;
 #ifdef	_DEBUG
@@ -205,9 +203,6 @@ void CRender::render_rain() {
 		RainLight.X.D.maxX = limit;
 		RainLight.X.D.minY = 0;
 		RainLight.X.D.maxY = limit;
-
-		// full-xform
-		FPU::m24r();
 	}
 
 	// Begin SMAP-render

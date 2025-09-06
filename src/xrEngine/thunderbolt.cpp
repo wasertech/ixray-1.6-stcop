@@ -1,20 +1,14 @@
 #include "stdafx.h"
 #pragma once
 
-#ifndef _EDITOR
 #include "Render.h"
-#endif    
 #include "thunderbolt.h"
 #include "IGame_Persistent.h"
 #include "LightAnimLibrary.h"
 
-#ifdef _EDITOR
-    #include "ui_toolscustom.h"
-#else
 #include "IGame_Level.h"
-#include "../xrCDB/xr_area.h"
-	#include "xr_object.h"
-#endif
+#include "../xrCore/Collision/xr_area.h"
+#include "xr_object.h"
 
 SThunderboltDesc::SThunderboltDesc	() :
 	m_GradientTop				(0),
@@ -152,9 +146,7 @@ shared_str CEffect_Thunderbolt::AppendDef(CEnvironment& environment, CInifile* p
 BOOL CEffect_Thunderbolt::RayPick(const Fvector& s, const Fvector& d, float& dist)
 {
 	BOOL bRes 	= TRUE;
-#ifdef _EDITOR
-    bRes 				= Tools->RayPick	(s,d,dist,0,0);
-#else
+
 	collide::rq_result	RQ;
 	CObject* E 			= g_pGameLevel ? g_pGameLevel->CurrentViewEntity() : nullptr;
 	bRes 				= g_pGameLevel ? g_pGameLevel->ObjectSpace.RayPick(s,d,dist,collide::rqtBoth,RQ,E) : false;	
@@ -167,7 +159,7 @@ BOOL CEffect_Thunderbolt::RayPick(const Fvector& s, const Fvector& d, float& dis
         float dst	=dist;
         if (PL.intersectRayDist(s,d,dst)&&(dst<=dist)){dist=dst; return true;}else return false;
     }
-#endif
+
     return bRes;
 }
 #define FAR_DIST g_pGamePersistent->Environment().CurrentEnv->far_plane
@@ -186,7 +178,7 @@ void CEffect_Thunderbolt::Bolt(shared_str id, float period, float lt)
     float sun_h, sun_p; 
 	CEnvironment&			environment = g_pGamePersistent->Environment();
     environment.CurrentEnv->sun_dir.getHP			(sun_h,sun_p);
-    float alt	            = environment.p_var_alt;//Random.randF(environment.p_var_alt.x,environment.p_var_alt.y);
+    float alt	            = Random.randF(environment.p_var_alt.x,environment.p_var_alt.y);
     float lng	            = Random.randF(sun_h-environment.p_var_long+PI,sun_h+environment.p_var_long+PI); 
     float dist	            = Random.randF(FAR_DIST*environment.p_min_dist,FAR_DIST*.95f);
     current_direction.setHP	(lng,alt);

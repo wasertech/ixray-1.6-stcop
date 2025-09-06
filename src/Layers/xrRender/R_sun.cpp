@@ -1,9 +1,11 @@
 #include "stdafx.h"
 #include "../../xrEngine/IGame_Persistent.h"
 #include "../../xrEngine/IRenderable.h"
-#include "FBasicVisual.h"
 
+#include "FBasicVisual.h"
 #include "R_sun_support.h"
+
+#include <DirectXMath.h>
 
 using namespace DirectX;
 
@@ -94,7 +96,6 @@ void CRender::render_sun_cascade(u32 cascade_ind)
 		// Compute volume(s) - something like a frustum for infinite directional light
 		// Also compute virtual light position and sector it is inside
 		{
-			FPU::m64r();
 			// Lets begin from base frustum
 			Fmatrix		fullxform_inv = ex_full_inverse;
 #ifdef	_DEBUG
@@ -276,9 +277,6 @@ void CRender::render_sun_cascade(u32 cascade_ind)
 			fuckingsun->X.D.maxX = limit;
 			fuckingsun->X.D.minY = 0;
 			fuckingsun->X.D.maxY = limit;
-
-			// full-xform
-			FPU::m24r();
 		}
 	}
 
@@ -329,7 +327,7 @@ void CRender::render_sun_cascade(u32 cascade_ind)
 	PROF_EVENT("Render Cascade: Accumulate");
 	Target->phase_accumulator();
 
-	PIX_EVENT(SE_SUN_NEAR);
+	GPU_EVENT(SE_SUN_NEAR);
 
 	if (cascade_ind == 0)
 		Target->accum_direct_cascade(SE_SUN_NEAR, m_sun_cascades[cascade_ind].xform, m_sun_cascades[cascade_ind].xform, m_sun_cascades[cascade_ind].bias);

@@ -17,6 +17,9 @@ list(APPEND NETSERV_SRC_FILES ${NETSERV_SOURCE_ALL_FILES})
 if (NOT IXRAY_MP)
 	list(FILTER NETSERV_SRC_FILES EXCLUDE REGEX "SteamNetClient.cpp$")
 	list(FILTER NETSERV_SRC_FILES EXCLUDE REGEX "SteamNetServer.cpp$")
+	list(FILTER NETSERV_SRC_FILES EXCLUDE REGEX "SQLConnect.*")
+elseif (NOT IXRAY_MP_SQL)
+	list(FILTER NETSERV_SRC_FILES EXCLUDE REGEX "SQLConnect.*")
 endif()
 
 # xrNetServer project
@@ -29,6 +32,9 @@ target_compile_definitions(xrNetServer PRIVATE XR_NETSERVER_EXPORTS)
 target_compile_definitions(xrNetServer PRIVATE _USRDLL)
 
 if (IXRAY_MP)
+    if (IXRAY_MP_SQL)
+	    target_compile_definitions(xrNetServer PUBLIC IXR_MP_SQL)
+    endif()
 	target_compile_definitions(xrNetServer PUBLIC XR_MP_BUILD)
 endif()
 
@@ -57,5 +63,17 @@ if(IXRAY_MP)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${STEAM_SOCKETS_PATH}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/libprotobuf.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${STEAM_SOCKETS_PATH}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/libprotoc.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${STEAM_SOCKETS_PATH}/runtimes/win-${NUGET_PACKAGE_PLATFORM}/native/Release/libssl-3${LIBSSL_POSTFIX}.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
+    )
+endif()
+
+# MySQL Connector
+if (IXRAY_MP_SQL)
+    target_include_directories(xrNetServer PUBLIC "${MYSQLCONNECTOR}include/")
+    target_link_libraries(xrNetServer PUBLIC "${MYSQLCONNECTOR}lib/mysqlcppconn.lib")
+    add_custom_command(TARGET ${PROJECT_NAME} 
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLCONNECTOR}bin/mysqlcppconn-9-vs14.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLCONNECTOR}bin/libcrypto-1_1-x64.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLCONNECTOR}bin/libssl-1_1-x64.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/
     )
 endif()

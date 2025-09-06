@@ -13,6 +13,8 @@ public:
 	virtual ~UIRenderForm();
 	virtual void Draw();
 
+	void DrawVP();
+
 	IC Ivector2 GetMousePos()const { return m_mouse_position; }
 	IC const Frect&	GetRect() const { return m_render_pos; }
 
@@ -23,6 +25,9 @@ public:
 	xr_delegate<void()> OnClickCallback;
 	int ViewportID = 0;
 	string32 ViewportName;
+
+	bool UseHint = false;
+
 private:
 	void DrawStatistics();
 	void HandleDragDrop(const ImVec2&);

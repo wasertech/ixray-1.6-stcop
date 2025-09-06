@@ -366,6 +366,11 @@ void CBaseMonster::UpdateCL()
 	control().update_frame();
 
 	m_pPhysics_support->in_UpdateCL();
+
+	if (OnClient() && g_pGamePersistent->GameType() == eGameIDFreeMP)
+	{
+		character_physics_support()->movement()->CollisionEnable(false);
+	}
 }
 
 void CBaseMonster::shedule_Update(u32 dt)
@@ -381,24 +386,24 @@ void CBaseMonster::shedule_Update(u32 dt)
 
 	inherited::shedule_Update	(dt);
 
-	update_eyes_visibility		();
-
-	if ( m_anti_aim )
+	if (OnServer())
 	{
-		m_anti_aim->update_schedule();
+		update_eyes_visibility();
+		if (m_anti_aim)
+			m_anti_aim->update_schedule();
+
+		m_psy_aura.update_schedule();
+		m_fire_aura.update_schedule();
+		m_base_aura.update_schedule();
+		m_radiation_aura.update_schedule();
+
+		control().update_schedule();
+
+		Morale.update_schedule(dt);
+
+		m_anomaly_detector->update_schedule();
 	}
 
-	m_psy_aura.update_schedule();
-	m_fire_aura.update_schedule();
-	m_base_aura.update_schedule();
-	m_radiation_aura.update_schedule();
-
-	control().update_schedule	();
-
-	Morale.update_schedule		(dt);
-
-	m_anomaly_detector->update_schedule();
-	
 	m_pPhysics_support->in_shedule_Update(dt);
 
 #ifdef DEBUG	
@@ -457,7 +462,7 @@ void CBaseMonster::Hit(SHit* pHDS)
 		if(!critically_wounded()) 
 			update_critical_wounded(pHDS->boneID,pHDS->power);
 	
-	if(pHDS->hit_type == ALife::eHitTypeFireWound)
+	if(pHDS->hit_type == ALife::eHitTypeFireWound && !EngineExternal().ClearSkyMode())
 	{
 		float &hit_power = pHDS->power;
 		float ap = pHDS->armor_piercing;
@@ -794,25 +799,30 @@ DLL_Pure *CBaseMonster::_construct	()
 void CBaseMonster::net_Relcase(CObject *O)
 {
 	inherited::net_Relcase(O);
-
-	StateMan->remove_links			(O);
-
-	com_man().remove_links			(O);
-
-	// TODO: do not clear, remove only object O
-	if (g_Alive()) {
-		EnemyMemory.remove_links	(O);
-		SoundMemory.remove_links	(O);
-		HitMemory.remove_hit_info	(O);
-
-		EnemyMan.remove_links		(O);
-		CorpseMan.remove_links		(O);
-
-		UpdateMemory				();
-		
-		monster_squad().remove_links(O);
+	
+	if (OnServer() && O->cast_entity_alive())
+	{
+		StateMan->remove_links(O);
+		com_man().remove_links(O);
 	}
-	CorpseMemory.remove_links		(O);
+	 
+	// TODO: do not clear, remove only object O
+	if (g_Alive() && OnServer()) 
+	{
+		if (O->cast_entity_alive())
+		{
+			EnemyMemory.remove_links(O);
+			SoundMemory.remove_links(O);
+			HitMemory.remove_hit_info(O);
+ 			EnemyMan.remove_links(O);
+			CorpseMan.remove_links(O);
+ 			monster_squad().remove_links(O);
+		}
+	}
+
+	if (OnServer() && O->cast_entity_alive())
+		CorpseMemory.remove_links		(O);
+
 	m_pPhysics_support->in_NetRelcase(O);
 }
 	

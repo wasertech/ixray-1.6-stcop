@@ -47,6 +47,7 @@ void CLevelChanger::net_Destroy	()
 
 BOOL CLevelChanger::net_Spawn	(CSE_Abstract* DC) 
 {
+	condWork					= true;
 	m_entrance_time				= 0;
 	m_b_enabled					= true;
 	m_invite_str				= DEF_INVITATION;
@@ -107,16 +108,44 @@ void CLevelChanger::shedule_Update(u32 dt)
 
 	update_actor_invitation		();
 }
+
 #include "patrol_path.h"
 #include "patrol_path_storage.h"
 void CLevelChanger::feel_touch_new	(CObject *tpObject)
 {
-	CActor*			l_tpActor = smart_cast<CActor*>(tpObject);
-	VERIFY			(l_tpActor);
-	if (!l_tpActor->g_Alive())
+	if (Device.IsEditorMode())
+	{
+		// FX: Отключаем переходы для PIE
+		Msg("~ Actor into Level Changer! Unsupported in PIE!");
 		return;
+	}
 
-	if (m_bSilentMode) {
+	if (m_ini_file && m_ini_file->section_exist("cond"))
+	{
+		LPCSTR p_name = m_ini_file->r_string("cond", "infop");
+		
+		if (!Actor()->cast_inventory_owner()->HasInfo(p_name))
+		{
+			if (READ_IF_EXISTS(m_ini_file, r_bool, "cond", "move", false))
+			{
+				Fvector p, r;
+				if (get_reject_pos(p, r))
+					Actor()->MoveActor(p, r);
+			}
+			condWork = false;
+			return;
+		}
+	}
+
+	CActor* l_tpActor = tpObject != nullptr ? tpObject->cast_actor() : nullptr;
+	VERIFY(l_tpActor);
+	if (!l_tpActor->g_Alive())
+	{
+		return;
+	}
+
+	if (m_bSilentMode)
+	{
 		NET_Packet	p;
 		p.w_begin	(M_CHANGE_LEVEL);
 		p.w			(&m_game_vertex_id,sizeof(m_game_vertex_id));
@@ -128,9 +157,11 @@ void CLevelChanger::feel_touch_new	(CObject *tpObject)
 	}
 	Fvector			p,r;
 	bool			b = get_reject_pos(p,r);
-	CUIGameSP		*pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
-	if (pGameSP)
-        pGameSP->ChangeLevel	(m_game_vertex_id, m_level_vertex_id, m_position, m_angles, p, r, b, m_invite_str, m_b_enabled);
+	 
+	if (CurrentGameUI() == nullptr)
+		return;
+
+	CurrentGameUI()->ChangeLevel(m_game_vertex_id, m_level_vertex_id, m_position, m_angles, p, r, b, m_invite_str, m_b_enabled);
 
 	m_entrance_time	= Device.fTimeGlobal;
 }
@@ -162,35 +193,42 @@ bool CLevelChanger::get_reject_pos(Fvector& p, Fvector& r)
 		return false;
 }
 
-BOOL CLevelChanger::feel_touch_contact	(CObject *object)
+BOOL CLevelChanger::feel_touch_contact(CObject* object)
 {
-	BOOL bRes	= (((CCF_Shape*)CFORM())->Contact(object));
-	bRes		= bRes && smart_cast<CActor*>(object) && smart_cast<CActor*>(object)->g_Alive();
-	return		bRes;
+	BOOL bRes = (((CCF_Shape*)CFORM())->Contact(object));
+	CActor* pActor = object != nullptr ? object->cast_actor() : nullptr;
+	bRes = bRes && pActor != nullptr && pActor->g_Alive();
+	return bRes;
 }
 
 void CLevelChanger::update_actor_invitation()
 {
-	if(m_bSilentMode)						return;
-	xr_vector<CObject*>::iterator it		= feel_touch.begin();
-	xr_vector<CObject*>::iterator it_e		= feel_touch.end();
+	if (m_bSilentMode || !condWork)
+	{
+		return;
+	}
 
-	for(;it!=it_e;++it){
-		CActor*			l_tpActor = smart_cast<CActor*>(*it);
-		VERIFY			(l_tpActor);
-		
-		if(!l_tpActor->g_Alive())
+	for (CObject* object : feel_touch)
+	{
+		CActor* l_tpActor = object->cast_actor();
+		VERIFY(l_tpActor);
+
+		if (!l_tpActor->g_Alive())
+		{
 			continue;
+		}
 
-		if(m_entrance_time+5.0f < Device.fTimeGlobal){
-			CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
-			Fvector p,r;
-			bool b = get_reject_pos(p,r);
-			
-			if(pGameSP)
-				pGameSP->ChangeLevel(m_game_vertex_id,m_level_vertex_id,m_position,m_angles,p,r,b, m_invite_str, m_b_enabled);
+		if (m_entrance_time + 5.0f < Device.fTimeGlobal)
+		{
+			Fvector p, r;
+			bool b = get_reject_pos(p, r);
 
-			m_entrance_time		= Device.fTimeGlobal;
+			if (CurrentGameUI())
+			{
+				CurrentGameUI()->ChangeLevel(m_game_vertex_id, m_level_vertex_id, m_position, m_angles, p, r, b, m_invite_str, m_b_enabled);
+			}
+
+			m_entrance_time = Device.fTimeGlobal;
 		}
 	}
 }

@@ -151,7 +151,7 @@ void CPHDestroyable::Destroy(u16 source_id/*=u16(-1)*/,LPCSTR section/*="ph_skel
 	}
 	xr_vector<shared_str>::iterator i=m_destroyed_obj_visual_names.begin(),e=m_destroyed_obj_visual_names.end();
 
-	if (IsGameTypeSingle())
+	if (IsGameTypeSingleCompatible())
 	{
 		for(;e!=i;i++)
 			GenSpawnReplace(source_id,section,*i);
@@ -164,14 +164,26 @@ void CPHDestroyable::Destroy(u16 source_id/*=u16(-1)*/,LPCSTR section/*="ph_skel
 void CPHDestroyable::Load(CInifile* ini,LPCSTR section)
 {
 	m_flags.set(fl_destroyable,FALSE);
-	if(ini->line_exist(section,"destroyed_vis_name")){
+
+	if (ini->line_exist(section,"destroyed_vis_name")){
 		m_flags.set(fl_destroyable,TRUE);
 		m_destroyed_obj_visual_names.push_back(ini->r_string(section,"destroyed_vis_name"));
-	}else{
+	} else {
 		CInifile::Sect& data		= ini->r_section(section);
+
 		if(data.Data.size()>0) m_flags.set(fl_destroyable,TRUE);
-		for (CInifile::SectCIt I=data.Data.begin(); I!=data.Data.end(); I++)
-			if(I->first.size())		m_destroyed_obj_visual_names.push_back(I->first);
+
+		for (CInifile::SectCIt I = data.Data.begin(); I != data.Data.end(); I++)
+		{
+			if (I->first.size())
+				m_destroyed_obj_visual_names.push_back(I->first);
+
+			u8 cnt = *I->second ? u8(atoi(I->second.c_str())) : 0;
+
+			for (u8 i = 0; i < cnt; ++i)
+				m_destroyed_obj_visual_names.push_back(I->first);
+		}
+			
 	}
 }
 void CPHDestroyable::Load(LPCSTR section)
@@ -340,6 +352,13 @@ void CPHDestroyable::NotificateDestroy(CPHDestroyableNotificate *dn)
 {
 	VERIFY(m_depended_objects);
 	VERIFY(!physics_world()->Processing());
+
+	if (g_pGamePersistent->GameType() == eGameIDFreeMP)
+	{
+		CPhysicsShellHolder* obj = PPhysicsShellHolder();
+		obj->setVisible(FALSE);
+	}
+
 	m_depended_objects--;
 	PhysicallyRemovePart(dn);
 	m_notificate_objects.push_back(dn);

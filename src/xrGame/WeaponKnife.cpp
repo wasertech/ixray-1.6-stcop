@@ -43,34 +43,63 @@ CWeaponKnife::~CWeaponKnife()
 {
 }
 
-void CWeaponKnife::Load	(LPCSTR section)
+void CWeaponKnife::Load(LPCSTR section)
 {
 	// verify class
-	inherited::Load		(section);
+	inherited::Load(section);
 
-	fWallmarkSize = pSettings->r_float(section,"wm_size");
-	m_sounds.LoadSound(section,"snd_shoot"		, "sndShot"		, false, SOUND_TYPE_WEAPON_SHOOTING		);
-	
-	m_Hit1SpashDir		=	pSettings->r_fvector3(section, "splash1_direction");
-	m_Hit2SpashDir		=	pSettings->r_fvector3(section, "splash2_direction");
+	fWallmarkSize = pSettings->r_float(section, "wm_size");
 
-	m_Hit1Distance		=	pSettings->r_float(section, "spash1_dist");
-	m_Hit2Distance		=	pSettings->r_float(section, "spash2_dist");
+	m_Hit1SpashDir = pSettings->r_fvector3(section, "splash1_direction");
+	m_Hit2SpashDir = pSettings->r_fvector3(section, "splash2_direction");
 
-	m_Hit1SplashRadius	=	pSettings->r_float(section, "spash1_radius");
-	m_Hit2SplashRadius	=	pSettings->r_float(section, "spash2_radius");
+	m_Hit1Distance = pSettings->r_float(section, "spash1_dist");
+	m_Hit2Distance = pSettings->r_float(section, "spash2_dist");
 
-	m_Splash1HitsCount			=	pSettings->r_u32(section, "splash1_hits_count");
-	m_Splash1PerVictimsHCount	=	pSettings->r_u32(section, "splash1_pervictim_hcount");
-	m_Splash2HitsCount			=	pSettings->r_u32(section, "splash2_hits_count");
+	m_Hit1SplashRadius = pSettings->r_float(section, "spash1_radius");
+	m_Hit2SplashRadius = pSettings->r_float(section, "spash2_radius");
+
+	m_Splash1HitsCount = pSettings->r_u32(section, "splash1_hits_count");
+	m_Splash1PerVictimsHCount = pSettings->r_u32(section, "splash1_pervictim_hcount");
+	m_Splash2HitsCount = pSettings->r_u32(section, "splash2_hits_count");
 #ifdef DEBUG
 	m_dbg_data.m_pick_vectors.reserve(std::max(m_Splash1HitsCount, m_Splash2HitsCount));
 #endif
-	m_NextHitDivideFactor	=	pSettings->r_float(section, "splash_hit_divide_factor");
+	m_NextHitDivideFactor = pSettings->r_float(section, "splash_hit_divide_factor");
 
-	knife_material_idx =  GMLib.GetMaterialIdx(KNIFE_MATERIAL_NAME);
+	knife_material_idx = GMLib.GetMaterialIdx(KNIFE_MATERIAL_NAME);
 	m_bShowKnifeStats = READ_IF_EXISTS(pSettings, r_bool, section, "show_knife_stats", true);
+
 	m_flags.set(FUsingCondition, READ_IF_EXISTS(pSettings, r_bool, section, "use_condition", false));
+}
+
+void CWeaponKnife::LoadSounds(LPCSTR section)
+{
+	inherited::LoadSounds(section);
+
+	if (SoundExist(section, "snd_kick_1") && SoundExist(section, "snd_kick_2"))
+	{
+		m_eSoundsFlags.set(ESoundsFlags::sf_kick, TRUE);
+		m_sounds.LoadSound(section, "snd_kick_1", "sndKick1", false, SOUND_TYPE_WEAPON_SHOOTING);
+		m_sounds.LoadSound(section, "snd_kick_2", "sndKick2", false, SOUND_TYPE_WEAPON_SHOOTING);
+	}
+	else
+	{
+		m_sounds.LoadSound(section, "snd_shoot", "sndShot", false, SOUND_TYPE_WEAPON_SHOOTING);
+	}
+
+	if (SoundExist(section, "snd_draw"))
+	{
+		m_eSoundsFlags.set(ESoundsFlags::sf_draw, TRUE);
+		m_sounds.LoadSound(section, "snd_draw", "SndShow", false, ESoundTypes(SOUND_TYPE_ITEM_TAKING));
+	}
+
+	if (SoundExist(section, "snd_holster"))
+	{
+		m_eSoundsFlags.set(ESoundsFlags::sf_holster, TRUE);
+		m_sounds.LoadSound(section, "snd_holster", "SndHide", false, ESoundTypes(SOUND_TYPE_ITEM_HIDING));
+	}
+
 }
 
 void CWeaponKnife::OnStateSwitch	(u32 S)
@@ -198,10 +227,13 @@ void CWeaponKnife::MakeShot(Fvector const & pos, Fvector const & dir, float cons
 	iAmmoElapsed					= (u32)m_magazine.size();
 	bool SendHit					= SendHitAllowed(H_Parent());
 
-	PlaySound						("sndShot",pos);
+	if (!m_eSoundsFlags.test(ESoundsFlags::sf_kick))
+	{
+		PlaySound("sndShot", pos);
+	}
 
-	CActor* actor = smart_cast<CActor*>(H_Parent());
-	if (actor->active_cam() != eacFirstEye) {
+	CActor* actor = H_Parent()->cast_actor();
+	if (actor && actor->active_cam() != eacFirstEye) {
 		Level().BulletManager().AddBullet(pos, dir, m_fStartBulletSpeed, fCurrentHit,
 			fHitImpulse_cur, H_Parent()->ID(), ID(), m_eHitType,
 			fireDistance + 1.5f, cartridge, 1.f, SendHit);
@@ -242,7 +274,7 @@ void CWeaponKnife::OnMotionMark(u32 state, const motion_marks& M)
 
 	if(H_Parent())
 	{
-		smart_cast<CEntity*>(H_Parent())->g_fireParams(this, p1,d);
+		H_Parent()->cast_entity()->g_fireParams(this, p1,d);
 		KnifeStrike(p1,d);
 	}
 }
@@ -267,16 +299,50 @@ void CWeaponKnife::state_Attacking	(float)
 {
 }
 
-void CWeaponKnife::switch2_Attacking	(u32 state)
+void CWeaponKnife::switch2_Attacking(u32 state)
 {
-	if(IsPending())	return;
+	if (state == eFire)
+	{
+		if (CActor* pActor = H_Parent() != nullptr ? H_Parent()->cast_actor() : nullptr)
+		{
+			if (CCustomDetector* pDet = pActor->GetDetector())
+			{
+				if (pDet->CanKick())
+				{
+					pDet->SwitchState(CCustomDetector::EDetectorStates::eHandKick1);
+				}
+			}
+		}
 
-	if(state==eFire)
-		PlayHUDMotion("anm_attack",		FALSE, this, state);
-	else //eFire2
-		PlayHUDMotion("anm_attack2",	FALSE, this, state);
+		PlayHUDMotion("anm_attack", FALSE, state);
 
-	SetPending			(TRUE);
+		if (m_eSoundsFlags.test(ESoundsFlags::sf_kick))
+		{
+			PlaySound("sndKick1", Position());
+		}
+	}
+	else
+	{
+		if (CActor* pActor = H_Parent() != nullptr ? H_Parent()->cast_actor() : nullptr)
+		{
+			if (CCustomDetector* pDet = pActor->GetDetector())
+			{
+				if (pDet->CanKick())
+				{
+					pDet->SwitchState(CCustomDetector::EDetectorStates::eHandKick2);
+				}
+			}
+		}
+
+		PlayHUDMotion("anm_attack2", FALSE, state);
+
+		if (m_eSoundsFlags.test(ESoundsFlags::sf_kick))
+		{
+			PlaySound("sndKick2", Position());
+		}
+	}
+
+	SetPending(TRUE);
 }
 
 void CWeaponKnife::switch2_Idle	()
@@ -291,7 +357,12 @@ void CWeaponKnife::switch2_Hiding	()
 {
 	FireEnd					();
 	VERIFY(GetState()==eHiding);
-	PlayHUDMotion("anm_hide", TRUE, this, GetState());
+	PlayHUDMotion("anm_hide", TRUE, GetState());
+
+	if (m_eSoundsFlags.test(ESoundsFlags::sf_holster))
+	{
+		PlaySound("SndHide", get_LastFP());
+	}
 }
 
 void CWeaponKnife::switch2_Hidden()
@@ -303,33 +374,71 @@ void CWeaponKnife::switch2_Hidden()
 void CWeaponKnife::switch2_Showing	()
 {
 	VERIFY(GetState()==eShowing);
-	PlayHUDMotion("anm_show", FALSE, this, GetState());
+	PlayHUDMotion("anm_show", FALSE, GetState());
+
+	if (m_eSoundsFlags.test(ESoundsFlags::sf_draw))
+	{
+		PlaySound("SndShow", get_LastFP());
+	}
 }
 
+void CWeaponKnife::UpdateCL()
+{
+	inherited::UpdateCL();
+
+	if (Device.dwFrame == dwUpdateSounds_Frame)
+		return;
+
+	dwUpdateSounds_Frame = Device.dwFrame;
+
+	Fvector P = get_LastFP();
+
+	if (m_eSoundsFlags.test(ESoundsFlags::sf_draw))
+		m_sounds.SetPosition("SndShow", P);
+
+	if (m_eSoundsFlags.test(ESoundsFlags::sf_holster))
+		m_sounds.SetPosition("SndHide", P);
+}
 
 void CWeaponKnife::FireStart()
 {	
+	if (GetState() != eIdle && GetState() != eShowing)
+	{
+		return;
+	}
+
 	inherited::FireStart();
-	SwitchState			(eFire);
+	SwitchState(eFire);
 }
 
-void CWeaponKnife::Fire2Start () 
+void CWeaponKnife::Fire2Start()
 {
+	if (GetState() != eIdle && GetState() != eShowing)
+	{
+		return;
+	}
+
 	SwitchState(eFire2);
 }
 
-
-bool CWeaponKnife::Action(u16 cmd, u32 flags) 
+bool CWeaponKnife::Action(u16 cmd, u32 flags)
 {
-	if(inherited::Action(cmd, flags)) return true;
-	switch(cmd) 
+	if (inherited::Action(cmd, flags))
 	{
+		return true;
+	}
 
-		case kWPN_ZOOM : 
-			if(flags&CMD_START) 
-				Fire2Start			();
+	switch (cmd)
+	{
+		case kWPN_ZOOM:
+		{
+			if (flags & CMD_START)
+			{
+				Fire2Start();
+			}
 
 			return true;
+		}
 	}
 	return false;
 }
@@ -549,7 +658,7 @@ u32 CWeaponKnife::get_entity_bones_count(CEntityAlive const * entity)
 	VERIFY(entity);
 	if (!entity)
 		return 0;
-	IKinematics*	tmp_kinem	= smart_cast<IKinematics*>(entity->Visual());
+	IKinematics*	tmp_kinem	= PKinematics(entity->Visual());
 	if (!tmp_kinem)
 		return 0;
 
@@ -674,10 +783,14 @@ void CWeaponKnife::create_victims_list(spartial_base_t spartial_result,
 		CObject* tmp_obj = (*i)->dcast_CObject();
 		VERIFY(tmp_obj);
 		if (!tmp_obj)
+		{
 			continue;
-		CEntityAlive*	tmp_entity = smart_cast<CEntityAlive*>(tmp_obj);
+		}
+		CEntityAlive* tmp_entity = tmp_obj->cast_entity_alive();
 		if (!tmp_entity)
+		{
 			continue;
+		}
 		VERIFY(victims_dest.capacity() > victims_dest.size());
 		victims_dest.push_back(tmp_entity);
 	}
@@ -759,10 +872,12 @@ bool CWeaponKnife::SelectBestHitVictim(Fvector const & f_pos,
 									   Fvector & fendpos_dest,
 									   Fsphere & query_sphere)
 {
-	CActor* tmp_parent = smart_cast<CActor*>(H_Parent());
+	CActor* tmp_parent = H_Parent() ? H_Parent()->cast_actor() : nullptr;
 	VERIFY(tmp_parent);
 	if (!tmp_parent)
+	{
 		return false;
+	}
 
 	if (GetHUDmode())
 		tmp_parent->Cameras().hud_camera_Matrix(parent_xform);
@@ -871,9 +986,11 @@ bool CWeaponKnife::victim_filter::operator()(spartial_base_t::value_type const &
 	if (tmp_obj->ID() == m_except_id)
 		return true;
 	
-	CEntityAlive*	const tmp_actor = smart_cast<CEntityAlive*>(tmp_obj);
+	CEntityAlive* const tmp_actor = tmp_obj->cast_entity_alive();
 	if (!tmp_actor)
+	{
 		return true;
+	}
 
 	Fvector			obj_pos;
 	tmp_actor->Center(obj_pos);
@@ -921,9 +1038,11 @@ void CWeaponKnife::best_victim_selector::operator()(
 	if (tmp_obj->ID() == m_except_id)
 		return;
 	
-	CEntityAlive*	const tmp_actor = smart_cast<CEntityAlive*>(tmp_obj);
+	CEntityAlive* const tmp_actor = tmp_obj->cast_entity_alive();
 	if (!tmp_actor)
+	{
 		return;
+	}
 
 	Fvector			obj_pos;
 	tmp_actor->Center(obj_pos);

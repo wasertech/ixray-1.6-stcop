@@ -14,9 +14,9 @@
 #define ECORE_API
 #define XR_EPROPS_API
 #include "../../xrCore/clsid.h"
-#include "defines.h"
+#include "../../xrEngine/defines.h"
 #include "../xrForms/cl_log.h"
-#include "../../xrCDB/xrCDB.h"
+#include "../../xrCore/Collision/xrCDB.h"
 #include "_d3d_extensions.h"
 #include "../../xrEngine/stdafx.h"
 #include <fcntl.h>
@@ -24,11 +24,6 @@
 #include <sys/stat.h>
 #include <io.h>
 #include <stdio.h>
-
-#ifdef AI_COMPILER
-#	include "../../xrServerEntities/smart_cast.h"
-#endif
-// TODO: reference additional headers your program requires here
 
 #define READ_IF_EXISTS(ltx,method,section,name,default_value)\
 	(ltx->line_exist(section,name)) ? ltx->method(section,name) : default_value

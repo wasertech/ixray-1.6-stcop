@@ -4,7 +4,7 @@
 
 #include "stdafx.h"
 #include "EngineAPI.h"
-#include "../xrCDB/xrXRC.h"
+#include "../xrCore/Collision/xrXRC.h"
 
 #include <filesystem>
 
@@ -72,6 +72,20 @@ void CEngineAPI::InitializeNotDedicated()
 	}
 }
 
+void CEngineAPI::InitializeDedicated()
+{
+	LPCSTR			r1_name	= "xrRender_DS0.dll";
+	psDeviceFlags.set	(rsR4,FALSE);
+	psDeviceFlags.set	(rsR2,FALSE);
+	renderer_value		= 0; //con cmd
+
+	Msg("Loading DLL: %s",	r1_name);
+	hRender			= LoadLibraryA		(r1_name);
+	if (0==hRender)	R_CHK				(GetLastError());
+	//R_ASSERT		(hRender);
+	g_current_renderer	= 0;
+}
+
 extern ENGINE_API bool g_dedicated_server;
 
 void __cdecl Null_Factory_Destroy(DLL_Pure* O)
@@ -85,12 +99,15 @@ DLL_Pure* __cdecl Null_Factory_Create(CLASS_ID CLS_ID)
 
 void CEngineAPI::Initialize(void)
 {
+	PROF_EVENT("CEngineAPI::Initialize");
 	//////////////////////////////////////////////////////////////////////////
 	// render
 	LPCSTR			r1_name	= "xrRender_R1.dll";
 
 	if (!g_dedicated_server)
 		InitializeNotDedicated();
+	else
+		InitializeDedicated();
 
 	if (0==hRender)		
 	{
@@ -111,6 +128,11 @@ void CEngineAPI::Initialize(void)
 	// game
 	{
 		LPCSTR			g_name	= "xrGame.dll";
+		if (EngineExternal().ShadowOfChernobylMode())
+		{
+			g_name = "xrGameSOC.dll";
+		}
+
 		Msg("Loading DLL: %s",g_name);
 		hGame			= LoadLibraryA	(g_name);
 		if (0==hGame)	R_CHK			(GetLastError());
@@ -159,6 +181,7 @@ void CEngineAPI::Destroy(void)
 
 void CEngineAPI::CreateRendererList()
 {
+	PROF_EVENT("CreateRendererList");
 	if (g_dedicated_server)
 	{
 		vid_quality_token = xr_alloc<xr_token>(2);

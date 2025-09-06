@@ -1,18 +1,16 @@
 #include "stdafx.h"
  
 #include "xrDeflector.h"
-#include "xrIsect.h"
 #include "xrLC_GlobalData.h"
 
 #include "math.h"
 #include "xrFace.h"
  
-XRLC_LIGHT_API u32 c_LMAP_size = 1024;
-
+  
 void blit			(u32* dest, u32 ds_x, u32 ds_y, u32* src, u32 ss_x, u32 ss_y, u32 px, u32 py, u32 aREF)
 {
-	R_ASSERT(ds_x>=(ss_x+px));
-	R_ASSERT(ds_y>=(ss_y+py));
+	// R_ASSERT(ds_x>=(ss_x+px));
+	// R_ASSERT(ds_y>=(ss_y+py));
 	for (u32 y=0; y<ss_y; y++)
 		for (u32 x=0; x<ss_x; x++)
 		{
@@ -29,44 +27,56 @@ void lblit			(lm_layer& dst, lm_layer& src, u32 px, u32 py, u32 aREF)
 	u32		ds_y	= dst.height;
 	u32		ss_x	= src.width;
 	u32		ss_y	= src.height;
-	R_ASSERT(ds_x>=(ss_x+px));
-	R_ASSERT(ds_y>=(ss_y+py));
+ 
 	for (u32 y=0; y<ss_y; y++)
-		for (u32 x=0; x<ss_x; x++)
-		{
-			u32 dx = px+x;
-			u32 dy = py+y;
-			base_color	sc = src.surface[y*ss_x+x];
-			u8			sm = src.marker [y*ss_x+x];
-			if (sm>=aREF) {
-				dst.surface	[dy*ds_x+dx] = sc;
-				dst.marker	[dy*ds_x+dx] = sm;
-			}
+	for (u32 x=0; x<ss_x; x++)
+	{
+		u32 dx = px+x;
+		u32 dy = py+y;
+		base_color	sc = src.surface[y*ss_x+x];
+		u8			sm = src.marker [y*ss_x+x];
+		if (sm>=aREF) {
+			dst.surface	[dy*ds_x+dx] = sc;
+			dst.marker	[dy*ds_x+dx] = sm;
 		}
+	}
 }
 
 void blit			(lm_layer& dst, u32 ds_x, u32 ds_y, lm_layer& src,	u32 ss_x, u32 ss_y, u32 px, u32 py, u32 aREF)
 {
-	R_ASSERT(ds_x>=(ss_x+px));
-	R_ASSERT(ds_y>=(ss_y+py));
+ 	// DebugMsg("ds_x : %u || ss_x: %u", ds_x, ss_x);
+	// DebugMsg("ds_y : %u || ss_y: %u", ds_y, ss_y);
+	// 
+	// DebugMsg("Source Marker: %u, Surface: %u", src.marker.size(), src.surface.size());
+	// DebugMsg("Source W: %u, H: %u", src.width, src.height);
+
 	for (u32 y=0; y<ss_y; y++)
-		for (u32 x=0; x<ss_x; x++)
+	for (u32 x=0; x<ss_x; x++)
+	{
+		u32 dx = px+x;
+		u32 dy = py+y;
+
+		// if (y * ss_x + x > src.surface.capacity())
+		// 	DebugMsg("Source Map size: %u | but need : %u", src.surface.size(), y * ss_x + x);
+		// 
+		// if (y * ss_x + x > src.marker.capacity())
+		// 	DebugMsg("Source Map size: %u | but need : %u", src.marker.size(), y * ss_x + x);
+
+		base_color	sc = src.surface[y*ss_x+x];
+		u8			sm = src.marker [y*ss_x+x];
+		
+		if (sm>=aREF) 
 		{
-			u32 dx = px+x;
-			u32 dy = py+y;
-			base_color	sc = src.surface[y*ss_x+x];
-			u8			sm = src.marker [y*ss_x+x];
-			if (sm>=aREF) {
-				dst.surface	[dy*ds_x+dx] = sc;
-				dst.marker	[dy*ds_x+dx] = sm;
-			}
+			dst.surface	[dy*ds_x+dx] = sc;
+			dst.marker	[dy*ds_x+dx] = sm;
 		}
+	}
 }
 
 void blit_r	(u32* dest, u32 ds_x, u32 ds_y, u32* src, u32 ss_x, u32 ss_y, u32 px, u32 py, u32 aREF)
 {
-	R_ASSERT(ds_x>=(ss_y+px));
-	R_ASSERT(ds_y>=(ss_x+py));
+	// R_ASSERT(ds_x>=(ss_y+px));
+	// R_ASSERT(ds_y>=(ss_x+py));
 	for (u32 y=0; y<ss_y; y++)
 		for (u32 x=0; x<ss_x; x++)
 		{
@@ -80,8 +90,8 @@ void blit_r	(u32* dest, u32 ds_x, u32 ds_y, u32* src, u32 ss_x, u32 ss_y, u32 px
 
 void blit_r	(lm_layer& dst, u32 ds_x, u32 ds_y, lm_layer& src, u32 ss_x, u32 ss_y, u32 px, u32 py, u32 aREF)
 {
-	R_ASSERT(ds_x>=(ss_y+px));
-	R_ASSERT(ds_y>=(ss_x+py));
+	// R_ASSERT(ds_x>=(ss_y+px));
+	// R_ASSERT(ds_y>=(ss_x+py));
 	for (u32 y=0; y<ss_y; y++)
 		for (u32 x=0; x<ss_x; x++)
 		{
@@ -126,7 +136,6 @@ void CDeflector::OA_Export()
 
 	// Correct normal
 	//  (semi-proportional to pixel density)
-	FPU::m64r		();
 	Fvector			tN;
 	tN.set			(0,0,0);
 	float density	= 0;
@@ -142,7 +151,8 @@ void CDeflector::OA_Export()
 		density	+= F->Shader().lm_density;
 		fcount	+= 1.f;
 	}
-	if (tN.magnitude()>EPS_S && _valid(tN))	normal.set(tN).normalize();
+	if (tN.magnitude()>EPS_S && _valid(tN))	
+		normal.set(tN).normalize();
 	else
 	{
 		clMsg("* ERROR: Internal precision error in CDeflector::OA_Export");
@@ -193,10 +203,14 @@ void CDeflector::OA_Export()
 	size.sub		(max,min);
 
 	// Surface
-	VERIFY(inlc_global_data());
-	u32 dwWidth		= iCeil(size.x*inlc_global_data()->g_params().m_lm_pixels_per_meter*density+.5f); clamp(dwWidth, 1u,512u-2*BORDER);
-	u32 dwHeight	= iCeil(size.y*inlc_global_data()->g_params().m_lm_pixels_per_meter*density+.5f); clamp(dwHeight,1u,512u-2*BORDER);
-	layer.create	(dwWidth,dwHeight);
+	// VERIFY(inlc_global_data());
+	u32 dwWidth		= iCeil(size.x*inlc_global_data()->g_params().m_lm_pixels_per_meter*density+.5f); clamp(dwWidth, 1u, 512u-2*BORDER);
+	u32 dwHeight	= iCeil(size.y*inlc_global_data()->g_params().m_lm_pixels_per_meter*density+.5f); clamp(dwHeight,1u, 512u-2*BORDER);
+	// layer.create	(dwWidth,dwHeight);
+
+	layer.width  = dwWidth;
+	layer.height = dwHeight;
+	// Не алоцируем
 }
 
 BOOL CDeflector::OA_Place	(Face *owner)
@@ -304,7 +318,8 @@ void CDeflector::RemapUV(u32 base_u, u32 base_v, u32 size_u, u32 size_v, u32 lm_
 
 void CDeflector::L_Calculate(CDB::COLLIDER* DB, base_lighting* LightsSelected, HASH& H)
 {
-	try {
+	try
+	{
 		lm_layer&		lm	= layer;
 
 		// UV & HASH
@@ -319,9 +334,9 @@ void CDeflector::L_Calculate(CDB::COLLIDER* DB, base_lighting* LightsSelected, H
 		}
 
 		// Calculate
-		R_ASSERT		(lm.width	<=(c_LMAP_size-2*BORDER));
-		R_ASSERT		(lm.height	<=(c_LMAP_size-2*BORDER));
-		lm.create		(lm.width,lm.height);
+		R_ASSERT		(lm.width	<= (gCompilerMode.LC_sizeLmaps - 2 * BORDER));
+		R_ASSERT		(lm.height	<= (gCompilerMode.LC_sizeLmaps - 2 * BORDER));
+  		lm.create		(lm.width, lm.height);
 		L_Direct		(DB,LightsSelected,H);
 	} catch (...)
 	{
@@ -333,15 +348,6 @@ u16	CDeflector:: GetBaseMaterial		()
 {
 	return UVpolys.front().owner->dwMaterial;	
 }
-
-/*
-xr_vector<UVtri>			UVpolys;
-Fvector						normal;
-lm_layer					layer;
-Fsphere						Sphere;
-	
-BOOL						bMerged;
-*/
 
 bool	CDeflector::similar					( const CDeflector &D, float eps/* =EPS */ ) const
 {
@@ -371,13 +377,7 @@ bool	CDeflector::similar					( const CDeflector &D, float eps/* =EPS */ ) const
 	return 
 		layer.similar( D.layer, eps );
 }
-
-
-CDeflector*		CDeflector::read_create					()
-{
-	return new CDeflector();
-}
-
+ 
 void DumpDeflctor( u32 id )
 {
 	VERIFY( inlc_global_data()->g_deflectors().size()>id );
@@ -401,4 +401,3 @@ void DeflectorsStats ()
 	for( u32 i = 0; i <size ; i++ )
 			DumpDeflctor( i ); 
 }
- 

@@ -1,11 +1,12 @@
 #include "StdAfx.h"
 #include "UISkinSelector.h"
+#include "UIGameCustom.h"
+
 #include "../../xrUI/UIXmlInit.h"
 #include "../../xrUI/Widgets/UIAnimatedStatic.h"
 #include "../../xrUI/Widgets/UI3tButton.h"
 #include "../../xrUI/Widgets/UIStatix.h"
 #include "../../xrUI/UICursor.h"
-#include "../UIGameCustom.h"
 #include "../game_cl_deathmatch.h"
 #include "../Level.h"
 
@@ -21,16 +22,6 @@ CUISkinSelectorWnd::CUISkinSelectorWnd(const char* strSectionName, s16 team)
 
 	m_pFrames		= new CUIStatic();	AttachChild(m_pFrames);
 
-	for (int i = 0; i<6; i++)
-	{
-		m_pImage[i] = new CUIStatix();
-		AttachChild(m_pImage[i]);
-	}
-//	m_pAnims[0]		= new CUIAnimatedStatic(); m_pFrames->AttachChild(m_pAnims[0]);
-//	m_pAnims[1]		= new CUIAnimatedStatic(); m_pFrames->AttachChild(m_pAnims[1]);
-//	m_pButtons[0]	= new CUI3tButton();	m_pFrames->AttachChild(m_pButtons[0]); m_pButtons[0]->SetMessageTarget(this);
-//	m_pButtons[1]	= new CUI3tButton();	m_pFrames->AttachChild(m_pButtons[1]); m_pButtons[1]->SetMessageTarget(this);
-
 	m_pBtnAutoSelect= new CUI3tButton();	AttachChild(m_pBtnAutoSelect);
 	m_pBtnSpectator	= new CUI3tButton();	AttachChild(m_pBtnSpectator);
 	m_pBtnBack		= new CUI3tButton();	AttachChild(m_pBtnBack);
@@ -44,10 +35,14 @@ CUISkinSelectorWnd::~CUISkinSelectorWnd()
 	xr_delete(m_pCaption);
 	xr_delete(m_pBackground);
 	xr_delete(m_pFrames);
-//	xr_delete(m_pButtons[0]);
-//	xr_delete(m_pButtons[1]);
-//	xr_delete(m_pAnims[0]);
-//	xr_delete(m_pAnims[1]);
+	if (m_pButtons[0])
+		xr_delete(m_pButtons[0]);
+	if (m_pButtons[1])
+		xr_delete(m_pButtons[1]);
+	if (m_pAnims[0])
+		xr_delete(m_pAnims[0]);
+	if (m_pAnims[1])
+		xr_delete(m_pAnims[1]);
 	xr_delete(m_pBtnAutoSelect);
 	xr_delete(m_pBtnSpectator);
 	xr_delete(m_pBtnBack);	
@@ -75,9 +70,9 @@ void CUISkinSelectorWnd::InitSkins(){
 
 void CUISkinSelectorWnd::UpdateSkins()
 {
-	for (int i = 0; i<6; i++)
+	for (int i = 0; i < m_SkinCount; i++)
 	{
-		if (!!m_shader)
+		if (m_shader.size())
             m_pImage[i]->InitTextureEx(m_skins[i + m_firstSkin].c_str(), m_shader.c_str());
 		else
 			m_pImage[i]->InitTexture(m_skins[i + m_firstSkin].c_str());
@@ -101,8 +96,10 @@ void CUISkinSelectorWnd::UpdateSkins()
 		m_pImage[i]->Enable(it != m_skinsEnabled.end());
 	}
 
-//	m_pButtons[0]->Enable(m_firstSkin > 0);
-//	m_pButtons[1]->Enable(m_firstSkin + 4 < (int)m_skins.size());
+	if (m_pButtons[0])
+		m_pButtons[0]->Enable(m_firstSkin > 0);
+	if (m_pButtons[1])
+		m_pButtons[1]->Enable(m_firstSkin + 4 < (int)m_skins.size());
 }
 
 void CUISkinSelectorWnd::Init(const char* strSectionName)
@@ -118,24 +115,50 @@ void CUISkinSelectorWnd::Init(const char* strSectionName)
 	CUIXmlInit::InitStatic(xml_doc,"skin_selector:background",	0,	m_pBackground);
 	CUIXmlInit::InitStatic(xml_doc,"skin_selector:image_frames",0,	m_pFrames);
 
-//	CUIXmlInit::Init3tButton(xml_doc,"skin_selector:image_frames:btn_left",	0,	m_pButtons[0]);
-//	CUIXmlInit::Init3tButton(xml_doc,"skin_selector:image_frames:btn_right",0,	m_pButtons[1]);
+	if (xml_doc.NavigateToNode("skin_selector:image_frames:btn_left"))
+	{
+		m_pButtons[0] = new CUI3tButton();
+		m_pFrames->AttachChild(m_pButtons[0]);
+		m_pButtons[0]->SetMessageTarget(this);
+		CUIXmlInit::Init3tButton(xml_doc, "skin_selector:image_frames:btn_left", 0, m_pButtons[0]);
+	}
 
-//	CUIXmlInit::InitAnimatedStatic(xml_doc,"skin_selector:image_frames:a_static_1",	0,	m_pAnims[0]);
-//	CUIXmlInit::InitAnimatedStatic(xml_doc,"skin_selector:image_frames:a_static_2",	0,	m_pAnims[1]);
+	if (xml_doc.NavigateToNode("skin_selector:image_frames:btn_right"))
+	{
+		m_pButtons[1] = new CUI3tButton();
+		m_pFrames->AttachChild(m_pButtons[1]);
+		m_pButtons[1]->SetMessageTarget(this);
+		CUIXmlInit::Init3tButton(xml_doc, "skin_selector:image_frames:btn_right", 0, m_pButtons[1]);
+	}
 
+	if (xml_doc.NavigateToNode("skin_selector:image_frames:a_static_1"))
+	{
+		m_pAnims[0] = new CUIAnimatedStatic();
+		m_pFrames->AttachChild(m_pAnims[0]);
+		CUIXmlInit::InitAnimatedStatic(xml_doc, "skin_selector:image_frames:a_static_1", 0, m_pAnims[0]);
+	}
+
+	if (xml_doc.NavigateToNode("skin_selector:image_frames:a_static_2"))
+	{
+		m_pAnims[1] = new CUIAnimatedStatic();
+		m_pFrames->AttachChild(m_pAnims[1]);
+		CUIXmlInit::InitAnimatedStatic(xml_doc, "skin_selector:image_frames:a_static_2", 0, m_pAnims[1]);
+	}
 	CUIXmlInit::Init3tButton(xml_doc,"skin_selector:btn_spectator",	0,m_pBtnSpectator);
 	CUIXmlInit::Init3tButton(xml_doc,"skin_selector:btn_autoselect",0,m_pBtnAutoSelect);
 	CUIXmlInit::Init3tButton(xml_doc,"skin_selector:btn_back",		0,m_pBtnBack);
 
-	if (xml_doc.NavigateToNode("skin_selector:skin_shader",0))
-		m_shader = xml_doc.Read("skin_selector:skin_shader",0,"");
+	m_shader = xml_doc.Read("skin_selector:skin_shader",0,"");
 
 	InitSkins();
 	string64 buff;
-	for (int i = 0; i<6; i++)
+	// St4lker0k765: да, метод костыльный, но по крайней мере не дурацкая проверка на платформу
+	m_SkinCount = xml_doc.NavigateToNode("skin_selector:image_4") && xml_doc.NavigateToNode("skin_selector:image_5") ? 6 : 4;
+	for (int i = 0; i < m_SkinCount; i++)
 	{
 		xr_sprintf(buff,"skin_selector:image_%d",i);
+		m_pImage[i] = new CUIStatix();
+		AttachChild(m_pImage[i]);
 		CUIXmlInit::InitStatic(xml_doc,buff,0,m_pImage[i]);
 	}
 	UpdateSkins();
@@ -149,12 +172,12 @@ void CUISkinSelectorWnd::SendMessage(CUIWindow *pWnd, s16 msg, void *pData)
 		case BUTTON_CLICKED:
 			game = smart_cast<game_cl_mp*>(&(Game()));
 			//dm = smart_cast<game_cl_Deathmatch *>(&(Game()));
-/*
+
 			if (pWnd == m_pButtons[0])
 				OnKeyLeft();
 			else if (pWnd == m_pButtons[1])
 				OnKeyRight();
-			else */if (pWnd == m_pBtnAutoSelect)
+			else if (pWnd == m_pBtnAutoSelect)
 			{
 				m_iActiveIndex = -1;
 				OnBtnOK();		
@@ -170,26 +193,34 @@ void CUISkinSelectorWnd::SendMessage(CUIWindow *pWnd, s16 msg, void *pData)
 				game->OnSkinMenuBack();				
 			}
 			else
-                for (int i = 0; i<6; i++)
+			{
+				for (int i = 0; i < m_SkinCount; i++)
 					if (pWnd == m_pImage[i])
 					{
-						m_iActiveIndex = m_firstSkin+i;
-						OnBtnOK();					
+						m_iActiveIndex = m_firstSkin + i;
+						OnBtnOK();
 					}
-			break;
+				break;
+			}
 		case WINDOW_FOCUS_RECEIVED:
-/*
+
 			if (pWnd == m_pButtons[0])
 			{
-				m_pAnims[0]->Rewind(0);
-				m_pAnims[0]->Play();
+				if (m_pAnims[0])
+				{
+					m_pAnims[0]->Rewind(0);
+					m_pAnims[0]->Play();
+				}
 			}
 			else if (pWnd == m_pButtons[1])
 			{
-				m_pAnims[1]->Rewind(0);
-				m_pAnims[1]->Play();
+				if (m_pAnims[1])
+				{
+					m_pAnims[1]->Rewind(0);
+					m_pAnims[1]->Play();
+				}
 			}
-*/			
+			
 			break;
 	}
 }
@@ -297,7 +328,7 @@ void CUISkinSelectorWnd::OnKeyLeft()
 
 void CUISkinSelectorWnd::OnKeyRight()
 {
-	if (m_firstSkin + 6 < (int)m_skins.size())
+	if (m_firstSkin + m_SkinCount < (int)m_skins.size())
 	{
 		m_firstSkin++;
 		UpdateSkins();
@@ -324,13 +355,12 @@ void CUISkinSelectorWnd::SetVisibleForBtn(ESKINMENU_BTN btn, bool state){
 
 void CUISkinSelectorWnd::SetCurSkin(int skin){
 	R_ASSERT2(skin>= -1 && skin <= (int)m_skins.size(), "invalid skin index");
-
 	m_iActiveIndex = skin;
 
-	if (m_iActiveIndex != -1 && (m_iActiveIndex< m_firstSkin || m_iActiveIndex > m_firstSkin + 5))
+	if (m_iActiveIndex != -1 && (m_iActiveIndex< m_firstSkin || m_iActiveIndex > m_firstSkin + (m_SkinCount - 1)))
 	{
-		if (m_iActiveIndex > (int)m_skins.size() - 6)
-			m_firstSkin = (int)m_skins.size() - 6;
+		if (m_iActiveIndex > (int)m_skins.size() - m_SkinCount)
+			m_firstSkin = (int)m_skins.size() - m_SkinCount;
 		else
             m_firstSkin = m_iActiveIndex;
 	}

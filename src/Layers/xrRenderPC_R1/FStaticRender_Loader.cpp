@@ -28,7 +28,7 @@ void CRender::level_Load(IReader *fs)
 	IReader*						chunk;
 
 	// Shaders
-//	g_pGamePersistent->LoadTitle		("st_loading_shaders");
+	g_pGamePersistent->SetLoadStageTitle("st_loading_shaders");
 	g_pGamePersistent->LoadTitle		();
 	{
 		chunk = fs->open_chunk		(fsL_SHADERS);
@@ -66,7 +66,7 @@ void CRender::level_Load(IReader *fs)
 
 	if	(!g_dedicated_server)	{
 		// VB,IB,SWI
-//		g_pGamePersistent->LoadTitle("st_loading_geometry");
+		g_pGamePersistent->SetLoadStageTitle("st_loading_geometry");
 		g_pGamePersistent->LoadTitle();
 		CStreamReader				*geom = FS.rs_open	("$level$","level.geom");
 		LoadBuffers					(geom);
@@ -74,20 +74,20 @@ void CRender::level_Load(IReader *fs)
 		FS.r_close					(geom);
 
 		// Visuals
-//		g_pGamePersistent->LoadTitle("st_loading_spatial_db");
+		g_pGamePersistent->SetLoadStageTitle("st_loading_spatial_db");
 		g_pGamePersistent->LoadTitle();
 		chunk						= fs->open_chunk(fsL_VISUALS);
 		LoadVisuals					(chunk);
 		chunk->close				();
 
 		// Details
-//		g_pGamePersistent->LoadTitle("st_loading_details");
+		g_pGamePersistent->SetLoadStageTitle("st_loading_details");
 		g_pGamePersistent->LoadTitle();
 		Details->Load				();
 	}
 	
 	// Sectors
-//	g_pGamePersistent->LoadTitle("st_loading_sectors_portals");
+	g_pGamePersistent->SetLoadStageTitle("st_loading_sectors_portals");
 	g_pGamePersistent->LoadTitle();
 	LoadSectors					(fs);
 
@@ -277,7 +277,11 @@ void CRender::LoadLights(IReader *fs)
 
 	// glows
 	IReader			*chunk = fs->open_chunk(fsL_GLOWS);
-	R_ASSERT		(chunk && "Can't find glows");
+	if (chunk == nullptr)
+	{
+		return;
+	}
+
 	L_Glows->Load	(chunk);
 	chunk->close	();
 }
@@ -358,13 +362,13 @@ void CRender::LoadSectors(IReader* fs) {
 
 		if (pReaderCache != nullptr)
 		{
-			rmPortals->build(CL.getV(), int(CL.getVS()), CL.getT(), int(CL.getTS()), nullptr, nullptr, pReaderCache, true);
+			rmPortals->build(CL.getV(), CL.getVS(), CL.getT(), CL.getTS(), nullptr, nullptr, pReaderCache, true);
 		}
 		else
 		{
 			IWriter* pWriterCache = FS.w_open("$app_data_root$", LevelName);
 			pWriterCache->w_u32(crc);
-			rmPortals->build(CL.getV(), int(CL.getVS()), CL.getT(), int(CL.getTS()), nullptr, nullptr, pWriterCache, false);
+			rmPortals->build(CL.getV(), CL.getVS(), CL.getT(), CL.getTS(), nullptr, nullptr, pWriterCache, false);
 		}
 	}
 	else

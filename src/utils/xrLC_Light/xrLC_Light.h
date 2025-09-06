@@ -1,18 +1,15 @@
 #pragma once
 
 #include "../../xrCore/xrCore.h"
-#undef XRLC_LIGHT_API
 #define XRLC_LIGHT_API
 
-#pragma warning(disable:4995)
-#include <commctrl.h>
-#include <d3dx9.h>
-#include <io.h>
-#include <fcntl.h>
-#include <sys\stat.h>
-#pragma warning(default:4995)
+#ifndef ECORE_API
+#define ECORE_API
+#endif
 
-#include "_d3d_extensions.h"
+#ifndef __CUDACC__
+
+#include "../../xrEngine/_d3d_extensions.h"
 #include "../../Include/Editors/communicate.h"
 
 static const int	edge2idx3	[3][3]	= { {0,1,2},	{1,2,0},	{2,0,1}	};
@@ -30,9 +27,10 @@ extern "C"	XRLC_LIGHT_API  b_params	&g_params();
 IC	u8	u8_clr				(float a)	{ s32 _a = iFloor(a*255.f); clamp(_a,0,255); return u8(_a);		};
 
 #ifndef	NDEBUG
-#define X_TRY 
-#define X_CATCH if (0)
+#	define X_TRY 
+#	define X_CATCH if (0)
 #else
-#define X_TRY try
-#define X_CATCH catch(...)
+#	define X_TRY try
+#	define X_CATCH catch(...)
+#endif
 #endif

@@ -7,7 +7,7 @@
 #include "../xrLC_Light/xrFace.h"
 
 #include "../../xrCore/xrSyncronize.h"
-#include "../../xrCDB/xrCDB.h"
+#include "../../xrCore/Collision/xrCDB.h"
 
 
 #define	GI_THREADS		2
@@ -18,11 +18,7 @@ const	float			gi_clip				= 0.05f;
 const	u32				gi_maxlevel			= 4;
 //////////////////////////////////////////////////////////////////////////
 static xr_vector<R_Light>*		task;
-xrCriticalSection		task_cs
-#ifdef PROFILE_CRITICAL_SECTIONS
-	(MUTEX_PROFILE_ID(task_cs))
-#endif // PROFILE_CRITICAL_SECTIONS
-;
+xrCriticalSection task_cs;
 static u32						task_it;
 
 //////////////////////////////////////////////////////////////////////////
@@ -44,7 +40,7 @@ static Fvector		GetPixel_7x7		(CDB::RESULT& rpinf)
 #ifdef		DEBUG
 	const b_BuildTexture	&build_texture  = pBuild->textures()			[M.surfidx];
 
-	VERIFY( !!(build_texture.THM.HasSurface()) ==  !!(T.pSurface) );
+	VERIFY(!!(build_texture.HasSurface()) == !!(T.pSurface));
 #endif
 
 	if (0==T.pSurface)									

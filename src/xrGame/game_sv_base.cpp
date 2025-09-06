@@ -774,7 +774,7 @@ void game_sv_GameState::OnEvent (NET_Packet &tNetPacket, u16 type, u32 time, Cli
 			CL->ps->m_online_time	= Level().timeServer();
 			CL->ps->DeathTime		= Device.dwTimeGlobal;
 			
-			if (psNET_direct_connect) //IsGameTypeSingle())
+			if (psNET_direct_connect)
 				break;
 
 			if (Level().IsDemoPlay())
@@ -801,28 +801,7 @@ bool game_sv_GameState::CheckNewPlayer(xrClientData* CL)
 	char const *			error_msg = nullptr;
 	ClientID				tmp_client_id(CL->ID);
 	
-	if (gs_server->IsPublicServer())
-	{
-		if (!CL->ps->m_account.is_online())
-		{
-			error_msg = "mp_please_login";
-		} else
-		{
-			if (FindPlayerName(CL->ps->getName(), CL))
-			{
-				error_msg = "mp_already_logged_in";
-			}
-		}
-	} else
-	{
-		if (CL->ps->m_account.is_online())
-		{
-			error_msg = "mp_use_offline_mode";
-		} else
-		{
-			CheckPlayerName(CL);
-		}
-	}
+	CheckPlayerName(CL);
 
 	if (error_msg)
 	{

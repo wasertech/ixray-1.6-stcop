@@ -69,6 +69,7 @@ extern	u64		g_qwEStartGameTime;
 
 ENGINE_API
 extern	float	psHUD_FOV_def;
+ENGINE_API extern  bool	g_3d_scopes;
 extern	float	psSqueezeVelocity;
 extern	int		psLUA_GCSTEP;
 
@@ -96,6 +97,8 @@ extern float	g_smart_cover_animation_speed_factor;
 extern	BOOL	g_ai_use_old_vision;
 float			g_aim_predict_time = 0;
 int				g_keypress_on_start = 1;
+
+extern	BOOL	g_fight_fast_respawn;
 
 extern ENGINE_API int m_look_cam_fp_zoom;
 
@@ -146,6 +149,7 @@ XRCORE_API full_memory_stats_callback_type g_full_memory_stats_callback;
 
 static void full_memory_stats()
 {
+	PROF_EVENT("full_memory_stats");
 	Memory.mem_compact();
 	u32		_process_heap = mem_usage_impl((HANDLE)_get_heap_handle(), 0, 0);
 #ifdef SEVERAL_ALLOCATORS
@@ -181,7 +185,7 @@ public:
 		g_full_memory_stats_callback = &full_memory_stats;
 	};
 	virtual void Execute(LPCSTR args) {
-		full_memory_stats();
+		//full_memory_stats();
 	}
 };
 
@@ -534,10 +538,14 @@ public:
 #ifdef DEBUG
 		Msg("Game save overhead  : %f milliseconds", timer.GetElapsed_sec() * 1000.f);
 #endif
-		SDrawStaticStruct* _s = CurrentGameUI()->AddCustomStatic("game_saved", true);
-		string256 save_name;
-		xr_strconcat(save_name, g_pStringTable->translate("st_game_saved").c_str(), ": ", S);
-		_s->wnd()->TextItemControl()->SetText(save_name);
+
+		if (EngineExternal()[EEngineExternalUI::UseSavedGameStatic])
+		{
+			SDrawStaticStruct* _s = CurrentGameUI()->AddCustomStatic("game_saved", true, 3.0f);
+			string256 save_name;
+			xr_strconcat(save_name, g_pStringTable->translate("st_game_saved").c_str(), ": ", S);
+			_s->wnd()->TextItemControl()->SetText(save_name);
+		}
 
 		xr_strcat(S, ".dds");
 		FS.update_path(S1, "$game_saves$", S);
@@ -554,7 +562,7 @@ public:
 
 	virtual void fill_tips(vecTips& tips, u32 mode)
 	{
-		get_files_list(tips, "$game_saves$", SAVE_EXTENSION);
+			get_files_list(tips, "$game_saves$", IXRAY_DEF_SAVE_EXTENSION);
 	}
 
 };//CCC_ALifeSave
@@ -625,7 +633,7 @@ public:
 
 	virtual void fill_tips(vecTips& tips, u32 mode)
 	{
-		get_files_list(tips, "$game_saves$", SAVE_EXTENSION);
+			get_files_list(tips, "$game_saves$", IXRAY_DEF_SAVE_EXTENSION);
 	}
 
 };//CCC_ALifeLoadFrom
@@ -1491,7 +1499,7 @@ public:
 	{
 		if (ai().get_alife())
 		{
-			ai().alife().inventory_upgrade_manager().log_hierarchy();
+			Level().m_upgrade_manager->log_hierarchy();
 		}
 	}
 
@@ -1503,16 +1511,12 @@ public:
 	CCC_InvUpgradesCurItem(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = TRUE; };
 	virtual void Execute(LPCSTR args)
 	{
-		if (!g_pGameLevel)
+		if (!g_pGameLevel || !CurrentGameUI())
 		{
 			return;
 		}
-		CUIGameSP* ui_game_sp = smart_cast<CUIGameSP*>(CurrentGameUI());
-		if (!ui_game_sp)
-		{
-			return;
-		}
-		PIItem item = ui_game_sp->ActorMenu().get_upgrade_item();
+ 
+		PIItem item = CurrentGameUI()->ActorMenu().get_upgrade_item();
 		if (item)
 		{
 			item->log_upgrades();
@@ -1530,18 +1534,14 @@ public:
 	CCC_InvDropAllItems(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = TRUE; };
 	virtual void Execute(LPCSTR args)
 	{
-		if (!g_pGameLevel)
+		if (!g_pGameLevel || !CurrentGameUI())
 		{
 			return;
 		}
-		CUIGameSP* ui_game_sp = smart_cast<CUIGameSP*>(CurrentGameUI());
-		if (!ui_game_sp)
-		{
-			return;
-		}
+  
 		int d = 0;
 		sscanf(args, "%d", &d);
-		if (ui_game_sp->ActorMenu().DropAllItemsFromRuck(d == 1))
+		if (CurrentGameUI()->ActorMenu().DropAllItemsFromRuck(d == 1))
 		{
 			Msg("- All items from ruck of Actor is dropping now.");
 		}
@@ -2244,11 +2244,150 @@ public:
 		xr_strcpy(I, "Set new time");
 	}
 };
+#ifndef MASTER_GOLD
+class CCC_ChZLoggerTest : public IConsole_Command {
+public:
+	CCC_ChZLoggerTest(LPCSTR N) : IConsole_Command(N) {
+		bEmptyArgsHandled = TRUE;
+	};
+	virtual void Execute(LPCSTR args) {
+
+		Msg("======= types =======");
+		
+		LOG_INFO << "test info" << std::endl;
+		LOG_ERROR << "test error" << std::endl;
+		LOG_WARN << "test warn" << std::endl;
+		LOG_DEBUG << "test dbg" << std::endl;
+
+		Msg("======= data types =======");
+
+		const char* cstr = "OK +_)(*&^%$#@!";
+		LOG_INFO << "c_str: " << cstr << std::endl;
+
+		xr_string xstr = "OK +_)(*&^%$#@!";
+		LOG_INFO << "xr_str: " << xstr << std::endl;
+
+		Msg("======= format =======");
+
+		LOG_INFO << "IX" << "-" << "RAY" << " ENGINE" << std::endl << "\tHello!!!" << std::endl;
+		LOG_INFO << "- HELLO";
+		LOG_INFO << " WORLD";
+
+	}
+};
+class CCC_ConsoleColors : public IConsole_Command {
+public:
+	CCC_ConsoleColors(LPCSTR N) : IConsole_Command(N) {
+		bEmptyArgsHandled = TRUE;
+	};
+	virtual void Execute(LPCSTR args) {
+
+		LOG_INFO << "Colors:\n";
+
+		LOG_INFO << '~' << " - Example Text";
+		LOG_INFO << '!' << " - Example Text";
+		LOG_INFO << '@' << " - Example Text";
+		LOG_INFO << '#' << " - Example Text";
+		LOG_INFO << '$' << " - Example Text";
+		LOG_INFO << '%' << " - Example Text";
+		LOG_INFO << '^' << " - Example Text";
+		LOG_INFO << '&' << " - Example Text";
+		LOG_INFO << '*' << " - Example Text";
+		LOG_INFO << '-' << " - Example Text";
+		LOG_INFO << '+' << " - Example Text";
+		LOG_INFO << '=' << " - Example Text";
+		LOG_INFO << '/' << " - Example Text";
+	}
+};
+#endif
+
+extern void RefreshNamesNPC();
+extern void execute_console_command_deferred(CConsole* c, LPCSTR string_to_execute);
+
+class CCC_ChangeLanguage : public CCC_Token
+{
+	u32 _dummy;
+public:
+	CCC_ChangeLanguage(LPCSTR N): CCC_Token(N, &_dummy, nullptr)
+	{
+		bEmptyArgsHandled = FALSE;
+	}
+
+	virtual void Execute(LPCSTR args)
+	{
+		if (xr_strcmp(args, g_pStringTable->LangName().c_str()) == 0)
+		{
+			return;
+		}
+
+		auto it = std::find_if(g_pStringTable->languages_token.begin(), g_pStringTable->languages_token.end(),
+			[args](const xr_token& item)
+			{
+				if (item.name == nullptr)
+				{
+					return false;
+				}
+				return !xr_strcmp(item.name, args);
+			});
+
+		if (it == g_pStringTable->languages_token.end())
+		{
+			return;
+		}
+		
+		// reload language
+		g_pStringTable->ReloadLanguage(args);
+
+		execute_console_command_deferred(Console, "ui_reload");
+		
+		if (g_pGamePersistent == nullptr)
+		{
+			return;
+		}
+		
+		// reload language in menu
+		if (MainMenu()->IsActive())
+		{
+			execute_console_command_deferred(Console, "main_menu 0");
+			execute_console_command_deferred(Console, "main_menu 1");
+		}
+		
+		if (g_pGameLevel != nullptr)
+		{
+			RefreshNamesNPC();
+		}
+	}
+
+	virtual void Status(TStatus& S) override
+	{
+		xr_sprintf(S, sizeof(S), "%s", g_pStringTable->LangName().c_str());
+	}
+
+	virtual xr_token* GetToken()
+	{
+		return g_pStringTable->languages_token.data();
+	}
+
+	virtual void fill_tips(vecTips& tips, u32 mode) override {
+		TStatus  cur;
+		Status(cur);
+		
+		for (size_t i = 0; i < g_pStringTable->languages_token.size() - 1; i++)
+		{
+			if (g_pStringTable->languages_token[i].name != nullptr || g_pStringTable->languages_token[i].name[0])
+			{
+				tips.push_back(g_pStringTable->languages_token[i].name);
+			}
+		}
+		IConsole_Command::fill_tips(tips, mode);
+	}
+};
 
 void CCC_RegisterCommands()
 {
 	// options
 	g_OptConCom.Init();
+	CMD1(CCC_ChangeLanguage, "language");
 
 #ifndef MASTER_GOLD
 	CMD1(CCC_SetActorPosition, "set_actor_position");
@@ -2267,6 +2406,11 @@ void CCC_RegisterCommands()
 
 	CMD3(CCC_Mask, "dbg_draw_lchangers", &dbg_net_Draw_Flags, dbg_draw_lchangers);
 
+	CMD3(CCC_Mask, "g_infinite_fire", &psActorFlags, AF_INFINITEFIRE);
+	CMD3(CCC_Mask, "g_infinite_durability", &psActorFlags, AF_INFINITEDURABILITY);
+
+	CMD1(CCC_ChZLoggerTest, "chZLoggerTest");
+	CMD1(CCC_ConsoleColors, "get_console_colors");
 #endif
 
 	CMD1(CCC_MemStats, "stat_memory");
@@ -2319,6 +2463,7 @@ void CCC_RegisterCommands()
 	//#ifdef DEBUG
 	CMD4(CCC_Float, "hud_fov", &psHUD_FOV_def, 5.0f, 180.0f);
 	CMD4(CCC_Float, "fov", &g_fov, 5.0f, 180.0f);
+	CMD2(CCC_Boolean, "g_3d_scopes", &g_3d_scopes);
 	//#endif // DEBUG
 
 		// Demo
@@ -2612,6 +2757,9 @@ void CCC_RegisterCommands()
 	extern BOOL EnableDof;
 	CMD4(CCC_Integer, "enable_dof_reload", &EnableDof, FALSE, TRUE);
 
+	extern BOOL EnableTalkDof;
+	CMD4(CCC_Integer, "enable_dof_talk", &EnableTalkDof, FALSE, TRUE);
+
 #ifndef MASTER_GOLD
 	CMD1(CCC_StartTimeSingle, "start_time_single");
 	CMD4(CCC_TimeFactorSingle, "time_factor_single", &g_fTimeFactor, 0.f, 10000.0f);
@@ -2653,6 +2801,8 @@ void CCC_RegisterCommands()
 #endif
 	CMD4(CCC_Float, "con_sensitive", &g_console_sensitive, 0.01f, 1.0f);
 	CMD4(CCC_Integer, "wpn_aim_toggle", &b_toggle_weapon_aim, 0, 1);
+
+	CMD4(CCC_Integer, "g_fight_fast_respawn", &g_fight_fast_respawn, 0, 1);
 
 	//	CMD4(CCC_Integer,	"hud_old_style",			&g_old_style_ui_hud, 0, 1);
 

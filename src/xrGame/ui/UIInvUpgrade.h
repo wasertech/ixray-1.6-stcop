@@ -62,6 +62,8 @@ public:
 	{
 		LAYER_ITEM = 0,
 		LAYER_COLOR,
+		LAYER_BORDER,
+		LAYER_INK,
 		LAYER_POINT,
 		LAYER_COUNT
 	};
@@ -87,12 +89,12 @@ protected:
 	bool			m_state_lock;
 
 public:
-						UIUpgrade( CUIInventoryUpgradeWnd* parent_wnd );
+						UIUpgrade( CUIInventoryUpgradeWnd* parent_wnd, bool cellBorder );
 	virtual				~UIUpgrade();
 
 			void		init_upgrade( LPCSTR upgrade_id, CInventoryItem& item );
 
-			void		load_from_xml( CUIXml& ui_xml, int i_column, int i_cell, Frect const& t_cell_item );
+			void		load_from_xml( CUIXml& ui_xml, int i_column, int i_cell, Frect const* t_cell_border, Frect const& t_cell_item );
 			void		set_texture( Layer layer, LPCSTR texture );
 			
 	virtual	void		Draw();
@@ -100,6 +102,7 @@ public:
 	virtual	void		Reset();
 
 			void		update_upgrade_state();
+			bool		OverrideFreeButtonState(const UIUpgrade::Upgrade_type* my_upgrade, const UIUpgrade::Upgrade_type* active_upgrade, ViewState& new_state);
 			void		update_mask();
 			void		update_item( CInventoryItem* inv_item );
 
@@ -122,9 +125,12 @@ public:
 CUIInventoryUpgradeWnd* get_upgrade_window() {return m_parent_wnd;}
 			void		attach_point(CUIUpgradePoint* point);
 
+	virtual CUIWindow* ui_cast_window() { return this; }
+
 public:			
 	CUIUpgradePoint*	m_point;
-
+    CUIStatic*			m_border;
+    CUIStatic*			m_ink;
 };
 
 class CUIUpgradePoint:public CUIStatic
@@ -140,6 +146,9 @@ public:
 	virtual bool		OnMouseAction( float x, float y, EUIMessages mouse_action );
 	virtual void		OnFocusReceive();
 	virtual void		OnFocusLost();
+
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUIStatic* ui_cast_static() { return this; }
 };
 
 #endif // UI_INVENTORY_UPGRADE_H_INCLUDED

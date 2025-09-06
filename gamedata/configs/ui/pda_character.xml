@@ -6,7 +6,7 @@
 	</name_static>
 
 	<!-- ICON -->
-	<icon_static x="295" y="5" width="98" height="64"/>
+	<icon_static x="500" y="5" width="98" height="64" stretch="1"/>
 
 	<!-- COMMUNITY -->
 	<community_caption x="0" y="20" width="240" height="15">
@@ -48,7 +48,7 @@
 		<texture>ui\ui_pda_contacts_online</texture>
 		</auto_static>
 
-		<auto_static x="0" y="85" width="395" height="3" stretch="1">
+		<auto_static x="0" y="85" width="598" height="3" stretch="1">
 		<texture>ui\ui_pda_horizontal_line</texture>
 		</auto_static>
 

@@ -10,14 +10,7 @@
 
 XRCORE_API void VerifyPath	(LPCSTR path);
 
-
-#ifdef _DEBUG
-XRCORE_API extern size_t g_file_mapped_memory;
-XRCORE_API extern size_t g_file_mapped_count;
-extern void register_file_mapping(void* address, const size_t& size, LPCSTR file_name);
-extern void unregister_file_mapping(void* address, const size_t& size);
-#endif // DEBUG
-
+#include "Concepts.h"
 
 //------------------------------------------------------------------------------------
 // Write
@@ -25,7 +18,7 @@ extern void unregister_file_mapping(void* address, const size_t& size);
 class XRCORE_API IWriter
 {
 private:
-	xr_stack<u32>		chunk_pos;
+	xr_stack<size_t>		chunk_pos;
 public:
 	shared_str			fName;
 public:
@@ -38,8 +31,8 @@ public:
 	}
 
 	// kernel
-	virtual void	seek	(u32 pos)				= 0;
-	virtual u32		tell	()						= 0;
+	virtual void	seek	(size_t pos)				= 0;
+	virtual size_t	tell	()						= 0;
 
 	virtual void	w		(const void* ptr, u32 count)	= 0;
 
@@ -99,7 +92,7 @@ public:
 class XRCORE_API CMemoryWriter : public IWriter
 {
 	u8*				data;
-	u32				position;
+	size_t			position;
 	u32				mem_size;
 	u32				file_size;
 public:
@@ -114,8 +107,8 @@ public:
 	// kernel
 	virtual void	w			(const void* ptr, u32 count);
 
-	virtual void	seek		(u32 pos)	{	position = pos;				}
-	virtual u32		tell		() 			{	return position;			}
+	virtual void		seek		(size_t pos)	{	position = pos;				}
+	virtual size_t		tell		() 			{	return position;			}
 
 	// specific
 	IC u8*			pointer		()			{	return data;				}
@@ -132,19 +125,28 @@ public:
 //------------------------------------------------------------------------------------
 // Read
 //------------------------------------------------------------------------------------
+class CFileReader;
+class CVirtualFileReader;
+class IReader;
+
 class IReaderBase
 {
 public:
 	IC				IReaderBase	() : m_last_pos (0) {}
 	virtual			~IReaderBase()			{}
-	virtual u32			elapsed()	const = 0;
-	IC BOOL			eof			()	const		{return elapsed() <= 0;	};
 
-	virtual u32		tell() const = 0;
-	virtual u32		length() const = 0;
-	virtual void	advance(int cnt) = 0;
+	virtual CFileReader* cast_file_reader() { return nullptr; }
+	virtual CVirtualFileReader* cast_virtual_file_reader() { return nullptr; }
+	virtual IReader* cast_reader() { return nullptr; }
 
-	virtual void	r			(void* p, u32 cnt) = 0;
+	virtual intptr_t		elapsed()	const = 0;
+	IC		BOOL			eof		()	const		{return elapsed() <= 0;	};
+
+	virtual intptr_t		tell() const = 0;
+	virtual intptr_t		length() const = 0;
+	virtual void			advance(intptr_t cnt) = 0;
+
+	virtual void	r			(void* p, intptr_t cnt) = 0;
 
 	IC Fvector		r_vec3		()			{Fvector tmp;r(&tmp,3*sizeof(float));return tmp;	};
 	IC Fvector4		r_vec4		()			{Fvector4 tmp;r(&tmp,4*sizeof(float));return tmp;	};
@@ -190,11 +192,11 @@ public:
 		A.mul		(s);
 	}
 
-	virtual void	seek(int ptr) = 0;
+	virtual void	seek(intptr_t ptr) = 0;
 	// Set file pointer to start of chunk data (0 for root chunk)
 	IC	void		rewind		()			{	seek(0); }
 
-	virtual u32 find_chunk  (u32 ID, BOOL* bCompressed = 0);
+	virtual intptr_t find_chunk  (u32 ID, BOOL* bCompressed = 0);
 	
 	IC	BOOL		r_chunk		(u32 ID, void *dest)	// чтение XR Chunk'ов (4b-ID,4b-size,??b-data)
 	{
@@ -218,30 +220,31 @@ public:
 	u32 m_last_pos;
 };
 
-class XRCORE_API IReader : 
+class XRCORE_API IReader :
 	public IReaderBase
 {
 protected:
 	char *			data	;
-	int				Pos		;
-	int				Size	;
-	int				iterpos	;
+	intptr_t		Pos		;
+	intptr_t		Size	;
+	intptr_t		iterpos	;
 
 public:
-	IC				IReader			()
+	IC IReader()
 	{
-		Pos			= 0;
+		Pos = 0;
 	}
 
-	virtual			~IReader		() {}
+	virtual ~IReader() {}
 
-	IC				IReader			(void *_data, int _size, int _iterpos=0)
+	IC IReader(void *_data, size_t _size, intptr_t _iterpos=0)
 	{
 		data		= (char *)_data	;
 		Size		= _size			;
 		Pos			= 0				;
 		iterpos		= _iterpos		;
 	}
+	virtual IReader* cast_reader() { return this; }
 
 protected:
 	IC u32			correction					(u32 p)
@@ -254,15 +257,15 @@ protected:
 	u32 			advance_term_string			();
 
 public:
-	IC u32			elapsed		()	const override {	return Size-Pos;		};
-	   void			seek		(int ptr) override {	Pos=ptr; VERIFY((Pos<=Size) && (Pos>=0));};
-		u32			tell		()	const override {	return (u32)Pos;				};
-		u32			length		()	const override {	return (u32)Size;			};
-		void		advance		(int cnt) override {	Pos+=cnt;VERIFY((Pos<=Size) && (Pos>=0));};
+	IC intptr_t		elapsed		()	const override {	return Size - Pos;		};
+	   void			seek		(intptr_t ptr) override {	Pos=ptr; VERIFY((Pos<=Size) && (Pos>=0));};
+	   intptr_t		tell		()	const override {	return Pos;				};
+	   intptr_t		length		()	const override {	return Size;			};
+		void		advance		(intptr_t cnt) override {	Pos+=cnt;VERIFY((Pos<=Size) && (Pos>=0));};
 	IC void*		pointer		()	const		{	return &(data[Pos]);	};
 
 public:
-	void			r			(void *p,u32 cnt) override;
+	void			r			(void *p, intptr_t cnt) override;
 
 	void			r_string	(char *dest, u32 tgt_sz);
 	void			r_string	(xr_string& dest);
@@ -273,6 +276,47 @@ public:
 	void			r_stringZ	(shared_str& dest);
 	void			r_stringZ	(xr_string& dest);
 
+private:
+
+	size_t lastStringLen = 0;
+
+	void skip_string(bool forward)
+	{
+		if (forward)
+		{
+			size_t start = Pos;
+			while (Pos < Size && data[Pos] != '\0') Pos++;
+			Pos = (Pos + 1 <= Size) ? Pos + 1 : Size;
+			lastStringLen = Pos - start;
+		}
+		else
+		{
+			Pos = (Pos >= lastStringLen) ? Pos - lastStringLen : 0;
+		}
+	}
+
+	template <XRay::Concepts::FixedType T>
+	void skip_fixed(bool forward)
+	{
+		Pos = forward ? ((Pos + sizeof(T) <= Size) ? Pos + sizeof(T) : Size) : ((Pos >= sizeof(T)) ? Pos - sizeof(T) : 0);
+	}
+
+public:
+
+	template <typename T>
+	void skip(bool forward = true)
+	{
+		if constexpr (std::is_same_v<T, char*>) {
+			skip_string(forward);
+		}
+		else if constexpr (XRay::Concepts::FixedType<T>) {
+			skip_fixed<T>(forward);
+		}
+		else {
+			static_assert(std::is_same_v<T, void>, "skip<T> supports only char* or fixed types");
+		}
+	}
+
 public:
 	void			close		();
 
@@ -282,8 +326,7 @@ public:
 
 	// iterators
 	IReader*		open_chunk_iterator		(u32& ID, IReader* previous=NULL);	// NULL=first
-
-	u32 			find_chunk	(u32 ID, BOOL* bCompressed = 0) override;
+	intptr_t 		find_chunk	(u32 ID, BOOL* bCompressed = 0) override;
 
 private:
 	typedef IReaderBase inherited;

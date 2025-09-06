@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "xr_input.h"
 #include "IInputReceiver.h"
@@ -451,7 +451,7 @@ void CInput::iCapture(IInputReceiver *p)
 {
 	VERIFY(p);
 
-	if (!Device.IsEditorMode() && (KBState[SDL_SCANCODE_LALT] || CImGuiManager::Instance().IsCapturingInputs()))
+	if (!Device.IsEditorMode() && (KBState[SDL_SCANCODE_F11] || CImGuiManager::Instance().IsCapturingInputs()))
 	{
 		NoInputUpdate();
 	} 
@@ -524,7 +524,7 @@ void CInput::OnFrame()
 
 	dwCurTime = RDEVICE.TimerAsync_MMT();
 #if !defined(MASTER_GOLD)
-	if (!Device.IsEditorMode() && (KBState[SDL_SCANCODE_LALT] || CImGuiManager::Instance().IsCapturingInputs()))
+	if (!Device.IsEditorMode() && (KBState[SDL_SCANCODE_F11] || CImGuiManager::Instance().IsCapturingInputs()))
 	{
 		NoInputUpdate();
 	} 
@@ -547,20 +547,17 @@ IInputReceiver* CInput::CurrentIR()
 
 void CInput::unacquire()
 {
-	SDL_SetRelativeMouseMode(false);
+	SDL_SetWindowRelativeMouseMode(g_AppInfo.Window, false);
 	IsAcquire = false;
 }
 
 void CInput::acquire()
 {
 	IsAcquire = true;
-	SDL_SetRelativeMouseMode(true);
+	SDL_SetWindowRelativeMouseMode(g_AppInfo.Window, true);
 }
 
 void  CInput::feedback(u16 s1, u16 s2, float time)
 {
 	stop_vibration_time = RDEVICE.fTimeGlobal + time;
-#ifndef _EDITOR
-//.	set_vibration (s1, s2);
-#endif
 }

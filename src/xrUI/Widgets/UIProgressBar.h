@@ -32,11 +32,14 @@ protected:
 	
 public:
 	bool				m_bUseColor;
+	bool				m_bUseGradient;
 	bool				m_bUseMidColor;
 	Fcolor				m_minColor;
 	Fcolor				m_middleColor;
 	Fcolor				m_maxColor;
 	float				m_inertion;	//
+
+	bool				IsExpressionSystem = false;
 public:
 	CUIStatic			m_UIProgressItem;
 	CUIStatic			m_UIBackgroundItem;
@@ -60,6 +63,8 @@ public:
 
 	virtual void		Draw						();
 	virtual void		Update						();
+
+	virtual CUIWindow* ui_cast_window() { return this; }
 
 	DECLARE_SCRIPT_REGISTER_FUNCTION
 };

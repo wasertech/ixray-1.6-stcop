@@ -58,6 +58,9 @@ void CCartridge::Load(LPCSTR section, u8 LocalAmmoType)
 			m_flags.set(cfMagneticBeam, TRUE);
 	}
 
+	if (pSettings->line_exist(section, "4to1_tracer"))
+		m_4to1_tracer = !!pSettings->r_bool(section, "4to1_tracer");;
+
 	if(pSettings->line_exist(section,"can_be_unlimited"))
 		m_flags.set(cfCanBeUnlimited, pSettings->r_bool(section, "can_be_unlimited"));
 
@@ -109,6 +112,10 @@ void CWeaponAmmo::Load(LPCSTR section)
 	else
 		cartridge_param.kAirRes		= pSettings->r_float(BULLET_MANAGER_SECTION, "air_resistance_k");
 	m_tracer				= !!pSettings->r_bool(section, "tracer");
+
+	if (pSettings->line_exist(section, "4to1_tracer"))
+		m_4to1_tracer = !!pSettings->r_bool(section, "4to1_tracer");;
+
 	cartridge_param.buckShot		= pSettings->r_s32(  section, "buck_shot");
 	cartridge_param.impair			= pSettings->r_float(section, "impair");
 	cartridge_param.fWallmarkSize	= pSettings->r_float(section, "wm_size");
@@ -179,6 +186,7 @@ bool CWeaponAmmo::Get(CCartridge &cartridge)
 	cartridge.param_s = cartridge_param;
 
 	cartridge.m_flags.set(CCartridge::cfTracer ,m_tracer);
+	cartridge.m_4to1_tracer = m_4to1_tracer;
 	cartridge.bullet_material_idx = GMLib.GetMaterialIdx(WEAPON_MATERIAL_NAME);
 	cartridge.m_InvShortName = NameShort();
 	--m_boxCurr;
@@ -220,22 +228,27 @@ void CWeaponAmmo::net_Import(NET_Packet& P)
 	P.r_u16					(m_boxCurr);
 }
 
-CInventoryItem *CWeaponAmmo::can_make_killing	(const CInventory *inventory) const
+CInventoryItem* CWeaponAmmo::can_make_killing(const CInventory* inventory) const
 {
-	VERIFY					(inventory);
+	VERIFY(inventory);
 
-	TIItemContainer::const_iterator	I = inventory->m_all.begin();
-	TIItemContainer::const_iterator	E = inventory->m_all.end();
-	for ( ; I != E; ++I) {
-		CWeapon		*weapon = smart_cast<CWeapon*>(*I);
+	for (const PIItem item : inventory->m_all)
+	{
+		CWeapon* weapon = item->cast_weapon();
+
 		if (!weapon)
+		{
 			continue;
-		xr_vector<shared_str>::const_iterator	i = std::find(weapon->m_ammoTypes.begin(),weapon->m_ammoTypes.end(),cNameSect());
+		}
+
+		xr_vector<shared_str>::const_iterator i = std::find(weapon->m_ammoTypes.begin(), weapon->m_ammoTypes.end(), cNameSect());
 		if (i != weapon->m_ammoTypes.end())
-			return			(weapon);
+		{
+			return weapon;
+		}
 	}
 
-	return					(0);
+	return 0;
 }
 
 float CWeaponAmmo::Weight() const

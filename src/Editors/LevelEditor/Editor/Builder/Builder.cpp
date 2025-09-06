@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 
 
 
@@ -60,7 +60,11 @@ BOOL SceneBuilder::Compile(bool b_selected_only, bool show_message )
 	        // check debug
             bool bTestPortal = Scene->ObjCount(OBJCLASS_SECTOR)||Scene->ObjCount(OBJCLASS_PORTAL);
 	        // validate scene
-    	    VERIFY_COMPILE(Scene->Validate(false,bTestPortal,true,true,true,true),"Validation failed.","Invalid scene.");
+            if (Scene->IsValidateAtMake)
+            {
+                VERIFY_COMPILE(Scene->Validate(false, bTestPortal, true, true, true, true), "Validation failed.", "Invalid scene.");
+            }
+
 			// fill simple hemi
             simple_hemi.clear	();
 	        xrHemisphereBuild	(1,2.f,simple_hemi_callback,&simple_hemi);
@@ -205,12 +209,12 @@ BOOL SceneBuilder::MakePuddles()
 }
 
 
-BOOL SceneBuilder::MakeAIMap()
+BOOL SceneBuilder::MakeAIMap(bool Legacy)
 {
 	xr_string error_text;
     do{
 		VERIFY_COMPILE(PreparePath(),				"Failed to prepare level path.","");
-		VERIFY_COMPILE(BuildAIMap(),				"Failed to build AI-Map.","");
+		VERIFY_COMPILE(BuildAIMap(Legacy),				"Failed to build AI-Map.","");
     }while(0);
     if (!error_text.empty()) 	ELog.DlgMsg(mtError,error_text.c_str());
     else if (UI->NeedAbort())	ELog.DlgMsg(mtInformation,"Building terminated.");

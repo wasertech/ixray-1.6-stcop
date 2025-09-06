@@ -1,7 +1,7 @@
 //---------------------------------------------------------------------------
 
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "../xrEngine/xr_input.h"
 #include "UI_ToolsCustom.h"
@@ -17,7 +17,7 @@
 #include "UIImageEditorForm.h"
 #include "UISoundEditorForm.h"
 #include "UIMinimapEditorForm.h"
-#include "../utils/ETools/ETools.h"
+#include "UIWeatherPropForm.h"
 #include "UILogForm.h"
 #include "../xrEngine/gamefont.h"
 #include "../XrEngine/XR_IOConsole.h"
@@ -66,6 +66,8 @@ TUI::TUI()
 	ViewID = 0;
 
 	m_Size.set(DisplayX, DisplayY);
+
+	GUIManager = this;
 }
 //---------------------------------------------------------------------------
 TUI::~TUI()
@@ -78,6 +80,11 @@ TUI::~TUI()
 	TRelease(m_WinRes);
 	TRelease(m_WinMax);
 	TRelease(m_WinClose);
+}
+
+ImTextureID TUI::LoadTexture(const char* Texture) const
+{
+	return (void*)EDevice->Resources->_CreateTexture(Texture)->pSurface;
 }
 
 void TUI::OnDeviceCreate()
@@ -289,24 +296,17 @@ void TUI::OnAppDeactivate()
 bool TUI::ShowHint(const AStringVec& SS)
 {
 	VERIFY(m_bReady);
-  /*  if (SS.size()){
-		xr_string S=_ListToSequence2(SS);
-		if (m_bHintShowing&&(S==m_LastHint)) return true;
-		m_LastHint = S;
-		m_bHintShowing = true;
-		if (!m_pHintWindow){
-			m_pHintWindow = new THintWindow((TComponent*)0);
-			m_pHintWindow->Brush->Color = (TColor)0x0d9F2FF;
+
+	if (!SS.empty() && ImGui::BeginTooltip())
+	{
+		for (const xr_string& Hint : SS)
+		{
+			ImGui::Text(Hint.c_str());
 		}
-		TRect rect = m_pHintWindow->CalcHintRect(320,S,0);
-		rect.Left+=m_HintPoint.x;    rect.Top+=m_HintPoint.y;
-		rect.Right+=m_HintPoint.x;   rect.Bottom+=m_HintPoint.y;
-		m_pHintWindow->ActivateHint(rect,S);
-	}else{
-		m_bHintShowing = false;
-		m_LastHint = "";
-	}*/
-	not_implemented();
+		ImGui::EndTooltip();
+	}
+
+	//not_implemented();
 	return m_bHintShowing;
 }
 //---------------------------------------------------------------------------
@@ -318,15 +318,17 @@ void TUI::HideHint()
 }
 //---------------------------------------------------------------------------
 
-void TUI::ShowHint(const xr_string& s)
+void TUI::ShowHint()
 {
-	VERIFY			(m_bReady);
-	GetCursorPos	(&m_HintPoint);
-	AStringVec 		SS;
-	SS.push_back	(s);
+	VERIFY(m_bReady);
+	GetCursorPos(&m_HintPoint);
+	AStringVec SS;
 	Tools->OnShowHint(SS);
-	if (!ShowHint(SS)) HideHint();
+
+	if (!ShowHint(SS)) 
+		HideHint();
 }
+
 //---------------------------------------------------------------------------
 
 #include "..\xrEngine\IGame_Persistent.h"
@@ -384,9 +386,6 @@ void TUI::Redraw()
 {
 	PrepareRedraw();
 
-#ifndef DEBUG
-	try
-#endif
 	{
 		Viewport& View = CurrentView();
 
@@ -500,17 +499,9 @@ void TUI::Redraw()
 					DU_impl.DrawPivot(m_Pivot);
 				}
 
-#ifndef DEBUG
-				try
-#endif
 				{
 					Tools->Render();
 				}
-#ifndef DEBUG
-				catch (...) {
-					ELog.DlgMsg(mtError, "Please notify AlexMX!!! Critical error has occured in render routine!!! [Type B]");
-				}
-#endif
 				// draw selection rect
 				if (m_SelectionRect) 	DU_impl.DrawSelectionRect(m_SelStart, m_SelEnd);
 
@@ -562,6 +553,7 @@ void TUI::Redraw()
 
 				UI->EndFrame();
 				EDevice->End();
+				UI->MDIUpdate();
 			}
 #ifndef DEBUG
 			catch (...)
@@ -571,13 +563,6 @@ void TUI::Redraw()
 #endif
 		}
 	}
-#ifndef DEBUG
-	catch(...)
-	{
-		ELog.DlgMsg(mtError, "Please notify AlexMX!!! Critical error has occured in render routine!!! [Type A]");
-		EDevice->End();
-	}
-#endif
 
 	for (auto Callback : CommandList[TUI::ECommandListID::CurrentFrame])
 		Callback();
@@ -698,7 +683,7 @@ bool TUI::OnCreate()
   //  m_D3DPanel		= p;
 	EDevice->Initialize();
 	// Creation
-	ETOOLS::ray_options	(CDB::OPT_ONLYNEAREST | CDB::OPT_CULL);
+	XRC.ray_options(CDB::OPT_ONLYNEAREST | CDB::OPT_CULL);
 
 	pInput			= new CInput(FALSE, all_device_key);
 
@@ -709,12 +694,6 @@ bool TUI::OnCreate()
 
 	m_bReady		= true;
 
-#if 0
-	if (!CreateMailslot()) {
-		ELog.DlgMsg(mtError, "Can't create mail slot.\nIt's possible two Editors started.");
-		return 		false;
-	}
-#endif
 	string_path log_path;
 	if (!FS.exist(log_path,_temp_,""))
 	{
@@ -856,6 +835,7 @@ void TUI::OnDrawUI()
 	UIImageEditorForm::Update();
 	UISoundEditorForm::Update();
 	UIMinimapEditorForm::Update();
+    UIWeatherPropForm::Update();
 	UIIconPicker::Update();
 	UILogForm::Update();
 	EDevice->seqDrawUI.Process(rp_DrawUI);

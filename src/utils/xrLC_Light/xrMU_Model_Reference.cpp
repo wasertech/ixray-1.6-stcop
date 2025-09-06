@@ -4,7 +4,7 @@
 #include "xrLC_GlobalData.h"
 #include "xrMU_Model.h"
 
-#include "../../xrCDB/xrCDB.h"
+#include "../../xrCore/Collision/xrCDB.h"
 #include "../Shader_xrLC.h"
 #include "xrFace.h"
  
@@ -90,3 +90,29 @@ void xrMU_Reference::export_cform_rcast(CDB::CollectorPacked& CL)
 	model->export_cform_rcast(CL,xform);
 }
  
+void xrMU_Reference::export_cform_rcast_new(xr_vector<FaceDataIntel>& faces)
+{
+	model->export_cform_rcast_new(faces, xform);
+}
+ 
+// Collision Building 
+void xrMU_Reference::export_cform_game_new(xr_vector<FaceDataIntel>& faces)
+{
+	for (auto F : model->m_faces)
+	{
+ 		const Shader_xrLC& SH = F->Shader();
+ 		if (!SH.flags.bCollision) continue;
+
+		Fvector					P[3];
+		xform.transform_tiny(P[0], F->v[0]->P);
+		xform.transform_tiny(P[1], F->v[1]->P);
+		xform.transform_tiny(P[2], F->v[2]->P);
+
+		FaceDataIntel data;
+		data.v1 = P[0];
+		data.v2 = P[1];
+		data.v3 = P[2];
+		data.ptr = F;
+		faces.push_back(data);
+	}
+}

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "UIEditLibrary.h"
 #include "../../xrECore/Editor/Library.h"
+#include "imgui_internal.h"
 
 static FS_FileSet modif_map;
 UIEditLibrary* UIEditLibrary::Form = nullptr;
@@ -41,7 +42,7 @@ void UIEditLibrary::OnItemFocused(ListItem* item)
 
 		if (m_Thm && m_Thm->_FaceCount() != 0 && m_Thm->_VertexCount() != 0)
 		{
-			m_Thm->Update(m_RealTexture);
+			m_Thm->Update((ID3DBaseTexture*&)m_RealTexture);
 			m_Thm->FillInfo(Info);
 			m_Props->AssignItems(Info);
 		}

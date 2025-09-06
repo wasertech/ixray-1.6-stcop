@@ -1,31 +1,17 @@
 #pragma once
 
 #define MESHSTRUCTURE_API XRLC_LIGHT_API
-
-class MESHSTRUCTURE_API vector_item
-{
-protected:
-	vector_item		():m_self_index(u32(-1)){}
-private:
-	u32				m_self_index;
-public:
-	IC void set_index( u32 self_index )
-	{ 
-		m_self_index = self_index; 
-	}
-	IC u32		self_index( ) const
-	{ 
-		return m_self_index; 
-	}
-};
-template <typename DataVertexType> struct Tvertex;
+ 
 class CDeflector;
+
+template <typename DataVertexType> struct Tvertex;
+
 template <typename DataVertexType>
-struct MESHSTRUCTURE_API Tface: public DataVertexType::DataFaceType, public vector_item
+struct MESHSTRUCTURE_API Tface: public DataVertexType::DataFaceType 
 {
 	typedef	Tvertex<DataVertexType>	type_vertex;
 	typedef	Tface<DataVertexType>	type_face;
-	type_vertex*	v[3];
+	type_vertex* v[3] = {};
 
 public:
 				Tface	();
@@ -34,15 +20,15 @@ public:
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 	void	Verify		();
 	void 	Failure		();
-	void	OA_Unwarp	(CDeflector * d);
+	void	OA_Unwarp	(CDeflector * d, xr_vector<type_face*>& affected);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
-	IC void				raw_set_vertex( u8 index, type_vertex* _v )
+	IC void raw_set_vertex( u8 index, type_vertex* _v )
 	{
 		R_ASSERT( index<3 );
 		v[index] = _v;
 	}
-	IC type_vertex*		vertex( u8 index )
+	IC type_vertex*	vertex( u8 index )
 	{
 		R_ASSERT( index<3 );
 		return v[index];
@@ -54,12 +40,30 @@ public:
 	{
 		return VIndex(pV)>=0;	
 	};
+
 // Replace ONE vertex by ANOTHER
 	IC void		VReplace	(type_vertex* what, type_vertex* to)
 	{
-		if (v[0]==what) { v[0]=to; what->prep_remove(this); to->prep_add(this); }
-		if (v[1]==what) { v[1]=to; what->prep_remove(this); to->prep_add(this); }
-		if (v[2]==what) { v[2]=to; what->prep_remove(this); to->prep_add(this); }
+		if (v[0]==what) 
+		{
+			v[0]=to;
+			what->prep_remove(this); 
+			to->prep_add(this);
+		}
+
+		if (v[1]==what) 
+		{
+			v[1]=to; 
+			what->prep_remove(this);
+			to->prep_add(this);
+		}
+
+		if (v[2]==what) 
+		{
+			v[2]=to;
+			what->prep_remove(this); 
+			to->prep_add(this);
+		}
 	};
 	IC void		VReplace_not_remove(type_vertex* what, type_vertex* to)
 	{
@@ -143,7 +147,6 @@ public:
 
 	void	CalcNormal2	()
 	{
-		FPU::m64r		();
 		Dvector			v0,v1,v2,t1,t2,dN;
 		v0.set			(v[0]->P);
 		v1.set			(v[1]->P);
@@ -199,28 +202,29 @@ public:
 };
 
 template <typename DataVertexType>
-struct MESHSTRUCTURE_API Tvertex: public DataVertexType, public vector_item
+struct MESHSTRUCTURE_API Tvertex: public DataVertexType 
 {
+/*			TYPES			*/
 	typedef	Tface<DataVertexType>			type_face;
 	typedef	Tvertex<DataVertexType>			type_vertex;
 
 	typedef xr_vector<type_face*>			v_faces;
 	typedef typename v_faces::iterator		v_faces_it;
 
-	//typedef typename xr_vector<type_vertex>::iterator v_dummy;
-	typedef xr_vector<type_vertex*>			 v_vertices;
-
+ 	typedef xr_vector<type_vertex*>			 v_vertices;
 	typedef typename v_vertices::iterator	v_vertices_it;
-//////////////////////////////////////////////////////////////
-				Tvertex();
-virtual			~Tvertex();
-Tvertex*		CreateCopy_NOADJ( v_vertices& vertises_storage ) const;
-  
 
-//////////////////////////////////////////////////////////////
- 
-///////////////////////////////////////////////////////////////
-	v_faces							m_adjacents;
+/* Constructor */
+	Tvertex();
+ 	~Tvertex();
+
+	size_t used_memory() { return (72) + (m_adjacents.size()*8); };
+
+/*	FUNCTIONS MAIN */
+	Tvertex* CreateCopy_NOADJ(v_vertices& vertises_storage) const;
+
+
+	v_faces m_adjacents;
  
 
 	IC	type_vertex* CreateCopy(v_vertices& vertises_storage)
@@ -232,7 +236,7 @@ Tvertex*		CreateCopy_NOADJ( v_vertices& vertises_storage ) const;
 
 	IC	void	prep_add(type_face* F)
 	{	
-		 v_faces_it I = std::find(m_adjacents.begin(),m_adjacents.end(),F);
+		v_faces_it I = std::find(m_adjacents.begin(),m_adjacents.end(),F);
 		if (I==m_adjacents.end())	
 			m_adjacents.push_back(F);
 	}
@@ -240,8 +244,10 @@ Tvertex*		CreateCopy_NOADJ( v_vertices& vertises_storage ) const;
 	IC	void	prep_remove(type_face* F)
 	{	
 		v_faces_it I = std::find(m_adjacents.begin(),m_adjacents.end(),F);	
-		if (I!=m_adjacents.end())	
-						m_adjacents.erase(I);
+		if (I != m_adjacents.end())
+		{
+ 			m_adjacents.erase(I);
+		}
 	}
 
 	IC void	normalFromAdj()
@@ -256,7 +262,7 @@ Tvertex*		CreateCopy_NOADJ( v_vertices& vertises_storage ) const;
 
 
 
- template<typename typeVertex>
+template<typename typeVertex>
 IC  void   _destroy_vertex( typeVertex* &v, bool unregister )
 {
 	destroy_vertex( v, unregister );
@@ -276,42 +282,44 @@ struct remove_pred
 		return false;
 	}
 } ;
-
+ 
 template<typename typeVertex>
 IC void isolate_vertices(BOOL bProgress, xr_vector<typeVertex*> &vertices )
 {
-	if (bProgress)		Status		("Isolating vertices...");
-	//g_bUnregister		= false;
-	const u32 verts_old		= (u32)vertices.size();
+ 	// Status		("Isolating vertices...");
 
-	for (int it=0; it<int(verts_old); ++it)	
+ 	const u32 verts_old		= (u32)vertices.size();
+	u32 vRemoveReal = 0;
+
+ 	for (auto it = 0; it < verts_old; it++)
 	{
-		if (bProgress)	
-			Progress	(float(it)/float(verts_old));
+		Progress	(float(it)/float(verts_old));
 
 		if (vertices[it] && vertices[it]->m_adjacents.empty())
-			_destroy_vertex( vertices[it], false );
-			
+		{
+			_destroy_vertex(vertices[it], false);
+			vRemoveReal++;
+		}
 	}
+	//);
 	VERIFY( verts_old == vertices.size() );
 
 	auto _end	= std::remove	(vertices.begin(),vertices.end(),(typeVertex*)0);
-
-/*
-	remove_pred<typeVertex> rp;
-	xr_vector<typeVertex*>::iterator	_end	= std::remove_if	(vertices.begin(),vertices.end(),rp);
+ 	vertices.erase	(_end,vertices.end());
+	vertices.shrink_to_fit();
+ 	
 	
-*/
-	vertices.erase	(_end,vertices.end());
-	//g_bUnregister		= true;
+	// 13080 (Ориг нормали) если capacity 12750mb
 	Memory.mem_compact	();
 	
 	if (bProgress)	
-			Progress	(1.f);
+		Progress	(1.f);
 
 	u32 verts_new		= (u32)vertices.size();
 	u32	_count			= verts_old-verts_new;
 	
-	if	(_count)		
-		clMsg	("::compact:: %d verts removed",_count);
+	// if	(_count)		
+	// 	clMsg	("::compact:: %d verts removed",_count);
+
+	// Status(":: compacting vertex: %u, capacity: %u", vertices.size(), vertices.capacity());
 }

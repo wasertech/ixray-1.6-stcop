@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "../Public/PropertiesListHelper.h"
 #include "ItemListHelper.h"
@@ -69,6 +69,8 @@ FloatValue* 	CPropHelper::CreateFloat	(PropItemVec& items, shared_str key, float
 {   return		(FloatValue*)	AppendValue	(items,key,new FloatValue(val,mn,mx,inc,decim),PROP_NUMERIC);	}
 BOOLValue* 	  	CPropHelper::CreateBOOL		(PropItemVec& items, shared_str key, BOOL* val)
 {   return		(BOOLValue*)	AppendValue	(items,key,new BOOLValue(val),PROP_BOOLEAN);        			}
+BoolValue* 	  	CPropHelper::CreateBool		(PropItemVec& items, shared_str key, bool* val)
+{   return		(BoolValue*)	AppendValue	(items,key,new BoolValue(val),PROP_BOOLEAN);        			}
 VectorValue*   	CPropHelper::CreateVector	(PropItemVec& items, shared_str key, Fvector* val, float mn, float mx, float inc, int decim)
 {   return		(VectorValue*)	AppendValue	(items,key,new VectorValue(val,mn,mx,inc,decim),PROP_VECTOR);	}
 Flag8Value*		CPropHelper::CreateFlag8   	(PropItemVec& items, shared_str key, Flags8* val, u8 mask, LPCSTR c0, LPCSTR c1, u32 flags)
@@ -114,15 +116,17 @@ GameTypeValue* CPropHelper::CreateGameType(PropItemVec& items, shared_str key, G
 {	return		(GameTypeValue*)AppendValue	(items,key,new GameTypeValue(val),PROP_GAMETYPE);								}
 
 //---------------------------------------------------------------------------
-ChooseValue*	CPropHelper::CreateChoose	(PropItemVec& items, shared_str key, shared_str* val, u32 mode, LPCSTR path, void* fill_param, u32 sub_item_count, u32 choose_flags)
+ChooseValue* CPropHelper::CreateChoose(PropItemVec& items, shared_str key, shared_str* val, u32 mode, LPCSTR path, void* fill_param, u32 sub_item_count, u32 choose_flags)
 {	
 	ChooseValue* cv = (ChooseValue*)AppendValue	(items,key,new ChooseValue(val,mode,path,fill_param,sub_item_count,choose_flags),PROP_CHOOSE);
 	SChooseEvents* E= UIChooseForm::GetEvents(mode); 
-	/*if (E&&!E->on_thm.empty()){
-	    cv->Owner()->m_Flags.set(PropItem::flDrawThumbnail,TRUE);
-     //	cv->OnDrawThumbnailEvent = E->on_thm;
-    }*/
 	return	   	cv;	
+}
+MultiChooseValue* CPropHelper::CreateChooseTexture(PropItemVec& items, shared_str key)
+{
+    MultiChooseValue* cv = (MultiChooseValue*)AppendValue(items, key, new MultiChooseValue(), PROP_CHOOSE_TEXTURE);
+    cv->Owner()->IsTextureItem = true;
+    return cv;
 }
 //---------------------------------------------------------------------------
 // obsolette

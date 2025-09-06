@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "Utils/Cursor3D.h"
 #include "UI/UIEditLibrary.h"
+#include "Scene/LEPhysics.h"
+#include "../Viewports/ViewportMesh.h"
 
 #define DETACH_FRAME(a) 	if (a){ a=0; }
 #define ATTACH_FRAME(a,b)	if (a){b=a;}
@@ -8,6 +10,21 @@
 CLevelTool*	LTools=(CLevelTool*)Tools;
 
 TShiftState ssRBOnly;
+
+int CLevelTool::AddViewport(IViewport* VP)
+{
+	Viewlist.push_back(VP);
+	return Viewlist.size() - 1;
+}
+
+void CLevelTool::RemoveViewport(IViewport* VP)
+{
+	auto Iter = std::find(Viewlist.begin(), Viewlist.end(), VP);
+	if (Iter != Viewlist.end())
+	{
+		Viewlist.erase(Iter);
+	}
+}
 
 CLevelTool::CLevelTool()
 {
@@ -260,7 +277,7 @@ bool CLevelTool::UpdateCamera()
 
 		extern ENGINE_API float psHUD_FOV;
 		Device.mProject_hud.build_projection(deg2rad(psHUD_FOV), Device.fASPECT,
-			HUD_VIEWPORT_NEAR, g_pGamePersistent->Environment().CurrentEnv->far_plane);
+			Device.fHUDViewportNear, g_pGamePersistent->Environment().CurrentEnv->far_plane);
 
 		Device.mView_hud.set(Device.mView);
 		Device.mFullTransform_hud.mul(Device.mProject_hud, Device.mView_hud);
@@ -375,22 +392,18 @@ void CLevelTool::ZoomObject(BOOL bSelectedOnly)
 
 void CLevelTool::GetCurrentFog(u32& fog_color, float& s_fog, float& e_fog)
 {
-
-	if (psDeviceFlags.is(rsEnvironment)&&psDeviceFlags.is(rsFog)||UI->IsPlayInEditor())
+	if (psDeviceFlags.is(rsEnvironment) && psDeviceFlags.is(rsFog) || UI->IsPlayInEditor())
 	{
-		s_fog				= g_pGamePersistent->Environment().CurrentEnv->fog_near;
-		e_fog				= g_pGamePersistent->Environment().CurrentEnv->fog_far;
-		Fvector& f_clr		= g_pGamePersistent->Environment().CurrentEnv->fog_color;
-		fog_color 			= color_rgba_f(f_clr.x,f_clr.y,f_clr.z,1.f);
+		s_fog = g_pGamePersistent->Environment().CurrentEnv->fog_near;
+		e_fog = g_pGamePersistent->Environment().CurrentEnv->fog_far;
+		Fvector& f_clr = g_pGamePersistent->Environment().CurrentEnv->fog_color;
+		fog_color = color_rgba_f(f_clr.x, f_clr.y, f_clr.z, 1.f);
 	}
 	else
 	{
-   
-		s_fog				= psDeviceFlags.is(rsFog)?(1.0f - fFogness)* 0.85f * UI->ZFar():0.99f*UI->ZFar();
-		e_fog				= psDeviceFlags.is(rsFog)?0.91f * UI->ZFar():UI->ZFar();
-
+		s_fog = psDeviceFlags.is(rsFog) ? (1.0f - fFogness) * 0.85f * UI->ZFar() : 0.99f * UI->ZFar();
+		e_fog = psDeviceFlags.is(rsFog) ? 0.91f * UI->ZFar() : UI->ZFar();
 	}
-	
 }
 
 
@@ -500,11 +513,21 @@ void  CLevelTool::Render()
 
 	case esEditLightAnim:
 	case esEditScene:
-		Scene->Render(UI->CurrentView().m_Camera.GetTransform()); 
-		if (psDeviceFlags.is(rsEnvironment) || UI->IsPlayInEditor())
-			g_pGamePersistent->Environment().RenderLast();
+		Scene->Render(UI->CurrentView().m_Camera.GetTransform());
+        if (psDeviceFlags.is(rsEnvironment) || UI->IsPlayInEditor())
+        {
+            g_pGamePersistent->Environment().RenderFlares();
+            g_pGamePersistent->Environment().RenderLast();
+        }
 	break;
 	case esBuildLevel: Builder.OnRender(); break;
+	case esEditCustom:
+	{
+		for (IViewport* VP : Viewlist)
+		{
+			VP->Render();
+		}
+	}
 	}
 
 	// draw cursor
@@ -512,12 +535,10 @@ void  CLevelTool::Render()
     inherited::Render();
 }
 
-
 void CLevelTool::ShowObjectList()
 {
  //if (pObjectListForm) pObjectListForm->ShowObjectList();
 }
-
 
 void CLevelTool::RealUpdateObjectList()
 {
@@ -525,12 +546,10 @@ void CLevelTool::RealUpdateObjectList()
 	m_Flags.set(flUpdateObjectList,FALSE);
 }
 
-
 bool CLevelTool::IsModified()
 {
 	return Scene->IsUnsaved();
 }
-
 
 #include "../XrECore/Editor/EditMesh.h"
 bool CLevelTool::RayPick(const Fvector& start, const Fvector& dir, float& dist, Fvector* pt, Fvector* n)
@@ -604,18 +623,20 @@ bool CLevelTool::GetSelectionPosition(Fmatrix& result)
 	}else
 		return 			false;
 }
-void   CLevelTool::Simulate()
+
+void CLevelTool::Simulate()
 {
-/*	if (!g_scene_physics.Simulating())
-		g_scene_physics.CreateShellsSelected();
-	else
-		g_scene_physics.DestroyAll();
-	UI->RedrawScene();
-	ExecCommand(COMMAND_REFRESH_UI_BAR);*/
+    if (!g_scene_physics.Simulating())
+        g_scene_physics.CreateShellsSelected();
+    else
+        g_scene_physics.DestroyAll();
+    UI->RedrawScene();
+    ExecCommand(COMMAND_REFRESH_UI_BAR);
 }
-void   CLevelTool::UseSimulatePositions()
+
+void CLevelTool::UseSimulatePositions()
 {
-	/*g_scene_physics.UseSimulatePoses();*/
+    g_scene_physics.UseSimulatePoses();
 }
 
 void CLevelTool::RunGame(const char* Params)

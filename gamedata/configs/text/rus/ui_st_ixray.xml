@@ -37,6 +37,9 @@
     <string id="smaa">
         <text>SMAA</text>
     </string>
+    <string id="taa">
+        <text>TAA</text>
+    </string>
     <string id="ui_mm_r_scale_mode">
         <text>Масштабирование</text>
     </string>
@@ -91,6 +94,9 @@
     </string>
     <string id="ui_mm_dof_reload">
         <text>DoF при перезарядке</text>
+    </string>
+    <string id="ui_mm_dof_talk">
+        <text>DoF при диалоге</text>
     </string>
     <string id="ui_rs_fps_show">
         <text>Счетчик фпс</text>
@@ -367,5 +373,32 @@
 	</string>
 	<string id="st_creating_new_game">
 		<text>Создание новой игры</text>
+	</string>
+	<string id="ui_mm_lang">
+		<text>Язык</text>
+	</string>
+    <string id="rus">
+		<text>Русский</text>
+	</string>
+	<string id="eng">
+		<text>English</text>
+	</string>
+	<string id="ui_inv_max_weight">
+		<text>макс.</text>
+	</string>
+	<string id="st_track_opt_off">
+		<text>выкл.</text>
+	</string>
+	<string id="st_track_opt_on">
+		<text>вкл.</text>
+	</string>
+	<string id="Contacts">
+		<text>Контакты</text>
+	</string>
+	<string id="pda_btn_contacts">
+		<text>Контакты</text>
+	</string>
+	<string id="pda_btn_contacts_hint">
+		<text>Показать список контактов сталкеров</text>
 	</string>
 </string_table>

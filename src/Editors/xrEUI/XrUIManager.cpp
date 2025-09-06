@@ -6,6 +6,11 @@
 #include <SDL3/SDL.h>
 #include "xrUITheme.h"
 #include "ImGuizmo.h"
+#include "imgui_internal.h"
+#include "font/fa.h"
+#include "IconsFontAwesome6.h"
+
+XREUI_API XrUIManager* GUIManager = nullptr;
 
 XrUIManager::XrUIManager()
 {
@@ -79,8 +84,16 @@ void XrUIManager::Initialize(HWND hWnd, IDirect3DDevice9* device, const char* in
 		ImCurrentFont = OldFont;
 	}
 
-	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
-	io.Fonts->Build();
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+
+	static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+	ImFontConfig icons_config = {};
+	icons_config.MergeMode = true;
+	FontsStorage["_fa"] = io.Fonts->AddFontFromMemoryCompressedTTF(FontAwesome_compressed_data, FontAwesome_compressed_size, 16.0f, &icons_config, icons_ranges);
+
+	//io.Fonts->Build();
+
 	//ImGui_ImplWin32_Init(hWnd);
 	ImGui_ImplSDL3_InitForD3D(g_AppInfo.Window);
 	ImGui_ImplDX9_Init(device);
@@ -134,6 +147,16 @@ void XrUIManager::EndFrame()
 	}
 }
 
+void XrUIManager::MDIUpdate()
+{
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		ImGui::UpdatePlatformWindows();
+		ImGui::RenderPlatformWindowsDefault();
+	}
+}
+
 void XrUIManager::ResetBegin()
 {
 	for (auto Ptr : m_UIArray)
@@ -141,12 +164,12 @@ void XrUIManager::ResetBegin()
 		Ptr->ResetBegin();
 	}
 
-	ImGui_ImplDX9_Shutdown();
+	ImGui_ImplDX9_InvalidateDeviceObjects();
 }
 
 void XrUIManager::ResetEnd(void* NewDevice)
 {
-	ImGui_ImplDX9_Init((IDirect3DDevice9*)NewDevice);
+	ImGui_ImplDX9_CreateDeviceObjects();
 
 	for (auto Ptr : m_UIArray)
 	{
@@ -250,6 +273,16 @@ void XrUIManager::Push(IEditorWnd* ui, bool need_deleted)
 	ui->Flags.set(!need_deleted, IEditorWnd::F_NoDelete);
 }
 
+void XrUIManager::Remove(IEditorWnd* ui)
+{
+	auto Iter = std::find(m_UIArray.begin(), m_UIArray.end(), ui);
+	
+	if (Iter != m_UIArray.end())
+	{
+		m_UIArray.erase(Iter);
+	}
+}
+
 void XrUIManager::PushBegin(IEditorWnd* ui, bool need_deleted)
 {
 	m_UIArray.insert(m_UIArray.begin(), ui);
@@ -263,11 +296,12 @@ void XrUIManager::Draw()
 	ImGui::NewFrame();
     ImGuizmo::BeginFrame();
 
+	ImGui::PushFont(FontsStorage["_fa"]);
 	ImGui::PushFont(FontsStorage[ImCurrentFont]);
 	//ImGui::DockSpaceOverViewport();
 	{
 		m_MenuBarHeight = 32;
-		int headerSize = 10;
+		int headerSize = 8;
 		ImGuiViewport* viewport = ImGui::GetMainViewport();
 		ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + m_MenuBarHeight - headerSize));
 		ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, viewport->Size.y - headerSize));
@@ -315,6 +349,7 @@ void XrUIManager::Draw()
 		ImGui::PopItemFlag();
 	}
 
+	ImGui::PopFont();
 	ImGui::PopFont();
 	//ImGui::EndFrame();
 

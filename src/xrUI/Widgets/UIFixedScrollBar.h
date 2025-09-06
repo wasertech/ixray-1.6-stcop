@@ -23,7 +23,7 @@ public:
 	CUIFixedScrollBar();
 	virtual	~CUIFixedScrollBar();
 
-	virtual	void InitScrollBar(Fvector2 pos, bool horizontal, LPCSTR profile = "pda");
+	virtual	bool InitScrollBar(Fvector2 pos, bool horizontal, LPCSTR profile = "pda");
 	virtual void SetWidth(float width) {};
 	virtual void SetHeight(float height) {};
 	virtual void Draw() {inherited::Draw();};
@@ -34,4 +34,7 @@ public:
 	virtual	bool OnMouseDownEx();
 	virtual void OnMouseUp(int mouse_btn);
 	virtual bool OnKeyboardHold(int dik);
+
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUIFixedScrollBar* ui_cast_fixed_scroll_bar() { return this; }
 };

@@ -14,6 +14,12 @@ struct clsid_manager
 	void add_item(CLASS_ID id);
 	bool is_item(CLASS_ID id);
 
+	void add_item_used(CLASS_ID id);
+	bool is_item_used(CLASS_ID id);
+
+	void add_device(CLASS_ID id);
+	bool is_device(CLASS_ID id);
+
 	void add_outfit(CLASS_ID id);
 	bool is_outfit(CLASS_ID id);
 
@@ -34,6 +40,21 @@ struct clsid_manager
 
 	void add_vehicle(CLASS_ID id);
 	bool is_vehicle(CLASS_ID id);
+
+	void add_dynamic_object(CLASS_ID id);
+	bool is_dynamic_object(CLASS_ID id);
+
+	void add_explo(CLASS_ID id);
+	bool is_explo(CLASS_ID id);
+
+	void add_npc(CLASS_ID id);
+	bool is_npc(CLASS_ID id);
+
+	void add_anomaly(CLASS_ID id);
+	bool is_anomaly(CLASS_ID id);
+
+	bool is_squad(CLASS_ID id);
+	void add_squad(CLASS_ID id);
 
 	const xr_set<CLASS_ID>& get_items(void) const { return items; }
 	const xr_set<CLASS_ID>& get_outfits(void) const { return outfits; }
@@ -79,6 +100,7 @@ struct clsid_manager
 	CLASS_ID monster_tushkano = TEXT2CLSID("SM_TUSHK");
 	CLASS_ID monster_psydog = TEXT2CLSID("SM_DOG_P");
 	CLASS_ID monster_psydogphantom = TEXT2CLSID("SM_DOG_F");
+	CLASS_ID monster_crow = TEXT2CLSID("AI_CROW");
 
 	CLASS_ID weapon_binocular = TEXT2CLSID("WP_BINOC");
 	CLASS_ID weapon_knife = TEXT2CLSID("WP_KNIFE");
@@ -113,18 +135,40 @@ struct clsid_manager
 	CLASS_ID addon_glaun = TEXT2CLSID("WP_GLAUN");
 
 	CLASS_ID item_torch = TEXT2CLSID("TORCH_S");
-	CLASS_ID item_detector_scientific = TEXT2CLSID("DET_SCIE");
-	CLASS_ID item_detector_elite = TEXT2CLSID("DET_ELIT");
-	CLASS_ID item_detector_advanced = TEXT2CLSID("DET_ADVA");
-	CLASS_ID item_detector_simple = TEXT2CLSID("DET_SIMP");
 	CLASS_ID item_pda = TEXT2CLSID("S_PDA");
 	CLASS_ID item_d_pda = TEXT2CLSID("D_PDA");
 	CLASS_ID item_ii_attch = TEXT2CLSID("II_ATTCH");
 	CLASS_ID item_medkit = TEXT2CLSID("S_MEDKI");
 	CLASS_ID item_bandage = TEXT2CLSID("S_BANDG");
 	CLASS_ID item_antirad = TEXT2CLSID("S_ANTIR");
-	CLASS_ID item_food = TEXT2CLSID("S_FOOD");
 	CLASS_ID item_bottle = TEXT2CLSID("S_BOTTL");
+
+	CLASS_ID item_ii_explo = TEXT2CLSID("II_EXPLO");
+	CLASS_ID item_ii_doc = TEXT2CLSID("II_DOC");
+	CLASS_ID item_ii_bttch = TEXT2CLSID("II_BTTCH");
+	CLASS_ID item_nw_attch = TEXT2CLSID("NW_ATTCH");
+	CLASS_ID item_ii_bolt = CLSID_IITEM_BOLT;
+
+	// Items used
+	CLASS_ID item_food = TEXT2CLSID("S_FOOD");
+	CLASS_ID item_ii_antir = CLSID_IITEM_ANTIRAD;
+	CLASS_ID item_ii_medki = CLSID_IITEM_MEDKIT;
+	CLASS_ID item_ii_bandg = CLSID_IITEM_BANDAGE;
+	CLASS_ID item_ii_food = CLSID_IITEM_FOOD;
+	CLASS_ID item_ii_bottl = CLSID_IITEM_BOTTLE;
+
+	// Detectors
+	CLASS_ID item_detector_scientific = TEXT2CLSID("DET_SCIE");
+	CLASS_ID item_detector_elite = TEXT2CLSID("DET_ELIT");
+	CLASS_ID item_detector_advanced = TEXT2CLSID("DET_ADVA");
+	CLASS_ID item_detector_simple = TEXT2CLSID("DET_SIMP");
+	CLASS_ID item_d_elite = CLSID_DETECTOR_ELITE;
+	CLASS_ID item_d_scientific = CLSID_DETECTOR_SCIENTIFIC;
+	CLASS_ID item_d_advanc = CLSID_DETECTOR_ADVANCED;
+	CLASS_ID item_d_flare = TEXT2CLSID("D_FLARE");
+	CLASS_ID item_d_simple = CLSID_DETECTOR_SIMPLE;
+	CLASS_ID item_d_smetr = TEXT2CLSID("D_DSMETR");
+	CLASS_ID item_d_custom = TEXT2CLSID("D_CUSTOM");
 
 	CLASS_ID mp_out_scientific = CLSID_EQUIPMENT_SCIENTIFIC;
 	CLASS_ID mp_out_stalker = CLSID_EQUIPMENT_STALKER;
@@ -179,17 +223,52 @@ struct clsid_manager
 	CLASS_ID mp_art_gravi = CLSID_AF_GRAVI;
 	CLASS_ID mp_art_cta = CLSID_AF_CTA;
 
+	// Dynamic objects
+	CLASS_ID do_dstr_s = TEXT2CLSID("O_DSTR_S");
+	CLASS_ID o_physic_s = TEXT2CLSID("O_PHYS_S");
+	CLASS_ID do_object_item_std = CLSID_OBJECT_ITEM_STD;
+	CLASS_ID do_object_breakable = CLSID_OBJECT_BREAKABLE;
+	CLASS_ID do_object_climable = CLSID_OBJECT_CLIMABLE;
+	CLASS_ID do_object_holder_ent = CLSID_OBJECT_HOLDER_ENT;
+	CLASS_ID do_ph_skeleton_object = CLSID_PH_SKELETON_OBJECT;
+	CLASS_ID do_object_physic = CLSID_OBJECT_PHYSIC;
+	CLASS_ID do_physics_destr = CLSID_PHYSICS_DESTROYABLE;
+	CLASS_ID do_invbox = CLSID_INVENTORY_BOX;
+	CLASS_ID s_invbox = TEXT2CLSID("S_INVBOX");
+
+	// Explo
+	CLASS_ID item_s_explo = TEXT2CLSID("S_EXPLO");
+
+	CLASS_ID zs_bfuzz = TEXT2CLSID("ZS_BFUZZ");
+	CLASS_ID zs_galan = TEXT2CLSID("ZS_GALAN");
+	CLASS_ID zs_mbald = TEXT2CLSID("ZS_MBALD");
+	CLASS_ID zs_mince = TEXT2CLSID("ZS_MINCE");
+	CLASS_ID zs_radio = TEXT2CLSID("ZS_RADIO");
+	CLASS_ID zs_torrd = TEXT2CLSID("ZS_TORRD");
+	CLASS_ID z_cfire = TEXT2CLSID("Z_CFIRE");
+	CLASS_ID z_mbald = TEXT2CLSID("Z_MBALD");
+	CLASS_ID z_nograv = TEXT2CLSID("Z_NOGRAV");
+	CLASS_ID z_radio = TEXT2CLSID("Z_RADIO");
+	CLASS_ID z_teambs = TEXT2CLSID("Z_TEAMBS");
+
 private:
 	xr_set<CLASS_ID> weapons;
 	xr_set<CLASS_ID> monsters;
 	xr_set<CLASS_ID> zones;
 	xr_set<CLASS_ID> items;
+	xr_set<CLASS_ID> items_used;
+	xr_set<CLASS_ID> devices;
 	xr_set<CLASS_ID> outfits;
 	xr_set<CLASS_ID> ammo;
 	xr_set<CLASS_ID> addons;
 	xr_set<CLASS_ID> artefacts;
 	xr_set<CLASS_ID> vehicles;
 	xr_set<CLASS_ID> mp_stuffs;
+	xr_set<CLASS_ID> dynamic_objects;
+	xr_set<CLASS_ID> explosives;
+	xr_set<CLASS_ID> npc_list;
+	xr_set<CLASS_ID> anomalies;
+	xr_set<CLASS_ID> squads;
 };
 
 enum eSelectedType {
@@ -275,21 +354,64 @@ private:
 	const char* getTranslatedString(eSelectedType type);
 };
 
+struct CHudAdjustManager
+{
+	struct CommandState
+	{
+		u32 encoded_position=0;
+		u32 encoded_rotation=0;
+	};
+
+	struct History
+	{
+		u32 current_cursor;
+		xr_vector<CommandState> storage;
+	};
+
+	struct Settings
+	{
+		/// @brief \~english specifies amount of commands that will be store for undo/redo operations
+		u32 history_command_max_count;
+
+		FILE* p_file = nullptr;
+		Fvector3 hud_position;
+		Fvector3 hud_rotation;
+		Fvector3 item_position;
+		Fvector3 item_rotation;
+
+		Fvector3 hud_position_default;
+		Fvector3 hud_rotation_default;
+		Fvector3 item_position_default;
+		Fvector3 item_rotation_default;
+		char data_of_save[32];
+	};
+
+	bool is_initialized;
+	Settings settings;
+	History history;
+};
+
 constexpr float kGeneralAlphaLevelForImGuiWindows = 0.5f;
 
 void InitSections();
 void InitImGuiCLSIDInGame();
 void InitImGuiSearchInGame();
+void InitImGuiHudAdjustInGame();
 
 void RenderTimeManagerWindow();
 void RenderSpawnManagerWindow();
 void RenderWeaponManagerWindow();
 void RenderSearchManagerWindow();
+void RenderHUDAdjustManager();
+void RenderToolsOMFEditorWindow();
 
 void DestroySpawnManagerWindow();
 
 void RegisterImGuiInGame();
 void execute_console_command_deferred(CConsole* c, LPCSTR string_to_execute);
 
+constexpr const char* kImGuiHudAdjustInGame_SettingsFileName = "iha.bin";
+
 extern clsid_manager* g_pClsidManager;
 extern CImGuiGameSearchManager imgui_search_manager;
+extern CHudAdjustManager imgui_hud_adjust_manager;

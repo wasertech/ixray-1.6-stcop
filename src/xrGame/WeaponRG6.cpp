@@ -51,53 +51,6 @@ void CWeaponRG6::Load(LPCSTR section)
 	inheritedSG::Load(section);
 }
 
-void CWeaponRG6::FireStart()
-{
-	if (!IsMisfire())
-	{
-		if (GetState() != eIdle)
-		{
-			return;
-		}
-
-		if (IsValid())
-		{
-			if (!IsWorking() || AllowFireWhileWorking())
-			{
-				CWeapon::FireStart();
-
-				if (iAmmoElapsed == 0)
-				{
-					switch2_Empty();
-				}
-				else
-				{
-					R_ASSERT(H_Parent());
-					SwitchState(eFire);
-				}
-			}
-		}
-		else
-		{
-			if (GetState() == eIdle)
-				switch2_Empty();
-		}
-	}
-	else
-	{
-		//misfire
-
-		CGameObject* object = smart_cast<CGameObject*>(H_Parent());
-		if (object)
-			object->callback(GameObject::eOnWeaponJammed)(object->lua_game_object(), this->lua_game_object());
-
-		if (smart_cast<CActor*>(this->H_Parent()) && (Level().CurrentViewEntity() == H_Parent()))
-			CurrentGameUI()->AddCustomStatic("gun_jammed", true);
-
-		OnEmptyClick();
-	}
-}
-
 void CWeaponRG6::FireTrace(const Fvector& P, const Fvector& D)
 {
 	inheritedSG::FireTrace(P, D);
@@ -152,9 +105,11 @@ void CWeaponRG6::FireTrace(const Fvector& P, const Fvector& D)
 	VERIFY2(_valid(launch_matrix),"CWeaponRG6::FireStart. Invalid launch_matrix");
 	CRocketLauncher::LaunchRocket(launch_matrix, d, zero_vel);
 
-	CExplosiveRocket* pGrenade = smart_cast<CExplosiveRocket*>(getCurrentRocket());
-	VERIFY(pGrenade);
-	pGrenade->SetInitiator(H_Parent()->ID());
+	if (CExplosiveRocket* pGrenade = smart_cast<CExplosiveRocket*>(getCurrentRocket()))
+	{
+		VERIFY(pGrenade);
+		pGrenade->SetInitiator(H_Parent()->ID());
+	}
 
 	if (OnServer())
 	{
@@ -169,8 +124,11 @@ void CWeaponRG6::FireTrace(const Fvector& P, const Fvector& D)
 	//	dropCurrentRocket();
 	//}
 
-	shared_str fake_grenade_name = pSettings->r_string(m_ammoTypes[m_ammoType].c_str(), "fake_grenade_name");
-	inheritedRL::SpawnRocket(*fake_grenade_name, this);
+	if (infinite_fire())
+	{
+		shared_str fake_grenade_name = pSettings->r_string(m_ammoTypes[m_ammoType].c_str(), "fake_grenade_name");
+		inheritedRL::SpawnRocket(*fake_grenade_name, this);
+	}
 }
 
 void CWeaponRG6::ReloadMagazine()
@@ -200,15 +158,18 @@ void CWeaponRG6::ReloadMagazine()
 		if (!tmp_sect_name)
 			return;
 
-		//попытаться найти в инвентаре патроны текущего типа 
-		m_pCurrentAmmo = smart_cast<CWeaponAmmo*>(m_pInventory->GetAny(tmp_sect_name));
+		//попытаться найти в инвентаре патроны текущего типа
+		PIItem get_any = m_pInventory->GetAny(tmp_sect_name);
+		m_pCurrentAmmo = get_any != nullptr ? get_any->cast_weapon_ammo() : nullptr;
 
 		if (!m_pCurrentAmmo && !m_bLockType)
 		{
 			for (u8 i = 0; i < u8(m_ammoTypes.size()); ++i)
 			{
 				//проверить патроны всех подходящих типов
-				m_pCurrentAmmo = smart_cast<CWeaponAmmo*>(m_pInventory->GetAny(m_ammoTypes[i].c_str()));
+				get_any = m_pInventory->GetAny(m_ammoTypes[i].c_str());
+				m_pCurrentAmmo = get_any != nullptr ? get_any->cast_weapon_ammo() : nullptr;
+
 				if (m_pCurrentAmmo)
 				{
 					m_ammoType = i;

@@ -95,6 +95,10 @@ target_include_directories(xrAbstractions PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/AI
 target_include_directories(xrAbstractions PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(xrAbstractions PUBLIC "${IXRAY_SDK_INC}")
 
+if(WIN32)
+    target_include_directories(xrAbstractions PUBLIC ${CORE_DXMATH}/include/)
+endif()
+
 # Move precompiled header
 target_validate_pch(xrAbstractions ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -103,7 +107,6 @@ target_compile_definitions(xrAbstractions PRIVATE ENGINE_BUILD)
 
 # Linker list
 target_link_libraries(xrAbstractions PUBLIC xrCore)
-target_link_libraries(xrAbstractions PUBLIC xrCDB)
 target_link_libraries(xrAbstractions PUBLIC xrSound)
 target_link_libraries(xrAbstractions PUBLIC luabind)
 target_link_libraries(xrAbstractions PUBLIC xrNetServer)

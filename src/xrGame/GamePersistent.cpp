@@ -35,9 +35,7 @@
 #	include "custommonster.h"
 #endif // MASTER_GOLD
 
-#ifndef _EDITOR
-#	include "ai_debug.h"
-#endif // _EDITOR
+#include "ai_debug.h"
 #include "../../xrUI/ui_base.h"
 #include "../xrCore/discord/discord.h"
 #include "../xrEngine/string_table.h"
@@ -59,8 +57,8 @@ CGamePersistent::CGamePersistent(void)
 	ambient_effect_wind_out_time= 0.f;
 	ambient_effect_wind_on		= false;
 
-	ZeroMemory					(ambient_sound_next_time, sizeof(ambient_sound_next_time));
-	
+	ambient_sound_next_time.reserve(32);
+
 
 	m_pUI_core					= nullptr;
 	m_pMainMenu					= nullptr;
@@ -281,21 +279,19 @@ void CGamePersistent::WeathersUpdate()
 			if (actor) bIndoor			= actor->renderable_ROS()->get_luminocity_hemi()<0.05f;
 		}
 
-		int data_set				= (Random.randF()<(1.f-Environment().CurrentEnv->weight))?0:1; 
-		
-		CEnvDescriptor* const current_env	= Environment().Current[0]; 
-		VERIFY						(current_env);
+		const size_t data_set = (Random.randF() < (1.f - Environment().CurrentEnv->weight)) ? 0 : 1;
 
 		CEnvDescriptor* const _env	= Environment().Current[data_set]; 
 		VERIFY						(_env);
 
 		CEnvAmbient* env_amb		= _env->env_ambient;
 		if (env_amb) {
-			CEnvAmbient::SSndChannelVec& vec	= current_env->env_ambient->get_snd_channels();
-			CEnvAmbient::SSndChannelVecIt I		= vec.begin();
-			CEnvAmbient::SSndChannelVecIt E		= vec.end();
+			CEnvAmbient::SSndChannelVec& vec = env_amb->get_snd_channels();
+
+			auto I = vec.cbegin();
+			const auto E = vec.cend();
 			
-			for (u32 idx=0; I!=E; ++I,++idx) {
+			for (size_t idx=0; I!=E; ++I,++idx) {
 				CEnvAmbient::SSndChannel& ch	= **I;
 				R_ASSERT						(idx<20);
 				if(ambient_sound_next_time[idx]==0)//first
@@ -324,24 +320,6 @@ void CGamePersistent::WeathersUpdate()
 //					Msg("- Playing ambient sound channel [%s] file[%s]",ch.m_load_section.c_str(),snd._handle()->file_name());
 				}
 			}
-/*
-			if (Device.dwTimeGlobal > ambient_sound_next_time)
-			{
-				ref_sound* snd			= env_amb->get_rnd_sound();
-				ambient_sound_next_time	= Device.dwTimeGlobal + env_amb->get_rnd_sound_time();
-				if (snd)
-				{
-					Fvector	pos;
-					float	angle		= ::Random.randF(PI_MUL_2);
-					pos.x				= _cos(angle);
-					pos.y				= 0;
-					pos.z				= _sin(angle);
-					pos.normalize		().mul(env_amb->get_rnd_sound_dist()).add(Device.vCameraPosition);
-					pos.y				+= 10.f;
-					snd->play_at_pos	(0,pos);
-				}
-			}
-*/
 			// start effect
 			if ((FALSE==bIndoor) && (0==ambient_particles) && Device.dwTimeGlobal>ambient_effect_next_time){
 				CEnvAmbient::SEffect* eff			= env_amb->get_rnd_effect(); 
@@ -487,6 +465,7 @@ void CGamePersistent::game_loaded()
 			load_screen_renderer.b_need_user_input	&& 
 			m_game_params.m_e_game_type == eGameIDSingle)
 		{
+			pApp->SetLoadStageTitle("");
 			VERIFY				(nullptr==m_intro);
 			m_intro				= new CUISequencer();
 			m_intro->Start		("game_loaded");
@@ -614,7 +593,7 @@ if (!g_pGameLevel)
 						C = Actor()->Holder()->Camera();
 
 					Actor()->Cameras().UpdateFromCamera		(C);
-					Actor()->Cameras().ApplyDevice			(VIEWPORT_NEAR);
+					Actor()->Cameras().ApplyDevice			(Device.fViewportNear);
 #ifdef DEBUG
 					if(psActorFlags.test(AF_NO_CLIP))
 					{
@@ -660,7 +639,7 @@ if (!g_pGameLevel)
 				C = Actor()->Holder()->Camera();
 
 			Actor()->Cameras().UpdateFromCamera			(C);
-			Actor()->Cameras().ApplyDevice				(VIEWPORT_NEAR);
+			Actor()->Cameras().ApplyDevice				(Device.fViewportNear);
 
 		}
 #endif // MASTER_GOLD
@@ -713,6 +692,7 @@ void CGamePersistent::OnEvent(EVENT E, u64 P1, u64 P2)
 {
 	if (E == eQuickLoad)
 	{
+		PROF_EVENT("eQuickLoad");
 		loading_save_timer.Start();
 		loading_save_timer_started = true;
 		Msg("* Game Loading Timer: Started from Save Reloading");
@@ -755,12 +735,6 @@ void CGamePersistent::OnEvent(EVENT E, u64 P1, u64 P2)
 
 void CGamePersistent::Statistics	(CGameFont* F)
 {
-#if 0
-#	ifndef _EDITOR
-		m_last_stats_frame		= m_frame_counter;
-		profiler().show_stats	(F,!!psAI_Flags.test(aiStats));
-#	endif
-#endif
 }
 
 float CGamePersistent::MtlTransparent(u32 mtl_idx)
@@ -861,6 +835,21 @@ void CGamePersistent::LoadTitle(bool change_tip, shared_str map_name)
 
 		pApp->LoadTitleInt		(g_pStringTable->translate("ls_header").c_str(), tmp.c_str(), g_pStringTable->translate(buff).c_str());
 	}
+}
+
+void CGamePersistent::SetLoadStageTitle(pcstr ls_title)
+{
+	if (Device.IsEditorMode()) // idk why, but SDK keeps crashing here for some reason, so I decided to just turn off load stages for SDK
+		return;
+
+	string256 buff;
+	if (ls_title)
+	{
+		xr_sprintf(buff, "%s%s", g_pStringTable->translate(ls_title).c_str(), "...");
+		pApp->SetLoadStageTitle(buff);
+	}
+	else
+		pApp->SetLoadStageTitle("");
 }
 
 bool CGamePersistent::CanBePaused()

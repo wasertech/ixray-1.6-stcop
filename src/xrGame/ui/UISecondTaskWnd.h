@@ -41,8 +41,11 @@ public:
 	virtual void	OnFocusLost			();
 	virtual void	Update				();
 	virtual void	SendMessage			( CUIWindow* pWnd, s16 msg, void* pData );
+			void	ShowOnlySecondaryTasks(bool mode) { m_show_only_secondary_tasks = mode; }
 
 			void	UpdateList			();
+
+	virtual CUIWindow* ui_cast_window() { return this; }
 
 protected:
 	void 	OnBtnClose			( CUIWindow* w, void* d);
@@ -62,6 +65,7 @@ private: // m_
 
 //	u32					m_activ_task_count;
 	float				m_orig_h;
+	bool				m_show_only_secondary_tasks;
 
 }; // class UITaskListWnd
 
@@ -74,7 +78,7 @@ private:
 
 public:
 					UITaskListWndItem	();
-	virtual			~UITaskListWndItem	();
+	virtual			~UITaskListWndItem	() = default;
 
 			bool	init_task			( CGameTask* task, UITaskListWnd* parent );
 	IC		u32		get_priority_task	() const;
@@ -84,6 +88,8 @@ public:
 	virtual void	Update				();
 	virtual void	SendMessage			( CUIWindow* pWnd, s16 msg, void* pData );
 	virtual bool	OnMouseAction				( float x, float y, EUIMessages mouse_action );
+
+	virtual CUIWindow* ui_cast_window() { return this; }
 
 private:
 			void	hide_hint			();
@@ -97,7 +103,7 @@ public:
 private: // m_
 	CGameTask*		m_task;
 	CUI3tButton*	m_name;
-//	CUICheckButton*	m_bt_view;
+	CUICheckButton*	m_bt_view;
 	CUIStatic*		m_st_story;
 	CUI3tButton*	m_bt_focus;
 

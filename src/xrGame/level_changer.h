@@ -24,6 +24,7 @@ private:
 	float					m_entrance_time;
 	shared_str				m_invite_str;
 	bool					m_b_enabled;
+	bool					condWork;
 
 	void					update_actor_invitation	();
 	bool					m_bSilentMode;
@@ -47,6 +48,9 @@ public:
 	virtual BOOL	net_SaveRelevant		();
 	virtual void	save					(NET_Packet &output_packet);
 	virtual void	load					(IReader &input_packet);
+
+	virtual CGameObject* cast_game_object() { return this; }
+	virtual CLevelChanger* cast_level_changer() { return this; }
 
 #ifdef DEBUG_DRAW
 	virtual void		OnRender();
