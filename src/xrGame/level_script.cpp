@@ -178,8 +178,11 @@ CScriptGameObject *get_object_by_name(LPCSTR caObjectName)
 CScriptGameObject *get_object_by_id(u16 id)
 {
 	CGameObject* pGameObject = smart_cast<CGameObject*>(Level().Objects.net_Find(id));
-	if(!pGameObject)
+	if (!pGameObject)
+	{
+		//g_pScriptEngine->print_stack();
 		return nullptr;
+	}
 
 	return pGameObject->lua_game_object();
 }
@@ -389,7 +392,8 @@ void map_add_object_spot(u16 id, LPCSTR spot_type, LPCSTR text)
 void map_add_object_spot_ser(u16 id, LPCSTR spot_type, LPCSTR text)
 {
 	CMapLocation* ml = Level().MapManager().AddMapLocation(spot_type,id);
-	if( xr_strlen(text) )
+
+	if (text && xr_strlen(text))
 			ml->SetHint(text);
 
 	ml->SetSerializable(true);

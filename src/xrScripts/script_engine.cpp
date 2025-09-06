@@ -47,6 +47,7 @@ void CScriptEngine::unload				()
 
 int CScriptEngine::lua_panic			(lua_State *L)
 {
+	g_pScriptEngine->print_stack();
 	print_output	(L,"PANIC",LUA_ERRRUN);
 	return			(0);
 }
@@ -59,6 +60,7 @@ void CScriptEngine::lua_error			(lua_State *L)
 
 #if !XRAY_EXCEPTIONS
 	Debug.fatal				(DEBUG_INFO,"LUA error: %s",lua_tostring(L,-1));
+	g_pScriptEngine->print_stack();
 #else
 	throw					lua_tostring(L,-1);
 #endif
@@ -66,6 +68,7 @@ void CScriptEngine::lua_error			(lua_State *L)
 
 int CScriptEngine::lua_pcall_failed(lua_State* L)
 {
+	g_pScriptEngine->print_stack();
 	print_output(L, "", LUA_ERRRUN);
 	g_pScriptEngine->on_error(L);
 
@@ -78,11 +81,12 @@ int CScriptEngine::lua_pcall_failed(lua_State* L)
 	return (LUA_ERRRUN);
 }
 
-void lua_cast_failed					(lua_State *L, LUABIND_TYPE_INFO info)
+void lua_cast_failed(lua_State *L, LUABIND_TYPE_INFO info)
 {
+	g_pScriptEngine->print_stack();
 	CScriptEngine::print_output	(L,"",LUA_ERRRUN);
 
-	Debug.fatal				(DEBUG_INFO,"LUA error: cannot cast lua value to %s",info->name());
+	Debug.fatal(DEBUG_INFO,"LUA error: cannot cast lua value to %s",info->name());
 }
 
 void CScriptEngine::setup_callbacks		()

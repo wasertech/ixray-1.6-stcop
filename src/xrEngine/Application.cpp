@@ -234,8 +234,7 @@ void CApplication::LoadForceFinish() {
 
 void CApplication::LoadTitleInt(LPCSTR str1, LPCSTR str2, LPCSTR str3)
 {
-	const static bool disableLoadScreenTips = EngineExternal()[EEngineExternalRender::DisableLoadScreenTips];
-	if (loadingScreen && !disableLoadScreenTips)
+	if (loadingScreen)
 	{
 		loadingScreen->SetStageTip(str1, str2, str3);
 	}
