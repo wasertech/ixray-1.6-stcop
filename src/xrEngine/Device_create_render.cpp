@@ -364,7 +364,7 @@ void CRenderDevice::DestroyRenderDevice()
 
 	case APILevel::DX9:  DestroyD3D9(); break;
 	case APILevel::DX11: DestroyD3D11(); break;
-  case APILevel::Vulkan: DestroyVulkan();break;
+  	case APILevel::Vulkan: DestroyVulkan();break;
 	default: break;
 
 	}
@@ -445,6 +445,7 @@ void CRenderDevice::ResizeBuffers(u32 Width, u32 Height)
 	{
 	case APILevel::DX9:  ResizeBuffersD3D9(Width, Height); break;
 	case APILevel::DX11: ResizeBuffersD3D11(Width, Height); break;
+	case APILevel::Vulkan: ResizeBuffersVulkan(Width, Height); break;
 	default: break;
 	}
 
