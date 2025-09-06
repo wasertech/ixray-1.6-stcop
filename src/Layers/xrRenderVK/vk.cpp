@@ -1,12 +1,11 @@
 #include "stdafx.h"
 #include "vk.h"
+#include <set>
 
 CRender RImplementation;
 
-CRender::CRender()
+CRender::CRender() : R_dsgraph_structure()
 {
-    marker = RDEVICE_MARKER;
-    
     // Initialize Vulkan validation layers in debug builds
 #ifdef DEBUG
     enableValidationLayers = true;
@@ -274,6 +273,16 @@ u32 CRender::memory_usage()
         usage = Resources->_GetMemoryUsage();
     }
     return usage;
+}
+
+LPCSTR CRender::getShaderPath()
+{
+    return "vk\\"; // Vulkan shader path
+}
+
+IRender_interface::GenerationLevel CRender::get_generation()
+{
+    return GENERATION_R2; // Use R2 generation level for Vulkan
 }
 
 // Vulkan-specific implementation methods

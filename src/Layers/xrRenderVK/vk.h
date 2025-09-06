@@ -17,6 +17,8 @@
 #include "../../xrEngine/IRenderable.h"
 #include "../../xrEngine/Fmesh.h"
 
+#include <vector>
+
 // Forward declarations
 class vkRender_Visual;
 
@@ -190,6 +192,9 @@ public:
     virtual void rmNormal() override;
 
     virtual u32 memory_usage() override;
+
+    virtual LPCSTR getShaderPath() override;
+    virtual GenerationLevel get_generation() override;
 
     // Vulkan specific methods
     bool InitializeVulkan();
