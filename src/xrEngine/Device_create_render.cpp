@@ -173,6 +173,11 @@ void ResizeBuffersD3D11(u16 Width, u16 Height);
 void DestroyD3D11();
 #endif
 
+bool CreateVulkan();
+bool UpdateBuffersVulkan();
+void ResizeBuffersVulkan(u16 Width, u16 Height);
+void DestroyVulkan();
+
 bool CRenderDevice::InitRenderDeviceEditor()
 {
 	fill_vid_mode_list();
@@ -309,6 +314,11 @@ bool CRenderDevice::InitRenderDevice(APILevel API)
 		}
 		break;
 
+	case APILevel::Vulkan:
+		if (!CreateVulkan()) {
+			return false;
+		}
+		break;
 #endif
 	default:
 		break;
@@ -339,6 +349,10 @@ void CRenderDevice::DestroyRenderDevice()
 #ifndef _EDITOR
 	case APILevel::DX11:
 		DestroyD3D11();
+		break;
+
+	case APILevel::Vulkan:
+		DestroyVulkan();
 		break;
 #endif
 
@@ -404,6 +418,9 @@ void CRenderDevice::ResizeBuffers(u32 Width, u32 Height)
 #ifndef _EDITOR
 	case APILevel::DX11:
 		ResizeBuffersD3D11(Width, Height);
+		break;
+	case APILevel::Vulkan:
+		ResizeBuffersVulkan(Width, Height);
 		break;
 #endif
 	default:
