@@ -98,3 +98,8 @@ ixray-1.6-stcop/
 src/ixray-1.6-stcop/
 NuGet.exe
 ./nuget
+./tmp.debug_cmd
+
+# Copilot Stuff
+.github/copilot-instructions.md
+.github/*.instructions.md
