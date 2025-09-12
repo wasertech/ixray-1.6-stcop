@@ -36,6 +36,9 @@
     <string id="smaa">
         <text>SMAA</text>
     </string>
+    <string id="taa">
+        <text>TAA</text>
+    </string>
     <string id="ui_mm_r_scale_mode">
         <text>Scaling</text>
     </string>
@@ -89,6 +92,9 @@
     </string>
     <string id="ui_mm_dof_reload">
         <text>DoF on Reload</text>
+    </string>
+    <string id="ui_mm_dof_talk">
+        <text>DoF on Talk</text>
     </string>
     <string id="ui_rs_fps_show">
         <text>FPS Counter</text>
@@ -363,5 +369,17 @@
 	</string>
 	<string id="st_creating_new_game">
 		<text>Creating new game</text>
+	</string>
+	<string id="ui_mm_lang">
+		<text>Language</text>
+	</string>
+    <string id="rus">
+		<text>Russian</text>
+	</string>
+	<string id="eng">
+		<text>English</text>
+	</string>
+	<string id="ui_inv_max_weight">
+		<text>max</text>
 	</string>
 </string_table>
