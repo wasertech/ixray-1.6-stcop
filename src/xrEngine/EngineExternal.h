@@ -47,6 +47,7 @@ public:
 
 	xr_string GetTitle() const;
 	const char* GetPlayerHudOmfAdditional() const;
+	const char* GetPreferredFallbackLanguage() const;
 
 	u32 GetFontAltasSize() const;
 
