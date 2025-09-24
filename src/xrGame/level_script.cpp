@@ -1122,6 +1122,25 @@ void RefreshNamesNPC()
 	}
 }
 
+void RefreshInventoryItemTranslations()
+{
+	for (auto& [id, pointer] : ai().alife().objects().objects())
+	{
+		if (g_pGameLevel == nullptr)
+			continue;
+
+		const auto obj = g_pGameLevel->Objects.net_Find(id);
+		if (obj != nullptr)
+		{
+			CInventoryOwner* owner = obj->cast_inventory_owner();
+			if (owner)
+			{
+				owner->RefreshInventoryTranslations();
+			}
+		}
+	}
+}
+
 bool IsUIShown()
 {
 	return CurrentGameUI()->GameIndicatorsShown();

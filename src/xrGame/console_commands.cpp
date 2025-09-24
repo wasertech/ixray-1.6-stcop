@@ -2316,6 +2316,7 @@ public:
 #endif
 
 extern void RefreshNamesNPC();
+extern void RefreshInventoryItemTranslations();
 extern void execute_console_command_deferred(CConsole* c, LPCSTR string_to_execute);
 
 class CCC_ChangeLanguage : public CCC_Token
@@ -2369,6 +2370,7 @@ public:
 		if (g_pGameLevel != nullptr)
 		{
 			RefreshNamesNPC();
+			RefreshInventoryItemTranslations();
 		}
 	}
 

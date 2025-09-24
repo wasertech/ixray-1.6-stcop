@@ -109,6 +109,7 @@ public:
 public:
 	virtual void				Load				(LPCSTR section);
 			void				ReadCustomTextAndMarks(LPCSTR section);
+			void				RefreshTranslations	();
 
 			LPCSTR				NameItem			();// remove <virtual> by sea
 			LPCSTR				NameShort			();
