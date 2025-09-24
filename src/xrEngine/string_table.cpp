@@ -266,6 +266,9 @@ void CStringTable::ReloadLanguage(const char* lang)
 	pData = new STRING_TABLE_DATA();
 	pData->m_sLanguage = lang;
 
+	// Get preferred fallback language from EngineExternal
+	pData->m_sFallbackLanguage = EngineExternal().GetPreferredFallbackLanguage();
+
 	FS_FileSet fset;
 	FS_FileSet efset;
 
@@ -288,6 +291,32 @@ void CStringTable::ReloadLanguage(const char* lang)
 		xr_strcat(fn, ext);
 
 		Load(fn);
+	}
+
+	// Load fallback language files if fallback language is different from main language
+	if (pData->m_sFallbackLanguage.size() > 0 && 
+	    xr_strcmp(pData->m_sLanguage.c_str(), pData->m_sFallbackLanguage.c_str()) != 0)
+	{
+		FS_FileSet fallback_fset;
+		FS_FileSet fallback_efset;
+
+		xr_sprintf(files_mask, "text\\%s\\*.xml", pData->m_sFallbackLanguage.c_str());
+		FS.file_list(fallback_fset, "$game_config$", FS_ListFiles, files_mask);
+
+		xr_sprintf(exclude_files_mask, "text\\%s\\mod_*.xml", pData->m_sFallbackLanguage.c_str());
+		FS.file_list(fallback_efset, "$game_config$", FS_ListFiles, exclude_files_mask);
+
+		for (const FS_File& File : fallback_fset)
+		{
+			if (fallback_efset.contains(File))
+				continue;
+
+			string_path fn, ext;
+			_splitpath(File.name.c_str(), 0, 0, fn, ext);
+			xr_strcat(fn, ext);
+
+			LoadFallback(fn);
+		}
 	}
 
 	ReparseKeyBindings();
